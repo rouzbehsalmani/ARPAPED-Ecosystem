@@ -17,6 +17,11 @@ Added:
 - adaptive split protocol;
 - implementation templates;
 - agent conformance gates;
-- machine-readable cycle input, discovery key, and implementation schemas.
+- machine-readable cycle input, discovery key, and implementation schemas;
+- product manifest template;
+- component contract template;
+- Bridge usage guide;
+- product integration example;
+- Bridge trace definition and schema.
 
 The Blueprint remains product-independent and keeps product evaluation outside its scope.

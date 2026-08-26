@@ -21,6 +21,13 @@ Instead, it gives the agent an explicit bootstrap and resolution protocol for fi
 7. `04-runtime/registry-implementation-contract.md`
 8. `05-governance/agent-conformance-gates.md`
 
+## For product creators
+
+1. `03-component-lifecycle/product-manifest-template.md`
+2. `03-component-lifecycle/component-contract-template.md`
+3. `04-runtime/bridge-usage-guide.md`
+4. `04-runtime/product-integration-example.md`
+
 ## This is not a product Blueprint
 
 No MakCity-specific implementation is embedded here.
