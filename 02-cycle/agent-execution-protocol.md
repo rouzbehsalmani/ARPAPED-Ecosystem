@@ -1,0 +1,65 @@
+# Agent Execution Protocol
+
+## Cycle input
+
+```text
+current_state
+goal
+```
+
+## Phase 1 — Understand
+
+Resolve the authoritative ecosystem implementation map.
+
+Do not infer missing architecture from product code if the canonical ecosystem already defines it.
+
+## Phase 2 — Decompose the goal
+
+Decompose only into independently meaningful responsibilities.
+
+A decomposition unit should have an independent contract and potential lifecycle.
+
+Do not split a requirement into arbitrary micro-tasks.
+
+## Phase 3 — Discover
+
+Run the scalable discovery algorithm for each responsibility.
+
+## Phase 4 — Decide
+
+For every responsibility choose exactly one:
+
+1. reuse;
+2. compose;
+3. split/refactor;
+4. create.
+
+The reason for the decision must be recorded.
+
+## Phase 5 — Implement
+
+If creating a component:
+
+- define its responsibility;
+- define its generic contract;
+- remove product-specific assumptions where possible;
+- define dependencies;
+- define discoverability metadata;
+- define version and lineage;
+- implement through canonical ecosystem boundaries.
+
+## Phase 6 — Integrate
+
+Integrate through the canonical Bridge and Registry contracts.
+
+Do not introduce a second request pipeline.
+
+## Phase 7 — Publish
+
+Publish the accepted resulting state, component metadata, lineage, and Registry/index information.
+
+## Phase 8 — Return state
+
+The resulting state becomes the input state of the next cycle.
+
+No special knowledge of the previous goal may be required to reuse its outputs.

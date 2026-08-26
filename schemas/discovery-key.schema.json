@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Selective Discovery Key",
+  "type": "object",
+  "required": [
+    "domain",
+    "capability_family",
+    "capability_type",
+    "contract"
+  ],
+  "properties": {
+    "domain": {
+      "type": "string"
+    },
+    "capability_family": {
+      "type": "string"
+    },
+    "capability_type": {
+      "type": "string"
+    },
+    "contract": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "constraints": {
+      "type": "object"
+    }
+  }
+}

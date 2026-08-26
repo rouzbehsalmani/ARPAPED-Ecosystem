@@ -1,0 +1,31 @@
+version: "1.1.0"
+kind: "agent_execution_contract"
+authority: "ARPAPED Self-Improving Cycle Blueprint"
+
+startup:
+  require_ecosystem_root: true
+  require_authoritative_metadata: true
+  require_canonical_bridge_resolution: true
+  require_registry_resolution: true
+  require_policy_resolution: true
+  require_current_state_resolution: true
+
+execution:
+  cycle_model: "recursive_state_transition"
+  product_specific_blueprint: false
+  global_registry_scan: false
+  private_bridge: false
+  private_registry: false
+  duplicate_existing_responsibility: false
+
+decision_order:
+  - "reuse"
+  - "compose"
+  - "split_or_refactor"
+  - "create"
+
+publication:
+  require_discoverability_record: true
+  require_lineage: true
+  require_contract: true
+  require_version: true

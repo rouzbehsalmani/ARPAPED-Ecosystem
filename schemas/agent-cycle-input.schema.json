@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Agent Cycle Input",
+  "type": "object",
+  "required": [
+    "ecosystem_root",
+    "current_state",
+    "goal"
+  ],
+  "properties": {
+    "ecosystem_root": {
+      "type": "string"
+    },
+    "current_state": {
+      "type": "object"
+    },
+    "goal": {
+      "type": "object"
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
