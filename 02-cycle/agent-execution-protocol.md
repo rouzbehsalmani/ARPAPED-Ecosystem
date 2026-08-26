@@ -54,6 +54,8 @@ Integrate through the canonical Bridge and Registry contracts.
 
 Do not introduce a second request pipeline.
 
+The agent MUST inspect the Bridge trace on every response. A trace that does not reach `executed` indicates an integration failure that must be resolved before publishing.
+
 ## Phase 7 — Publish
 
 Publish the accepted resulting state, component metadata, lineage, and Registry/index information.

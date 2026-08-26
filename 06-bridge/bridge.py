@@ -2,6 +2,16 @@
 
 پل نه رجیستری است، نه موتور سیاست، نه انتخاب‌کننده و نه مالک اجرای دپ. فقط
 درخواست استاندارد را از این مراحل عبور می‌دهد و ردپای مرحله‌ای برمی‌گرداند.
+
+Trace stages (in order):
+    validated       - Request passed structural validation.
+    discovered      - Registry returned compatible implementations.
+    policy_evaluated - Policy engine evaluated all candidates.
+    selected        - Selector chose one or more candidates for execution.
+    executed        - Selected implementation completed successfully.
+
+On failure, the trace contains only the stages reached before the error.
+Consumers may use the trace for debugging, auditing, and observability.
 """
 
 from __future__ import annotations
