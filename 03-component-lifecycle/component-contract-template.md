@@ -67,38 +67,38 @@ contract:
 ```yaml
 contract:
   identity:
-    id: "spatial-collision"
-    name: "Spatial Collision Detection"
+    id: "<capability-a>"
+    name: "<Capability A Display Name>"
     version: "1.0.0"
-    domain: "geometry"
-    family: "spatial"
+    domain: "<domain>"
+    family: "<family>"
     type: "capability"
 
   responsibility:
-    description: "Detects collision between geometric shapes in 2D/3D space"
+    description: "<one generic responsibility>"
     invariants:
-      - "Collision result is deterministic for same inputs"
-      - "Does not modify input shapes"
+      - "<property that never changes>"
+      - "<does not modify its inputs>"
 
   interface:
     operations:
-      - name: "detect_collision"
-        description: "Check if two shapes collide"
+      - name: "<operation>"
+        description: "<what the operation does>"
         input:
-          - name: "shape_a"
-            type: "Shape"
+          - name: "<input_a>"
+            type: "<TypeA>"
             required: true
-            description: "First geometric shape"
-          - name: "shape_b"
-            type: "Shape"
+            description: "<first generic input>"
+          - name: "<input_b>"
+            type: "<TypeB>"
             required: true
-            description: "Second geometric shape"
+            description: "<second generic input>"
         output:
-          type: "CollisionResult"
-          description: "Collision detection result with contact points"
+          type: "<ResultType>"
+          description: "<generic result>"
         errors:
-          - code: "INVALID_SHAPE"
-            description: "One or both shapes are invalid or degenerate"
+          - code: "INVALID_INPUT"
+            description: "<input did not satisfy the contract>"
 
   dependencies:
     capabilities: []
@@ -115,10 +115,9 @@ contract:
     lifecycle: "singleton"
 
   discoverability:
-    tags: ["spatial", "collision", "geometry", "physics"]
+    tags: ["<tag-a>", "<tag-b>", "<tag-c>"]
     metadata:
-      performance: "O(n)"
-      precision: "floating-point"
+      performance: "<complexity>"
 
   versioning:
     compatibility: "backward"
@@ -133,6 +132,9 @@ contract:
         cycle: "cycle-001"
 ```
 
+Real capability IDs, types, and domains must be resolved from the ecosystem's
+authoritative manifests; the placeholders above are structural shape only.
+
 ## Rules
 
 1. The contract MUST be registered in the canonical Registry before the component can be discovered.
@@ -141,3 +143,5 @@ contract:
 4. The contract MUST include error definitions for all failure modes.
 5. Version changes MUST follow the declared compatibility policy.
 6. Lineage MUST be updated whenever the component is modified.
+7. Inputs and outputs MUST be generic contract-shaped data (e.g. typed shapes), never the implementing component's internal classes or module names. A consumer must be able to swap the component without changing its contract data (see `04-runtime/capability-reference-discipline.md`).
+8. The contract MUST NOT name or depend on the implementing module, package, or class; the component is bound to the contract through a data-driven capability manifest, not through consumer code.

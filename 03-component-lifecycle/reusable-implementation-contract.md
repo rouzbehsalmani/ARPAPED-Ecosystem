@@ -17,16 +17,17 @@ A newly created capability/component is reusable only if its implementation boun
 
 ## Example decision
 
-Bad:
+Bad (product-specific identity):
 
-`MakCityBuildingCollisionCapability`
+`<ProductX><SpecificFeature><Capability>`
 
-when the actual responsibility is generic spatial collision.
+when the actual responsibility is generic, e.g.:
+`<GenericFeature><Capability>`
 
 Preferred:
 
-`SpatialCollisionCapability`
+`<GenericFeature>Capability`
 
-with MakCity using it as one consumer.
+with the requesting product using it as one consumer among many.
 
 The same rule applies to every domain.

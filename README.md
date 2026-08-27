@@ -26,10 +26,11 @@ Instead, it gives the agent an explicit bootstrap and resolution protocol for fi
 1. `03-component-lifecycle/product-manifest-template.md`
 2. `03-component-lifecycle/component-contract-template.md`
 3. `04-runtime/bridge-usage-guide.md`
-4. `04-runtime/product-integration-example.md`
+4. `04-runtime/capability-reference-discipline.md`  — mandatory: never reference a concrete component
+5. `04-runtime/product-integration-example.md`
 
 ## This is not a product Blueprint
 
-No MakCity-specific implementation is embedded here.
+No product-specific implementation is embedded here.
 No Task A/B/C evaluation scenario is embedded here.
 The Blueprint defines the reusable operating system for the self-improving cycle.

@@ -73,6 +73,12 @@ The agent MUST inspect the Bridge trace on every response. A trace that does not
 
 Publish the accepted resulting state, component metadata, lineage, and Registry/index information.
 
+This is where capability registration happens: component→capability binding is
+performed by the capability manifest + a generic assembler into the canonical
+Registry. Registration is an assembly concern of this phase — it must NOT be
+embedded inside components or consumer code (see
+`04-runtime/capability-reference-discipline.md`).
+
 ## Phase 8 — Return state
 
 The resulting state becomes the input state of the next cycle.

@@ -22,6 +22,9 @@ product:
       - id: "string"
         version: "string"
 
+  roles:                        # logical role -> capability_id mapping
+    - <role>: "<capability_id>" # consumer code references ONLY roles
+
   integration:
     entry_point: "string"     # module path for product initialization
     bridge_request_path: "string"  # how the product sends requests to the Bridge
@@ -37,45 +40,51 @@ product:
 
 ## Example
 
+The example uses abstract placeholders; real capability IDs must be resolved
+from the ecosystem's authoritative manifests, never invented or copied here.
+
 ```yaml
 product:
   identity:
-    id: "makcity-core"
-    name: "MakCity Core"
+    id: "<product>"
+    name: "<Product Display Name>"
     version: "1.0.0"
-    domain: "urban_simulation"
+    domain: "<domain>"
 
   dependencies:
     bridge: ">=1.0.0"
     registry: ">=1.0.0"
     capabilities:
-      - id: "spatial-collision"
+      - id: "<capability-a>"
         version: ">=1.0.0"
-      - id: "resource-exchange"
+      - id: "<capability-b>"
         version: ">=1.0.0"
     components:
-      - id: "terrain-renderer"
+      - id: "<component-c>"
         version: ">=1.0.0"
 
+  roles:                        # logical role -> capability_id (consumer speaks in roles)
+    - <role_a>: <capability-a>
+    - <role_b>: <capability-b>
+
   integration:
-    entry_point: "makcity.core:initialize"
+    entry_point: "<product_pkg>:initialize"
     bridge_request_path: "canonical"
 
   discoverability:
-    tags: ["urban", "simulation", "3d"]
+    tags: ["<tag-a>", "<tag-b>"]
     metadata:
-      engine: "unity"
-      platform: ["windows", "linux"]
+      platform: ["<platform-a>", "<platform-b>"]
 
   lifecycle:
     state: "development"
-    support_contact: "team@makcity.example"
-```
+    support_contact: "<contact>"
 
 ## Rules
 
-1. The manifest MUST be placed at the product root.
+1. The manifest MUST be placed at the top-level directory that holds the product's own source. That directory is a placeholder (`<top_level_dir>`); no fixed directory name is mandated.
 2. The manifest MUST reference canonical Bridge and Registry, never product-local copies.
 3. The manifest MUST NOT contain implementation details; it declares WHAT the product needs, not HOW it works.
 4. Capabilities and components referenced MUST exist in the ecosystem Registry.
 5. Version requirements MUST use semantic versioning constraints.
+6. Consumer code MUST reference `roles`, never concrete component modules/classes; roles resolve to capability IDs through the manifest (see `04-runtime/capability-reference-discipline.md`).

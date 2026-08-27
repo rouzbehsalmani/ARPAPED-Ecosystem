@@ -90,22 +90,24 @@ bridge = Bridge(
 
 ### 2. Create a request
 
+All examples use abstract placeholders; real capability IDs are resolved from
+the ecosystem's authoritative manifests, not invented at the Blueprint layer.
+
 ```python
 from bridge import BridgeRequest
 from policy import PolicyContext
 
 request = BridgeRequest(
     request_id="req-001",
-    capability_id="spatial-collision",
+    capability_id="<capability-a>",
     contract_version=">=1.0.0",
-    operation="detect_collision",
+    operation="<operation>",
     input={
-        "shape_a": {"type": "circle", "radius": 5.0, "center": [0, 0]},
-        "shape_b": {"type": "rectangle", "width": 10, "height": 5, "origin": [3, 0]},
+        "<input_a>": "<value-a>",
+        "<input_b>": "<value-b>",
     },
     policy_context=PolicyContext(
-        user_id="product-makcity",
-        permissions=["spatial:read"],
+        user={}, consumer={}, ecosystem={}, provider={}, module={},
     ),
 )
 ```
@@ -117,16 +119,16 @@ from bridge import BridgeError
 
 try:
     response = bridge.handle(request)
-    
+
     # Check trace for debugging
     if "executed" not in response.trace:
         print(f"Warning: incomplete trace {response.trace}")
-    
-    # Use the output
-    collision = response.output
-    if collision["collides"]:
-        print(f"Collision detected at {contact_points}")
-    
+
+    # Use the generic contract-shaped output
+    output = response.output
+    if output["<flag>"]:
+        print(f"Operation succeeded: {output['<value>']}")
+
 except BridgeError as e:
     print(f"Bridge error: {e.code}@{e.stage}: {e.message}")
     if e.details:
@@ -163,3 +165,6 @@ except BridgeError as e:
 4. Products MUST handle `BridgeError` and not let it propagate unhandled.
 5. Products MUST NOT use the trace for control flow; it is for debugging only.
 6. Products MUST resolve the Bridge from the ecosystem root, not from product code.
+7. Products MUST NOT reference concrete component modules, classes, or registration functions anywhere in consumer code; all capability access is through the Bridge contract (see `capability-reference-discipline.md`).
+8. Component→capability registration MUST be data-driven: performed during the Publish phase by the capability manifest + a generic assembler. Components MUST NOT contain registration logic, so swapping an implementation requires no consumer code change.
+9. Bridge request `input` and response `output` MUST be generic contract-shaped data; implementation-specific types MUST NOT cross the Bridge boundary.

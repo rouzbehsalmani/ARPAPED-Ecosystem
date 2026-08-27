@@ -16,5 +16,9 @@ Before declaring a cycle complete, the agent must be able to answer YES to:
 10. Is the resulting implementation compatible with runtime resolution?
 11. Is the resulting state sufficient for the next cycle to rediscover the work without private agent memory?
 12. Did I audit existing components for split opportunities before proceeding?
+13. Do my consumers reference only capability contracts and never concrete component modules, classes, or registration functions? (See `04-runtime/capability-reference-discipline.md`.)
+14. Is component registration performed during the Publish phase by the manifest + a generic assembler, so that components contain no registration logic and swapping a component requires no consumer code change?
+15. Are contract inputs/outputs generic data shaped by the contract, not implementation-specific types?
+16. Do my components expose only their executor and never import the Registry or embed a `register` function?
 
 A NO means the cycle is not complete.
