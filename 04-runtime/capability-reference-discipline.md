@@ -46,7 +46,7 @@ consumer, the boundary is wrong.
 
 Registration is NOT a component concern; it is an ecosystem-assembly concern.
 It is performed by the agent in the **Publish** phase of the execution cycle
-(`02-cycle/agent-execution-protocol.md`, Phase 7) by publishing component
+(`02-cycle/agent-execution-protocol.md`, Phase 8) by publishing component
 metadata, lineage, and Registry/index information. Concretely:
 
 - the **component** produces ONLY the implementation (an executor) and, at

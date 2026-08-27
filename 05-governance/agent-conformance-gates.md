@@ -21,4 +21,12 @@ Before declaring a cycle complete, the agent must be able to answer YES to:
 15. Are contract inputs/outputs generic data shaped by the contract, not implementation-specific types?
 16. Do my components expose only their executor and never import the Registry or embed a `register` function?
 
+17. Did I run the resulting state through a verification harness — headlessly, with no real terminal required — before publishing? (See `02-cycle/agent-execution-protocol.md` Phase 7 and `04-runtime/verification-contract.md`.)
+
+18. Does the harness exercise every declared capability operation over contract-shaped data through the canonical Bridge, with every trace reaching `executed`?
+
+19. Did I simulate every consumer-visible interaction via a scripted command stream and assert its observable effect — including running an automatic advancement loop in the SAME session as injected inputs, so a reactive loop cannot block interaction?
+
+20. Does every previously-reported defect have a regression check that now PASSES, and is a machine-readable verification record (`schemas/verification-record.schema.json`) written into the resulting state and referenced in the cycle report?
+
 A NO means the cycle is not complete.

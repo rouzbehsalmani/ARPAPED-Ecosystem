@@ -2,7 +2,7 @@
 
 This is the operational Blueprint for the ARPAPED self-improving cycle.
 
-It is designed so an AI or human agent can enter an existing ARPAPED ecosystem, resolve its canonical implementations, understand how to work, discover reusable components at scale, create reusable implementations when necessary, integrate them through the canonical Bridge, publish the resulting state, and continue the process recursively.
+It is designed so an AI or human agent can enter an existing ARPAPED ecosystem, resolve its canonical implementations, understand how to work, discover reusable components at scale, create reusable implementations when necessary, integrate them through the canonical Bridge, verify the resulting state headlessly, publish the resulting state, and continue the process recursively.
 
 ## Important
 
@@ -19,7 +19,8 @@ Instead, it gives the agent an explicit bootstrap and resolution protocol for fi
 5. `03-component-lifecycle/reusable-implementation-contract.md`
 6. `04-runtime/bridge-implementation-contract.md`
 7. `04-runtime/registry-implementation-contract.md`
-8. `05-governance/agent-conformance-gates.md`
+8. `04-runtime/verification-contract.md` — mandatory: verify the resulting state headlessly before publishing
+9. `05-governance/agent-conformance-gates.md`
 
 ## For product creators
 
@@ -28,6 +29,7 @@ Instead, it gives the agent an explicit bootstrap and resolution protocol for fi
 3. `04-runtime/bridge-usage-guide.md`
 4. `04-runtime/capability-reference-discipline.md`  — mandatory: never reference a concrete component
 5. `04-runtime/product-integration-example.md`
+6. `04-runtime/verification-contract.md`  — mandatory: prove behavior with a headless harness before publishing
 
 ## This is not a product Blueprint
 

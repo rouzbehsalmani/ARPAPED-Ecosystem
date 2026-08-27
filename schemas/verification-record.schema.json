@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Verification Record",
+  "description": "Machine-readable record of the mandatory Verify phase. Written into the resulting state; the next cycle re-runs the harness and accepts no goal until the record is green.",
+  "type": "object",
+  "required": [
+    "verification_id",
+    "state_ref",
+    "product_id",
+    "harness",
+    "checks",
+    "passed",
+    "failed",
+    "status"
+  ],
+  "properties": {
+    "verification_id": {
+      "type": "string"
+    },
+    "state_ref": {
+      "type": "string"
+    },
+    "product_id": {
+      "type": "string"
+    },
+    "harness": {
+      "type": "string",
+      "description": "Path or identity of the verification harness in the resulting state."
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["check_id", "description", "status"],
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed"]
+          },
+          "regression_for": {
+            "type": "string",
+            "description": "Previous defect id this check protects against, when applicable."
+          }
+        }
+      }
+    },
+    "passed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["verified", "failed"]
+    },
+    "lineage": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

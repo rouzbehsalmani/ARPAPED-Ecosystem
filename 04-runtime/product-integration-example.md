@@ -125,8 +125,13 @@ When adding features to the product, follow the agent execution protocol:
 4. **Decide** — Choose: reuse, compose, split, or create
 5. **Implement** — Use the Bridge to execute capabilities
 6. **Integrate** — All requests go through the canonical Bridge
-7. **Publish** — Register any new capabilities in the Registry
-8. **Return** — Update state for the next cycle
+7. **Verify** — Run the product headlessly through its verification harness:
+   every capability operation over contract-shaped data with `executed` traces,
+   and every consumer interaction through a scripted command stream (including a
+   reactive loop and injected input in the same session). See
+   `04-runtime/verification-contract.md`.
+8. **Publish** — Register any new capabilities in the Registry
+9. **Return** — Update state for the next cycle
 
 ## What NOT to do
 

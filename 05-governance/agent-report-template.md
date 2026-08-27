@@ -38,6 +38,18 @@ For each responsibility:
 
 `<canonical path reference>`
 
+## Verification
+
+`<harness path/identity in the resulting state>`
+
+`<checks run, passed, failed>` — e.g. `assembly/startup`, per-capability
+operations with `executed` traces, scripted interaction, reactive-loop + input
+session, regression checks.
+
+`<failures observed and fixes applied; re-run status>`
+
+`<verification record reference; status: verified | failed>`
+
 ## Resulting State
 
 `<state>`
