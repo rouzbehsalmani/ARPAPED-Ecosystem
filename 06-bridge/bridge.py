@@ -17,14 +17,14 @@ Consumers may use the trace for debugging, auditing, and observability.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from .policy import PolicyContext, StaticPolicyEngine
 from .registry import CapabilityRegistry
 from .selector import DeterministicSelector
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class BridgeRequest:
     request_id: str
     capability_id: str
@@ -41,7 +41,7 @@ class BridgeRequest:
             raise BridgeError("BRIDGE_INVALID_REQUEST", "validation", "ورودی عملیات باید شیء باشد")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class BridgeResponse:
     request_id: str
     capability_id: str
@@ -51,12 +51,12 @@ class BridgeResponse:
     trace: tuple[str, ...]
 
 
-@dataclass(slots=True)
+@dataclass
 class BridgeError(Exception):
     code: str
     stage: str
     message: str
-    details: dict[str, Any] | None = None
+    details: Optional[dict[str, Any]] = None
 
     def __str__(self) -> str:
         return f"{self.code}@{self.stage}: {self.message}"

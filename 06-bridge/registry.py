@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
     from .policy import PolicyContext
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 Executor = Callable[[str, dict[str, Any], "PolicyContext"], dict[str, Any]]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CapabilityImplementation:
     """اعلام نسخه‌دار یک روش اجرای قابلیت، مستقل از مصرف‌کننده."""
 
@@ -28,7 +28,7 @@ class CapabilityImplementation:
     priority: int = 100
     enabled: bool = True
     healthy: bool = True
-    metadata: dict[str, Any] | None = None
+    metadata: Optional[dict[str, Any]] = None
 
     def validate(self) -> None:
         required = (

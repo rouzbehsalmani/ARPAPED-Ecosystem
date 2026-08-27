@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 from .registry import CapabilityImplementation
 
@@ -30,10 +31,10 @@ class DeterministicSelector:
         return (self.select(options),)
 
 
-@dataclass(slots=True)
+@dataclass
 class _CircuitState:
     failures: int = 0
-    opened_at: float | None = None
+    opened_at: Optional[float] = None
     probe_in_flight: bool = False
 
 

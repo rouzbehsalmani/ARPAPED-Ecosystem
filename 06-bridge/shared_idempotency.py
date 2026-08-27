@@ -14,7 +14,7 @@ from .registry import CapabilityImplementation, CapabilityRegistry
 
 SHARED_IDEMPOTENCY_CAPABILITY = "arpaped.execution.idempotency"
 
-@dataclass(slots=True)
+@dataclass
 class SharedIdempotencyLedger:
     """مالک چرخهٔ عمر ذخیره و عملیات اتمی نتیجهٔ مشترک."""
     manager: Any

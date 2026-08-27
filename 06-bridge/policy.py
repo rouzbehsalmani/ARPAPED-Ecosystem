@@ -12,7 +12,7 @@ from typing import Any
 from .registry import CapabilityImplementation
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PolicyContext:
     """منابع تصمیم سیاست برای همان درخواست، بدون قرارگرفتن در بدنهٔ قابلیت."""
 
@@ -23,7 +23,7 @@ class PolicyContext:
     module: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PolicyDecision:
     allowed: bool
     reason_code: str
