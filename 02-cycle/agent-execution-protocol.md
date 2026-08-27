@@ -13,6 +13,19 @@ Resolve the authoritative ecosystem implementation map.
 
 Do not infer missing architecture from product code if the canonical ecosystem already defines it.
 
+## Phase 1.5 — Component Health Check
+
+Before decomposing the goal, audit existing components for split opportunities.
+
+For each component the agent owns or modified in previous cycles:
+
+1. Does the component have multiple independent responsibilities?
+2. Has the component grown beyond a single coherent contract?
+3. Can parts of the component be discovered and reused independently?
+4. Does the component mix concerns that should be separate?
+
+If any answer is YES, split the component before proceeding. Record the split decision and its reason.
+
 ## Phase 2 — Decompose the goal
 
 Decompose only into independently meaningful responsibilities.

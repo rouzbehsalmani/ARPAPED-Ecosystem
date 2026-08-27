@@ -15,5 +15,6 @@ Before declaring a cycle complete, the agent must be able to answer YES to:
 9. Is the resulting component discoverable through the canonical Registry?
 10. Is the resulting implementation compatible with runtime resolution?
 11. Is the resulting state sufficient for the next cycle to rediscover the work without private agent memory?
+12. Did I audit existing components for split opportunities before proceeding?
 
 A NO means the cycle is not complete.

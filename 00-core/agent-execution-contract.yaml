@@ -17,6 +17,7 @@ execution:
   private_bridge: false
   private_registry: false
   duplicate_existing_responsibility: false
+  proactive_split_check: true
 
 decision_order:
   - "reuse"
