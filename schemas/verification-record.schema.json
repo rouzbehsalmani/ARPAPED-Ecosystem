@@ -34,7 +34,8 @@
         "required": ["check_id", "description", "status"],
         "properties": {
           "check_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Unique across the entire record so an audit can reference exactly one check."
           },
           "description": {
             "type": "string"
@@ -42,6 +43,17 @@
           "status": {
             "type": "string",
             "enum": ["passed", "failed"]
+          },
+          "observed": {
+            "type": ["string", "null"],
+            "description": "Observed evidence (state, counts, message). Always present for failed checks; may also be recorded for passed checks."
+          },
+          "trace": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Observed full Bridge trace for this capability operation, evaluated as validated -> discovered -> policy_evaluated -> selected -> executed. Recorded for every capability operation check."
           },
           "regression_for": {
             "type": "string",

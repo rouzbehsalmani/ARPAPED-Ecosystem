@@ -18,9 +18,6 @@ product:
     capabilities:             # list of required capability contracts
       - id: "string"
         version: "string"
-    components:               # list of required component contracts
-      - id: "string"
-        version: "string"
 
   roles:                        # logical role -> capability_id mapping
     - <role>: "<capability_id>" # consumer code references ONLY roles
@@ -59,9 +56,6 @@ product:
         version: ">=1.0.0"
       - id: "<capability-b>"
         version: ">=1.0.0"
-    components:
-      - id: "<component-c>"
-        version: ">=1.0.0"
 
   roles:                        # logical role -> capability_id (consumer speaks in roles)
     - <role_a>: <capability-a>
@@ -85,6 +79,8 @@ product:
 1. The manifest MUST be placed at the top-level directory that holds the product's own source. That directory is a placeholder (`<top_level_dir>`); no fixed directory name is mandated.
 2. The manifest MUST reference canonical Bridge and Registry, never product-local copies.
 3. The manifest MUST NOT contain implementation details; it declares WHAT the product needs, not HOW it works.
-4. Capabilities and components referenced MUST exist in the ecosystem Registry.
+4. Capabilities referenced MUST exist in the ecosystem Registry (as contracts).
+   The product manifest never references concrete components; implementation
+   selection belongs to the Registry/selector.
 5. Version requirements MUST use semantic versioning constraints.
 6. Consumer code MUST reference `roles`, never concrete component modules/classes; roles resolve to capability IDs through the manifest (see `04-runtime/capability-reference-discipline.md`).

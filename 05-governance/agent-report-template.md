@@ -40,13 +40,19 @@ For each responsibility:
 
 ## Verification
 
+Report against the checklist in `04-runtime/verification-contract.md`. For each
+of its points — assembly/startup; capability decomposition; every capability
+operation with the full ordered trace; every consumer interaction via scripted
+stream; operator decision window; reactive same-session; invariants; record —
+state PASS/FAIL with evidence.
+
 `<harness path/identity in the resulting state>`
 
-`<checks run, passed, failed>` — e.g. `assembly/startup`, per-capability
-operations with `executed` traces, scripted interaction, reactive-loop + input
-session, regression checks.
+`<trace evaluation>` — the observed Bridge trace for every capability operation
+(`validated → discovered → policy_evaluated → selected → executed`,
+`check.trace` in the record) and any failure of the ordered stages.
 
-`<failures observed and fixes applied; re-run status>`
+`<failures observed and fixes applied; regression re-run status>`
 
 `<verification record reference; status: verified | failed>`
 

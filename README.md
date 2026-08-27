@@ -1,38 +1,49 @@
 # ARPAPED Self-Improving Cycle Blueprint v1.1.0 — Agent Executable
 
-This is the operational Blueprint for the ARPAPED self-improving cycle.
+The operational Blueprint for the ARPAPED self-improving cycle.
 
-It is designed so an AI or human agent can enter an existing ARPAPED ecosystem, resolve its canonical implementations, understand how to work, discover reusable components at scale, create reusable implementations when necessary, integrate them through the canonical Bridge, verify the resulting state headlessly, publish the resulting state, and continue the process recursively.
+**The model in one line:** every capability execution goes through one canonical
+Bridge over contract-shaped data, and the cycle always verifies the result
+headlessly before publishing it. Definitions for every term (capability,
+contract, component, Bridge, trace, state, …) live in exactly one place:
+`00-core/glossary.md`.
 
 ## Important
 
-This package does **not** copy or replace the ecosystem's Bridge, Registry, or other canonical implementations.
-
-Instead, it gives the agent an explicit bootstrap and resolution protocol for finding and using those implementations from the authoritative ecosystem root.
+This package does **not** copy or replace the ecosystem's Bridge, Registry, or
+other canonical implementations. It gives an agent an explicit bootstrap and
+resolution protocol for finding and using those implementations from the
+authoritative ecosystem root.
 
 ## Start here
 
 1. `00-core/AGENT-BOOTSTRAP.md`
-2. `00-core/implementation-map.md`
-3. `02-cycle/agent-execution-protocol.md`
-4. `01-discovery/agent-discovery-algorithm.md`
-5. `03-component-lifecycle/reusable-implementation-contract.md`
-6. `04-runtime/bridge-implementation-contract.md`
-7. `04-runtime/registry-implementation-contract.md`
-8. `04-runtime/verification-contract.md` — mandatory: verify the resulting state headlessly before publishing
-9. `05-governance/agent-conformance-gates.md`
+2. `00-core/glossary.md` — definitions used everywhere
+3. `00-core/implementation-map.md`
+4. `02-cycle/agent-execution-protocol.md` — the cycle; conformance gates live inside each phase
+5. `01-discovery/agent-discovery-algorithm.md`
+6. `03-component-lifecycle/reusable-implementation-contract.md`
+7. `03-component-lifecycle/split-protocol.md`
+8. `04-runtime/bridge-contract-and-guide.md`
+9. `04-runtime/registry-implementation-contract.md`
+10. `04-runtime/verification-contract.md` — what a Verify pass must prove
+11. `05-governance/agent-conformance-gates.md` — phase → gate index
+12. `05-governance/agent-report-template.md`
 
 ## For product creators
 
-1. `03-component-lifecycle/product-manifest-template.md`
-2. `03-component-lifecycle/component-contract-template.md`
-3. `04-runtime/bridge-usage-guide.md`
-4. `04-runtime/capability-reference-discipline.md`  — mandatory: never reference a concrete component
-5. `04-runtime/product-integration-example.md`
-6. `04-runtime/verification-contract.md`  — mandatory: prove behavior with a headless harness before publishing
+1. `00-core/glossary.md`
+2. `03-component-lifecycle/product-manifest-template.md`
+3. `03-component-lifecycle/component-contract-template.md`
+4. `04-runtime/bridge-contract-and-guide.md` — request/response/error formats
+5. `04-runtime/capability-reference-discipline.md` — mandatory: never reference a concrete component
+6. `04-runtime/verification-contract.md` — mandatory: prove behavior headlessly before publishing
 
 ## This is not a product Blueprint
 
 No product-specific implementation is embedded here.
 No Task A/B/C evaluation scenario is embedded here.
+No worked product example exists here, by design — an example becomes a second
+source of truth and invites literal copying; the templates and contract formats
+are the shape.
 The Blueprint defines the reusable operating system for the self-improving cycle.

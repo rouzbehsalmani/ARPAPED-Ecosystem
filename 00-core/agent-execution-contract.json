@@ -24,6 +24,11 @@
     "require_scripted_input_simulation": true,
     "require_contract_operation_checks": true,
     "require_trace_validated_to_executed": true,
+    "require_trace_evaluation": true,
+    "require_trace_in_record": true,
+    "require_operator_decision_window": true,
+    "require_capability_decomposition": true,
+    "require_request_path_discipline": true,
     "require_regression_tests_for_reported_defects": true,
     "require_verification_record": true,
     "publish_unverified_state": false

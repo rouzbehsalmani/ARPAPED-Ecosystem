@@ -64,7 +64,7 @@ Publish) and is never embedded inside a component's implementation logic.
 ### 1. Capability contract data lives in a manifest, not in code.
 
 The manifest declares the capability contract data (id, version, operations)
-and which component executor provides it:
+and which component executor provides it — one entry per implementation:
 
 ```yaml
 capabilities:
@@ -73,7 +73,16 @@ capabilities:
     version: 1.0.0
     operations: [<operation-1>, <operation-2>]
     executor: <product_sub>.components.<component_a>:execute
+  - id: <capability-a>          # SECOND implementation of the SAME contract
+    implementation_id: <implementation-b>
+    version: 1.1.0
+    operations: [<operation-1>, <operation-2>]
+    executor: <product_sub>.components.<component_b>:execute
 ```
+
+Two entries declaring the same capability id are two implementations of the ONE
+contract; the Registry then offers both candidates to policy/selector. The
+contract and the consumers never change — only the manifests differ.
 
 ### 2. Components are pure executors; they do not register.
 
@@ -145,6 +154,90 @@ Bridge boundary is a violation.
    violates this discipline and MUST be corrected.
 6. Component modules live behind a boundary (e.g. a `components/` group)
    and expose only their executor; registration is assembled externally.
+7. The product's terminal/CLI input handling is ordinary consumer code: it
+   reaches capabilities through the product's single request-construction
+   point and contains NO `BridgeRequest` construction, NO `bridge.handle`
+   call, and NO component import (see "Request path and layering" below).
+8. Each responsibility is ONE capability contract — the single interface for
+    that capability. It may be satisfied by MULTIPLE implementations, each
+    bound by its own capability-manifest entry referencing the SAME contract;
+    the product manifest references capabilities and never bundles several
+    distinct responsibilities into a single catch-all capability, contract
+    file, or component (see "Capability decomposition" below).
+
+## Request path and layering
+
+Every consumer-visible capability request follows one canonical path:
+
+```text
+consumer code (terminal/CLI input, logic, anything)
+        ->  single request-construction point
+        ->  Bridge
+        ->  registry discovery  ->  policy  ->  selector  ->  component executor
+```
+
+- **consumer code** — any product code that needs a capability, the
+  product's terminal/CLI input handling included. None of it builds a
+  `BridgeRequest`, calls `bridge.handle`, or imports a component module
+  directly; everything funnels through the single request-construction
+  point (below).
+- **single request-construction point** — the ONE place in the product that
+  resolves roles→capability IDs and constructs requests. It speaks only
+  capability IDs + contract operations through the canonical Bridge, is the
+  only product code that calls `bridge.handle`, and contains no component
+  import and no registration logic.
+- **bridge** is the canonical routing boundary; it returns the trace
+  (`validated → discovered → policy_evaluated → selected → executed`).
+- **component** is a registration-unaware executor reached only by the bridge.
+- The **verification harness** is the ONE exception that constructs requests
+  directly — that is exactly how it evaluates the trace. Product code may
+  not.
+
+## Capability decomposition
+
+A capability is one responsibility: one capability ID, ONE contract artifact.
+That contract is the single interface for the capability; implementations may
+be one or several, and each binds to the SAME contract through its own
+capability-manifest entry. The cycle splits goals into such units (Phase 1.5/2)
+and the Verify phase (7) proves the RESULT still carries them:
+
+- the product manifest references capabilities through roles (`role:
+  capability_id`); it never inlines capability definitions or a bundled
+  "all-in-one" contract file that masquerades as the ecosystem implementation
+  map;
+- every declared operation belongs to exactly one capability contract;
+- the verification harness asserts each role resolves to a DISTINCT contract
+  artifact — never two responsibilities under one contract — and that every
+  implementation is bound by its own manifest entry to that SAME contract, and
+  fails if one capability silently absorbed a second responsibility (forcing a
+  `split/refactor` decision).
+
+A product whose "one capability does everything" only proves decomposition
+happened on paper but not in the result.
+
+## Implementation resolution
+
+When a capability is discovered, resolution follows one chain:
+
+```text
+Capability
+  ↓
+Contract
+  ↓
+Compatible implementation(s)
+  ↓
+Policy constraints
+  ↓
+Canonical selection
+  ↓
+Bridge execution
+```
+
+The agent must never treat a source file path as the runtime identity of a
+capability. Runtime identity comes from the canonical Registry/implementation
+model. Consumers resolve the capability contract through the Bridge, receive
+generic contract-shaped data, and never import `<component_module>`,
+`<ImplementationClass>`, or a `register_*` function.
 
 ## Conformance gate
 

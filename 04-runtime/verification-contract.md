@@ -1,92 +1,100 @@
 # Verification Contract
 
 The self-improving cycle publishes a **verified** state, not a written state.
-This document is the mandatory discipline for creating and running the
-verification harness that proves a resulting state behaves correctly.
+This contract is the mandatory checklist for the Verify phase
+(`02-cycle/agent-execution-protocol.md`, Phase 7). The harness lives alongside
+the product and is part of the resulting state.
 
 It exists because assembled products routinely shipped with defects that purely
-"look right" on paper: the product fails to start after an ecosystem rename, a
-declared capability operation crashes on valid data, or advertised user controls
-are unreachable. These defects were discovered only by manual intervention —
-which means the automated cycle was not actually testing its own output. This
-contract closes that gap.
+"look right" on paper: fail to start after a rename, crash on valid contract
+data, advertise unreachable controls, or fill themselves up before the operator
+can act. Verification closes that gap.
 
-## Mandatory Verify phase
+## A pass proves
 
-Verification is a phase of the execution cycle
-(`02-cycle/agent-execution-protocol.md`, Phase 7 — Verify). A cycle is complete
-only after the resulting state passes verification, and the verification record
-is part of the resulting state.
-
-## Scope of a verification pass
-
-The harness MUST prove, headlessly (`isatty()` may never be required):
+The harness runs the product **headlessly** (never requiring `isatty()`) and
+must answer YES to all of the following:
 
 1. **Assembly and startup.** The product resolves the canonical Bridge from the
-   ecosystem root and starts without manual steps. A product that cannot be
-   started and driven by machine input is not verified — it is broken.
-2. **Every declared capability operation.** Each capability in the product
-   manifest is invoked over contract-shaped data through the canonical Bridge,
-   and the response is contract-shaped. The Bridge trace on every invocation
-   must end in `executed`.
-3. **Every consumer-visible behavior.** For interactive products, every
-   advertised user control is exercised through a scripted command stream and
-   its effect on observable state is asserted. An advertised control that has no
-   effect (a dead binding) is a defect.
-4. **Reactive behavior.** A reactive/automatic loop is run in the SAME session as
-   the injected inputs, and both effects are asserted: the automatic advancement
-   progressed AND the user's actions took effect. A loop that resumes only after
-   user input, or that consumes the terminal so no input can be applied, is a
-   failed check.
-5. **Invariants.** Failures and successes are decided on observable behavior
-   (state, counts, cell contents, pause/speed/reset semantics), never on the
-   aesthetic layout of rendered output.
+   ecosystem root and starts/drives without manual steps.
+2. **Capability decomposition.** Each role→capability mapping in the product
+   manifest resolves to a DISTINCT contract artifact (one contract per
+   responsibility — never two responsibilities under one contract); every
+   implementation is bound to that same contract by its own manifest entry,
+   and one capability may have several implementations; every operation
+   belongs to exactly one contract; no bundled catch-all capability, one-file
+   "all capabilities" manifest, or one-component-does-everything.
+3. **Every declared capability operation** is invoked over contract-shaped data
+   through the canonical Bridge, the response is contract-shaped, and the FULL
+   ordered trace is asserted: `validated → discovered → policy_evaluated →
+   selected → executed` (missing stage, wrong order, or no `executed` = fail).
+4. **Every consumer-visible behavior** is exercised through a scripted command
+   stream (`("key", name)`, `("tick", None)`, `("wait", n)` — same handler the
+   real console uses) and its observable effect asserted. A dead binding is a
+   defect.
+5. **Operator decision window.** A scripted operator action can interleave
+   between observable automatic transitions, and unstoppered auto-advance can
+   never exhaust the product's own action space (a city that self-fills 100%
+   of its blocks fails). Auto-growth is rate-bounded and leaves a permanent
+   developable remainder.
+6. **Reactive same session.** The automatic loop AND injected input run in the
+   same session; assert both state advanced AND the user's actions took effect.
+7. **Invariants, not formatting.** Results are decided on observable behavior
+   (state, counts, cells, pause/speed/reset semantics), never on rendered
+   layout.
+8. **Record.** A machine-readable verification record
+   (`schemas/verification-record.schema.json`) is written into the resulting
+   state, referenceable from the cycle report, and green. Every capability
+   operation's observed trace is persisted (`check.trace`); `check_id`s are
+   unique.
 
-## Deterministic, headless execution
+## Determinism, not a wall clock
 
-Interactive/console consumers MUST expose a scripted-input path and a
-controllable clock so verification never depends on a real terminal:
+Interactive/console products MUST expose a scripted-input path and a
+controllable clock: ticking is driven by explicit `tick`/`wait` events, never
+by wall-clock time, and the scripted path shares the handlers with the real
+console path. If the scripted path bypasses real logic, the harness verifies
+nothing.
 
-- a **command stream**: an ordered list of events such as
-  `("key", "<key_name>")`, `("tick", None)`, `("wait", <seconds>)`, where
-  `key_name` uses the same labels the console path produces (e.g.
-  `up`/`down`/`left`/`right`, `space`, `p`, `d`);
-- a **controllable clock**: ticking is driven by explicit `tick`/`wait` events
-  rather than wall-clock time, so a reactive cadence is reproducible.
+## Request-path discipline
 
-The scripted path must share the same handlers as the real console path. If the
-scripted path bypasses real logic, the harness verifies nothing.
+Every consumer-visible request travels one canonical path:
+`consumer code → Bridge → registry → policy → selector → executor` (see
+`04-runtime/capability-reference-discipline.md`).
+
+A product must construct requests in exactly ONE place: the consumer code that
+resolves roles→capability IDs and calls the Bridge. That is the only product
+code allowed to build a `BridgeRequest` or call `bridge.handle`, and it imports
+no component modules. Everything else — the product's terminal/CLI input
+handling included — reaches capabilities through that same point; it never
+builds a `BridgeRequest`, never calls `bridge.handle`, never imports component
+modules.
+
+The verification harness is the ONE exception: it builds requests directly —
+that is exactly how it inspects the trace.
 
 ## Regression discipline
 
-Every defect reported by a previous cycle — whether reported by a human, by a
-consumer, or by an earlier verification run — MUST be reproduced as a
-failing-check-first test:
+Every defect reported by a previous cycle — by a human, a consumer, or an
+earlier verification run — MUST be reproduced as a failing-check-first test:
+write it failing (red), fix the defect, confirm it passes (green), keep it
+forever. The record's `failures` and `regression_for` fields track this. At
+minimum, one named check per observed defect class: dead-on-arrival assembly /
+startup; capability op crash on valid data; unreachable controls; reactive loop
+blocking or pre-empting input; automation exhausting the state (no decision
+window); collapsed capability decomposition; bypassed request path; trace not
+evaluated.
 
-1. write the check so that it FAILS against the current state (red);
-2. fix the defect;
-3. confirm the check PASSES (green);
-4. keep the check in the harness forever.
+## Fail closed
 
-The verification record's `failures` and `regression_for` fields track this
-explicitly, so the next cycle can see which defects are now proven fixed.
-
-## Fail-closed rule
-
-Verification failure is not a report to file — it is the cycle's primary result.
-The agent:
-
-- fixes the defect (or splits/reuses per the Decide phase);
-- re-runs the harness;
-- only then proceeds to Publish (Phase 8).
-
-A state that cannot be assembled, started, driven, or that fails any check is
-never published.
+Verification failure is the cycle's primary result. The agent fixes the defect
+(or splits/reuses per the Decide phase), re-runs the harness, and only then
+proceeds to Publish (Phase 8). A state that cannot be assembled, started,
+driven, decomposed correctly, or that fails any check is never published.
 
 ## Record
 
-Write a machine-readable verification record (`schemas/verification-record.schema.json`)
-into the resulting state and reference it in the cycle report
-(`05-governance/agent-report-template.md`) and in the product manifest's
-discoverability metadata. The next cycle begins by re-running the harness and
-must accept no goal until the record is green.
+The record lives in the resulting state; the next cycle begins by re-running
+the harness and accepts no goal until the record is green. A record that omits
+traces, reuses check IDs, or was not regenerated by a green run is not a valid
+verified state.
