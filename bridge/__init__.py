@@ -1,7 +1,8 @@
-"""رابط عمومی مرجع پل برای کشف و اجرای قابلیت دپ.
+"""Public interface of the local bridge reference for capability discovery and execution.
 
-این بسته مسئولیت‌های پل، رجیستری، سیاست و انتخاب را جدا نگه می‌دارد؛ حتی
-وقتی همه در یک فرایند محلی اجرا می‌شوند. خود دپ هیچ وابستگی‌ای به این بسته ندارد.
+This package keeps the responsibilities of the bridge, registry, policy, and
+selector separate even when all of them run in a single local process. The
+application itself has no dependency on this package.
 """
 
 from .bridge import Bridge, BridgeError, BridgeRequest, BridgeResponse
@@ -21,9 +22,8 @@ __all__ = [
     "PolicyContext",
     "PolicyDecision",
     "StaticPolicyEngine",
-    "PROJECT_STATE_VIEW_CAPABILITY",
     "CircuitBreakingSelector",
-    "SHARED_IDEMPOTENCY_CAPABILITY", 
-    "SharedIdempotencyLedger", 
+    "SHARED_IDEMPOTENCY_CAPABILITY",
+    "SharedIdempotencyLedger",
     "register_shared_idempotency",
 ]

@@ -69,6 +69,7 @@ and which component executor provides it:
 ```yaml
 capabilities:
   - id: <capability-a>
+    implementation_id: <implementation-a>
     version: 1.0.0
     operations: [<operation-1>, <operation-2>]
     executor: <product_sub>.components.<component_a>:execute
@@ -89,6 +90,8 @@ for entry in manifest["capabilities"]:
     module, attr = entry["executor"].split(":")
     executor = getattr(importlib.import_module(module), attr)
     registry.register(CapabilityImplementation(
+        implementation_id=entry["implementation_id"],
+        package_version=entry["version"],
         capability_id=entry["id"],
         contract_version=entry["version"],
         operations=tuple(entry["operations"]),
