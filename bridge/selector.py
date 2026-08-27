@@ -1,8 +1,8 @@
-"""انتخاب و وضعیت شکست گزینه‌هایی که قبلاً از سیاست عبور کرده‌اند.
+"""Selection and failure state of candidates that already passed policy.
 
-انتخاب‌کننده مجازبودن یا سازگاری را تعیین نمی‌کند. نسخهٔ تاب‌آور فقط سلامت
-مشاهده‌شده در زمان اجرا را نگه می‌دارد تا پل بتواند از یک گزینهٔ بازمدار عبور
-کند و پس از مهلت، دقیقاً یک درخواست آزمایشی را به آن بسپارد.
+The selector does not determine permission or compatibility. The resilient
+variant only keeps observed runtime health so the bridge can bypass an
+unavailable candidate and, after the timeout, hand it exactly one probe request.
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ from .registry import CapabilityImplementation
 
 
 class DeterministicSelector:
-    """کمترین اولویت عددی و سپس شناسه را برمی‌گزیند تا نتیجه بازتولیدپذیر باشد."""
+    """Chooses the lowest numeric priority, then the id, for a reproducible result."""
 
     VERSION = "0.1"
 
     def select(self, options: tuple[CapabilityImplementation, ...]) -> CapabilityImplementation:
         if not options:
-            raise ValueError("گزینهٔ مجازی برای انتخاب وجود ندارد")
+            raise ValueError("No candidate available for selection")
         return sorted(options, key=lambda item: (item.priority, item.implementation_id))[0]
 
     def rank(self, options: tuple[CapabilityImplementation, ...]) -> tuple[CapabilityImplementation, ...]:
-        """رفتار قدیمی را حفظ می‌کند: فقط یک گزینه برای اجرا انتخاب می‌شود."""
+        """Preserves the legacy behaviour: only a single candidate is chosen for execution."""
 
         return (self.select(options),)
 
@@ -39,17 +39,18 @@ class _CircuitState:
 
 
 class CircuitBreakingSelector(DeterministicSelector):
-    """مدارشکن حافظه‌ای با گذار بسته، باز و نیمه‌آزمایشی.
+    """In-memory circuit breaker with closed, open, and half-open transitions.
 
-    این وضعیت یک شاهد مرجع زمان اجراست و جای سلامت اعلامی رجیستری را نمی‌گیرد.
-    قفل فقط گذار وضعیت را اتمی می‌کند؛ اجرای ارائه‌دهنده زیر قفل انجام نمی‌شود.
+    This state is a runtime reference witness and does not replace the registry's
+    declared health. The lock only makes state transitions atomic; provider
+    execution never happens under the lock.
     """
 
     VERSION = "0.2"
 
     def __init__(self, *, failure_threshold: int = 1, recovery_timeout: float = 0.2) -> None:
         if failure_threshold < 1 or recovery_timeout < 0:
-            raise ValueError("تنظیم مدارشکن نامعتبر است")
+            raise ValueError("Invalid circuit breaker configuration")
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self._states: dict[str, _CircuitState] = {}
@@ -64,8 +65,8 @@ class CircuitBreakingSelector(DeterministicSelector):
                 if state.opened_at is None:
                     available.append(option)
                 elif now - state.opened_at >= self.recovery_timeout and not state.probe_in_flight:
-                    # تنها یک درخواست حق ورود به حالت نیمه‌آزمایشی دارد؛ بقیه
-                    # تا تعیین نتیجه از ارائه‌دهندهٔ سالم دیگر استفاده می‌کنند.
+                    # Only one request may enter the half-open probe; the rest
+                    # use the other healthy provider until the outcome is known.
                     state.probe_in_flight = True
                     available.append(option)
         return tuple(available)
@@ -83,7 +84,7 @@ class CircuitBreakingSelector(DeterministicSelector):
                 state.opened_at = time.monotonic()
 
     def state(self, implementation_id: str) -> str:
-        """نمای تشخیصی پایدار برای آزمون؛ بخشی از قرارداد قابلیت نیست."""
+        """Stable diagnostic view for tests; not part of the capability contract."""
 
         with self._lock:
             state = self._states.get(implementation_id, _CircuitState())

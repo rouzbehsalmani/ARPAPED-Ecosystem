@@ -1,7 +1,8 @@
-"""دفتر یکتایی مشترک نسخهٔ ۰٫۱ برای هماهنگی اثر میان چند میزبان.
+"""Shared idempotency ledger v0.1 for coordinating effects across hosts.
 
-دفتر از جپا، پل و انتخاب‌کننده مستقل است. مدیر فرایند فقط پیاده‌سازی مرجع
-محلی قرارداد است و می‌تواند بدون تغییر مصرف‌کننده با پیاده‌سازی دیگری عوض شود.
+The ledger is independent of the request pipeline, the bridge, and the selector.
+The process manager is just the local reference implementation of the contract
+and can be swapped for another implementation without changing consumers.
 """
 from __future__ import annotations
 import multiprocessing
@@ -16,7 +17,7 @@ SHARED_IDEMPOTENCY_CAPABILITY = "arpaped.execution.idempotency"
 
 @dataclass
 class SharedIdempotencyLedger:
-    """مالک چرخهٔ عمر ذخیره و عملیات اتمی نتیجهٔ مشترک."""
+    """Owns the storage lifecycle and atomic operations of the shared record."""
     manager: Any
     entries: Any
     lock: Any
@@ -24,8 +25,9 @@ class SharedIdempotencyLedger:
 
     @classmethod
     def start(cls) -> "SharedIdempotencyLedger":
-        # نشانی شبکه‌ای صریح از سوکت یونیکس موقت مستقل است و همان مرز
-        # چندمیزبانی مرجع را در محیط‌های محدود نیز حفظ می‌کند.
+        # An explicit network address is independent of the ephemeral Unix
+        # socket and keeps the reference multi-host boundary even in restricted
+        # environments.
         manager = SyncManager(address=("127.0.0.1", 0), authkey=b"dep-v2-shared-idempotency")
         manager.start()
         return cls(manager, manager.dict(), manager.RLock())
@@ -42,13 +44,13 @@ class SharedIdempotencyLedger:
 
     def execute(self, operation: str, input_record: dict[str, Any], policy: PolicyContext) -> dict[str, Any]:
         if operation != "inspect":
-            raise BridgeError("BRIDGE_UNSUPPORTED_OPERATION", "execution", "عملیات دفتر پشتیبانی نمی‌شود")
+            raise BridgeError("BRIDGE_UNSUPPORTED_OPERATION", "execution", "Ledger operation is not supported")
         with self.lock:
             present = self.entries.get(str(input_record.get("idempotency_key", ""))) is not None
         return {"present": present, "status": "completed" if present else "missing"}
 
 def register_shared_idempotency(registry: CapabilityRegistry) -> SharedIdempotencyLedger:
-    """چرخهٔ مدیریت، دفتر را مستقل می‌سازد و ثبت می‌کند."""
+    """The management cycle starts the ledger and registers it."""
     ledger = SharedIdempotencyLedger.start()
     registry.register(ledger.descriptor())
     return ledger

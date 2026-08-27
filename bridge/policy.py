@@ -1,7 +1,7 @@
-"""سنجش مستقل سیاست برای هر گزینهٔ کشف‌شده.
+"""Independent policy evaluation for each discovered candidate.
 
-این مرجع کوچک پنج منبع سیاست تثبیت‌شده را در یک زمینهٔ صریح دریافت می‌کند.
-وجود تنها یک پیاده‌سازی باعث عبور خودکار از سیاست نمی‌شود.
+This small reference receives the five established policy sources in an explicit
+context. A single available implementation does not bypass policy automatically.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from .registry import CapabilityImplementation
 
 @dataclass(frozen=True)
 class PolicyContext:
-    """منابع تصمیم سیاست برای همان درخواست، بدون قرارگرفتن در بدنهٔ قابلیت."""
+    """Policy decision sources for the request, kept out of the capability body."""
 
     user: dict[str, Any]
     consumer: dict[str, Any]
@@ -30,7 +30,7 @@ class PolicyDecision:
 
 
 class StaticPolicyEngine:
-    """قواعد اعلامی پایه را قطعی و قابل‌آزمون روی هر گزینه اعمال می‌کند."""
+    """Applies the basic declarative rules deterministically and testably to each candidate."""
 
     VERSION = "0.1"
 

@@ -1,7 +1,8 @@
-"""هماهنگ‌کنندهٔ مسیر کامل درخواست قابلیت در مرجع محلی ارپاپد.
+"""Coordinates the full capability request path in the local ARPAPED reference.
 
-پل نه رجیستری است، نه موتور سیاست، نه انتخاب‌کننده و نه مالک اجرای دپ. فقط
-درخواست استاندارد را از این مراحل عبور می‌دهد و ردپای مرحله‌ای برمی‌گرداند.
+The bridge is neither a registry, a policy engine, a selector, nor the owner of
+component execution. It only routes a standard request through these stages and
+returns a stage trace.
 
 Trace stages (in order):
     validated       - Request passed structural validation.
@@ -36,9 +37,9 @@ class BridgeRequest:
     def validate(self) -> None:
         required = (self.request_id, self.capability_id, self.contract_version, self.operation)
         if any(not value.strip() for value in required):
-            raise BridgeError("BRIDGE_INVALID_REQUEST", "validation", "فیلد الزامی درخواست خالی است")
+            raise BridgeError("BRIDGE_INVALID_REQUEST", "validation", "Required request field is empty")
         if not isinstance(self.input, dict):
-            raise BridgeError("BRIDGE_INVALID_REQUEST", "validation", "ورودی عملیات باید شیء باشد")
+            raise BridgeError("BRIDGE_INVALID_REQUEST", "validation", "Operation input must be an object")
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ class BridgeError(Exception):
 
 
 class Bridge:
-    """اعتبارسنجی، کشف، سیاست، انتخاب و اجرا را بدون ادغام مسئولیت‌ها هماهنگ می‌کند."""
+    """Coordinates validation, discovery, policy, selection, and execution without merging responsibilities."""
 
     def __init__(
         self,
@@ -83,7 +84,7 @@ class Bridge:
         )
         trace.append("discovered")
         if not discovered:
-            raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "پیاده‌سازی سازگاری کشف نشد")
+            raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered")
 
         allowed = []
         rejections: dict[str, str] = {}
@@ -95,18 +96,19 @@ class Bridge:
                 rejections[implementation.implementation_id] = decision.reason_code
         trace.append("policy_evaluated")
         if not allowed:
-            raise BridgeError("BRIDGE_POLICY_DENIED", "policy", "همهٔ گزینه‌های سازگار رد شدند", rejections)
+            raise BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected", rejections)
 
         ranked = self.selector.rank(tuple(allowed)) if hasattr(self.selector, "rank") else (self.selector.select(tuple(allowed)),)
         if not ranked:
-            raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "همهٔ گزینه‌های مجاز موقتاً بازمدارند")
+            raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "All allowed candidates are temporarily unavailable")
         trace.append("selected")
         failures: dict[str, dict[str, Any]] = {}
         for selected in ranked:
             try:
-            # زمینهٔ سیاست بخشی از زمینهٔ اجرای همان درخواست است. انتقال آن به
-            # پیاده‌سازی اجازه می‌دهد وابستگی‌های تو‌در‌تو همان محدودیت‌ها را
-            # حفظ کنند، بدون آنکه پیاده‌سازی داور نهایی سیاست شود.
+            # The policy context is part of the execution context of the same
+            # request. Passing it to the implementation lets nested dependencies
+            # honour the same constraints without making the implementation the
+            # final policy arbiter.
                 output = selected.executor(request.operation, request.input, request.policy_context)
             except BridgeError as exc:
                 details = exc.details or {}
@@ -117,9 +119,10 @@ class Bridge:
                     self.selector.record_failure(selected.implementation_id)
                 continue
             except Exception as exc:
-            # جزئیات داخلی پیاده‌سازی از این مرز عبور نمی‌کند؛ نوع پایدار پل حفظ می‌شود.
+            # Internal implementation details must not cross this boundary; the
+            # stable bridge error type is preserved.
                 raise BridgeError(
-                    "BRIDGE_EXECUTION_FAILED", "execution", "پیاده‌سازی منتخب درخواست را اجرا نکرد",
+                    "BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request",
                     {"implementation_id": selected.implementation_id, "cause_type": type(exc).__name__},
                 ) from exc
             if hasattr(self.selector, "record_success"):
@@ -128,7 +131,7 @@ class Bridge:
         else:
             raise BridgeError(
                 "BRIDGE_ALL_IMPLEMENTATIONS_FAILED", "execution",
-                "همهٔ پیاده‌سازی‌های مجاز و قابل‌انتخاب شکست خوردند", failures,
+                "All allowed and selectable implementations failed", failures,
             )
         trace.append("executed")
         return BridgeResponse(
