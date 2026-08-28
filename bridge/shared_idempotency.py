@@ -28,7 +28,7 @@ class SharedIdempotencyLedger:
         # An explicit network address is independent of the ephemeral Unix
         # socket and keeps the reference multi-host boundary even in restricted
         # environments.
-        manager = SyncManager(address=("127.0.0.1", 0), authkey=b"dep-v2-shared-idempotency")
+        manager = SyncManager(address=("127.0.0.1", 0), authkey=b"arpaped-shared-idempotency")
         manager.start()
         return cls(manager, manager.dict(), manager.RLock())
 

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Capability Manifest",
+  "description": "Machine-readable declaration of a capability contract and the executor references that implement it. Lives with the capability's generic footprint (R3/R4), one entry per implementation. Consumed by the generic assembler during the Publish phase (Phase 8) to build and register implementation records into the canonical Registry.",
+  "type": "object",
+  "required": [
+    "capability_id",
+    "contract_version",
+    "implementations"
+  ],
+  "properties": {
+    "capability_id": {
+      "type": "string",
+      "description": "Generic capability identity per R1 as domain.operation. Never product-prefixed."
+    },
+    "contract": {
+      "type": "string",
+      "description": "Path or identity of the contract artifact that machine-defines this capability (R2)."
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Version of the capability contract this manifest binds to."
+    },
+    "implementations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "implementation_id",
+          "version",
+          "operations",
+          "executor"
+        ],
+        "properties": {
+          "implementation_id": {
+            "type": "string",
+            "description": "Unique identifier of this implementation record."
+          },
+          "version": {
+            "type": "string",
+            "description": "Package version of this implementation."
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Contract operations this implementation provides."
+          },
+          "executor": {
+            "type": "string",
+            "description": "Reference to the registration-unaware executor as 'module:attr'. The component is reached only by the Bridge; it never registers itself."
+          },
+          "priority": {
+            "type": "integer",
+            "default": 100
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "healthy": {
+            "type": "boolean",
+            "default": true
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
