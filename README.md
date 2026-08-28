@@ -1,4 +1,4 @@
-# ARPAPED Self-Improving Cycle Blueprint v1.1.0 — Agent Executable
+# ARPAPED Self-Improving Cycle Blueprint v1.0.0 — Agent Executable
 
 The operational Blueprint for the ARPAPED self-improving cycle.
 
@@ -30,6 +30,10 @@ authoritative ecosystem root.
 11. `04-runtime/verification-contract.md` — what a Verify pass must prove
 12. `05-governance/agent-conformance-gates.md` — phase → gate index
 13. `05-governance/agent-report-template.md`
+
+Manifests and contract artifacts are machine-validated against schemas in
+`schemas/` (`capability-manifest`, `product-manifest`, `component-contract`),
+and registration is performed by the generic assembler in `bridge/assembler.py`.
 
 ## For product creators
 

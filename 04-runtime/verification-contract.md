@@ -30,14 +30,15 @@ must answer YES to all of the following:
    defect.
 5. **Operator decision window.** A scripted operator action can interleave
    between observable automatic transitions, and unstoppered auto-advance can
-   never exhaust the product's own action space (a city that self-fills 100%
-   of its blocks fails). Auto-growth is rate-bounded and leaves a permanent
-   developable remainder.
+   never exhaust the product's own action space (a product whose automatic
+   transitions fully saturate every reachable state before the operator can act
+   fails). Auto-advance is rate-bounded and always leaves a permanent,
+   operator-reachable remainder.
 6. **Reactive same session.** The automatic loop AND injected input run in the
    same session; assert both state advanced AND the user's actions took effect.
 7. **Invariants, not formatting.** Results are decided on observable behavior
-   (state, counts, cells, pause/speed/reset semantics), never on rendered
-   layout.
+   (state, counts, reached states, pause/speed/reset semantics), never on
+   rendered layout.
 8. **Record.** A machine-readable verification record
    (`schemas/verification-record.schema.json`) is written into the resulting
    state, referenceable from the cycle report, and green. Every capability

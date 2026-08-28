@@ -9,13 +9,14 @@ example is the extraction illustration in
 ## R1 — Hard identity
 
 A capability id names the generic responsibility as `domain.operation` —
-precise and concrete (`grid.store`, `ascii.render`, `cli.parse`,
-`rule.pricing`), never the originating product (`<product>.board`), never a
-vague role name (`grid.manager`). A product-prefixed id means the capability
-is bound to exactly one product and cannot be reused by others. If a
-responsibility is genuinely product-intrinsic (e.g. a city's growth engine
-with zone semantics), it stays product-local logic; it is not a reusable
-capability and must not be advertised as one.
+precise, concrete, and product-neutral (the shape `domain.operation`, with a
+narrow generic domain and a precise operation), never the originating product
+(`<product>.<operation>`), never a vague role name (`<domain>.manager`). A
+product-prefixed id means the capability is bound to exactly one product and
+cannot be reused by others. If a responsibility is genuinely
+product-intrinsic (semantics that only that product defines), it stays
+product-local logic; it is not a reusable capability and must not be
+advertised as one.
 
 ## R2 — Contract artifact
 
@@ -42,7 +43,7 @@ capability id. One contract therefore serves many consumers across products.
 Reusable implementations and capability manifests physically live in the
 ecosystem's generic capability area (`generic/` at the ecosystem root), never
 in a product directory. A capability-manifest executor path NEVER points into
-a product package (`<product>.components.board:execute` is a violation; a
+a product package (`<product>.components.<component_a>:execute` is a violation; a
 generic module path is required). Discovery and assembly resolve through the
 canonical Registry; a product never points directly at another product's
 package.
@@ -64,7 +65,7 @@ capability.
 A Verify pass (Phase 7) MUST fail when:
 
 1. a declared capability id is product-scoped (names the originating product,
-   e.g. `<product>.board`) and the responsibility is not genuinely
+   e.g. `<product>.<operation>`) and the responsibility is not genuinely
    product-intrinsic product-local logic;
 2. a declared capability has no materialized contract artifact;
 3. a capability-manifest executor path points into a product package;

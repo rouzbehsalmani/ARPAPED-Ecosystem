@@ -66,26 +66,29 @@ Publish) and is never embedded inside a component's implementation logic.
 
 ### 1. Capability contract data lives in a manifest, not in code.
 
-The manifest declares the capability contract data (id, version, operations)
-and which component executor provides it — one entry per implementation:
+The manifest declares the capability contract identity and, one per
+implementation, the component executor that provides it:
 
 ```yaml
-capabilities:
-  - id: <capability-a>
-    implementation_id: <implementation-a>
+# valid against schemas/capability-manifest.schema.json
+capability_id: <capability-a>
+contract: <path-to-contract-artifact>
+contract_version: 1.0.0
+implementations:
+  - implementation_id: <implementation-a>
     version: 1.0.0
     operations: [<operation-1>, <operation-2>]
-    executor: <product_sub>.components.<component_a>:execute
-  - id: <capability-a>          # SECOND implementation of the SAME contract
-    implementation_id: <implementation-b>
+    executor: <generic_sub>.components.<component_a>:execute
+  - implementation_id: <implementation-b>   # SECOND implementation of the SAME contract
     version: 1.1.0
     operations: [<operation-1>, <operation-2>]
-    executor: <product_sub>.components.<component_b>:execute
+    executor: <generic_sub>.components.<component_b>:execute
 ```
 
-Two entries declaring the same capability id are two implementations of the ONE
-contract; the Registry then offers both candidates to policy/selector. The
-contract and the consumers never change — only the manifests differ.
+Two implementation entries declaring the same capability contract identity are
+two implementations of the ONE contract; the Registry then offers both
+candidates to policy/selector. The contract and the consumers never change —
+only the manifests differ.
 
 ### 2. Components are pure executors; they do not register.
 
@@ -96,22 +99,32 @@ function. The component is registration-unaware.
 
 ### 3. A generic assembler performs registration from the manifest.
 
-```python
-# assembly (Publish-phase) — the ONLY place that builds implementation records
-for entry in manifest["capabilities"]:
-    module, attr = entry["executor"].split(":")
-    executor = getattr(importlib.import_module(module), attr)
-    registry.register(CapabilityImplementation(
-        implementation_id=entry["implementation_id"],
-        package_version=entry["version"],
-        capability_id=entry["id"],
-        contract_version=entry["version"],
-        operations=tuple(entry["operations"]),
-        executor=executor,
-    ))
+Registration is performed by the **generic assembler** during the Publish phase
+(Phase 8). The assembler reads each capability manifest (validated against
+`schemas/capability-manifest.schema.json`), imports each entry's executor
+(`module:attr`), builds the implementation record, and registers it into the
+canonical Registry. A reference implementation lives at
+`bridge/assembler.py`; products never embed this logic.
+
+```yaml
+# capability manifest (capable of holding one or more implementations)
+capability_id: <capability-a>
+contract: <path-to-contract-artifact>
+contract_version: "1.0.0"
+implementations:
+  - implementation_id: <implementation-a>
+    version: "1.0.0"
+    operations: [<operation-1>, <operation-2>]
+    executor: <product_sub>.components.<component_a>:execute
+  - implementation_id: <implementation-b>
+    version: "1.1.0"
+    operations: [<operation-1>, <operation-2>]
+    executor: <generic_sub>.components.<component_b>:execute
 ```
 
-Swapping a component = editing the manifest, never the code.
+The assembler imports `module:attr`, constructs a
+`CapabilityImplementation`, and registers it. Swapping a component = editing
+the manifest, never the code or any consumer.
 
 ### 4. Consumer roles resolve capability IDs from the product manifest.
 
@@ -134,10 +147,14 @@ implementing component. Entity records are generic, keyed by generic
 attribute names defined in the contract:
 
 ```python
-entity_a = {"id": "x-1", "class": "category-1", "enabled": True}
-entity_b = {"id": "y-2", "class": "category-2", "count": 3}
-stats   = {"balance": 1000, "level": 0, "step": 1, "era": 1}
+entity_a = {"<attr_k>": "<value-k>", "class": "category-1", "enabled": True}
+entity_b = {"<attr_l>": "<value-l>", "class": "category-2", "count": 3}
+record_c = {"<attr_m>": "<value-m>", "status": "active", "step": 1}
 ```
+
+Keys like `class`, `count`, `status`, `step` are generic attributes declared by
+the contract; the values are plain contract-shaped data, never implementation
+types.
 
 Returning implementation classes (`<TypeA>`, `<RegistryB>`) across the
 Bridge boundary is a violation.
