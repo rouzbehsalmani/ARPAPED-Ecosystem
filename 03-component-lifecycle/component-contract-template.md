@@ -1,6 +1,6 @@
 # Component Contract Template
 
-Every reusable component in the ARPAPED ecosystem MUST have a contract that defines its interface, inputs, outputs, and lifecycle.
+Every reusable component in the ARPAPED ecosystem MUST have a contract that defines its interface, inputs, outputs, and lifecycle. This file is that contract's materialized form — the **contract artifact**, one per capability (existence per **R2**), generic in identity (**R1**) and in data shapes (rule 7 below).
 
 ## Required fields
 
@@ -145,3 +145,6 @@ authoritative manifests; the placeholders above are structural shape only.
 6. Lineage MUST be updated whenever the component is modified.
 7. Inputs and outputs MUST be generic contract-shaped data (e.g. typed shapes), never the implementing component's internal classes or module names. A consumer must be able to swap the component without changing its contract data (see `04-runtime/capability-reference-discipline.md`).
 8. The contract MUST NOT name or depend on the implementing module, package, or class; the component is bound to the contract through a data-driven capability manifest, not through consumer code.
+9. Contract identity per **R1** (see `00-core/capability-rules.md`; extraction judgement in `reusable-implementation-contract.md`).
+10. This file IS the capability's contract artifact: existence and uniqueness per **R2**, locality per **R3**.
+11. `dependencies` per **R5** (see `00-core/capability-rules.md`).

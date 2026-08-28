@@ -85,16 +85,20 @@ reason.
 
 **What.** Split the goal into independently meaningful responsibilities.
 
-**Do.** A decomposition unit is a **capability contract**: one responsibility
-= one capability ID = one contract artifact; that one contract is implemented
-by one or more implementations, each bound by its own capability-manifest
-entry referencing the same contract. Do not split into arbitrary
-micro-tasks, and do not bundle responsibilities into a catch-all capability.
+**Do.** A decomposition unit is a **capability contract** built per R2/R3: one
+responsibility = one capability ID = one contract artifact, implemented by one
+or more implementations, each bound by its own capability-manifest entry
+referencing the same contract. A (bigger) contract MAY require multiple other
+capability contracts in its `dependencies` per R5 — do not split into arbitrary
+micro-tasks and do not bundle unrelated responsibilities into a catch-all.
+Identity per R1.
 
 **Non-negotiables.** Gates 13 and 21 by construction: this decomposition is
-what Verify (Phase 7) later proves survived integration.
+what Verify (Phase 7) later proves survived integration. Creation order is
+generics → specifics per R5.
 
-**Produces.** A list of responsibilities, each with a candidate contract.
+**Produces.** A list of responsibilities, each with a candidate contract
+artifact.
 
 ## Phase 3 — Discover
 
@@ -104,6 +108,9 @@ what Verify (Phase 7) later proves survived integration.
 extract responsibilities → selective discovery key → relevant index → bounded
 candidates → filter by contract/version/lifecycle/policy → prefer direct
 reuse → widen scope only as needed → only then consider split or creation.
+Search the generic capability area per R4 BEFORE considering a product-bound
+design: for every responsibility, look for the generic essence (R1) that
+already exists or must be created generically.
 
 **Non-negotiables.** Gates 4 and 5:
 
@@ -128,7 +135,9 @@ reuse → widen scope only as needed → only then consider split or creation.
 | create | Nothing reusable exists and no valid creation path is blocked. |
 
 **Non-negotiables.** Gate 6: prefer reuse over duplication. Record the reason
-for every decision.
+for every decision, and for every `create` decision record the product-neutrality
+verdict (generic id + a generic home per R1/R4) and the generics-first order it
+imposes (R5).
 
 **Produces.** A decision table per responsibility.
 
@@ -136,16 +145,19 @@ for every decision.
 
 **What.** Create or adjust components only where the decision requires it.
 
-**Do.** For a new component: generic responsibility; contract
-(`03-component-lifecycle/component-contract-template.md`); product-neutrality
-checkpoint (`reusable-implementation-contract.md`); dependencies;
-discoverability metadata; version and lineage; executor shape
-`execute(operation, input, policy) -> output`. Components never register
-themselves and never import the Registry.
+**Do.** For a new component: satisfy R1, R2, R4, R5 — see
+`00-core/capability-rules.md` — and run the product-neutrality checkpoint
+(`reusable-implementation-contract.md`). Fill the contract artifact
+(`component-contract-template.md`). Executor shape
+`execute(operation, input, policy) -> output`; discoverability metadata,
+version and lineage. Components never register themselves and never import the
+Registry (Publish phase owns registration).
 
 **Non-negotiables.** Gates 7, 15, 16:
 
-7. If I created a component, is its responsibility product-independent?
+7. If I created a component, does it satisfy R1, R2, R4 — generic identity,
+   a contract artifact, and a non-product home with a non-product executor
+   path?
 15. Are contract inputs/outputs generic contract-shaped data, not implementation
     types?
 16. Do my components expose only their executor, without importing the Registry
@@ -160,18 +172,16 @@ request pipeline.
 
 **Do.** Consumers speak only role→capability IDs + contract operations through
 the Bridge (`04-runtime/bridge-contract-and-guide.md`,
-`04-runtime/capability-reference-discipline.md`). Keep the request path
-disciplined: every consumer request — terminal/CLI input handling included —
-funnels through ONE request-construction point in the product; no other
-product code builds `BridgeRequest`, calls `bridge.handle`, or imports
-components.
+`04-runtime/capability-reference-discipline.md`). Request path per R7: every
+consumer request — terminal/CLI input handling included — funnels through the
+product's single request-construction point.
 
 **Non-negotiables.** Gates 10, 13, 24:
 
 10. Is the resulting implementation compatible with runtime resolution?
 13. Do my consumers reference only capability contracts, never concrete
     component modules/classes/registration functions?
-24. Is the request path disciplined (one canonical consumer → Bridge path
+24. Does the request path hold per R7 (one canonical consumer → Bridge path
     through a single request-construction point)?
 
 Every integration MUST inspect the Bridge trace on every response
@@ -188,12 +198,13 @@ path.
 complete until the result has been executed and verified, not merely written.
 
 **Do.** Run the verification harness (`04-runtime/verification-contract.md`) —
-the checklist there is binding: assembly/startup, capability decomposition,
-every capability operation with its full ordered trace, every consumer control
-through a scripted stream, an operator decision window, a reactive loop and
-injected input in the same session, regression checks for every previously
-reported defect, and a machine-readable verification record written into the
-resulting state.
+the checklist there is binding: assembly/startup, capability decomposition
+(R2/R3) incl. its product-neutrality hard fails (R6), every capability
+operation with its full ordered trace, every consumer control through a
+scripted stream, an operator decision window, a reactive loop and injected
+input in the same session, regression checks for every previously reported
+defect, and a machine-readable verification record written into the resulting
+state.
 
 **Non-negotiables.** Gates 17–24:
 
@@ -207,15 +218,15 @@ resulting state.
 20. Does every previously-reported defect have a regression check that now
     PASSES, and is a verification record written into the resulting state and
     referenced in the cycle report?
-21. Does the resulting state preserve capability decomposition (each role →
-    distinct contract + implementation, no bundled catch-all)?
+21. Does the resulting state preserve capability decomposition (R2/R3) AND
+    product neutrality (R6)?
 22. Is the full ordered Bridge trace captured, asserted, and persisted in the
     record (`check.trace`) for every capability operation?
 23. Is the operator decision window guaranteed (action interleaves between
     automatic transitions; auto-advance never exhausts the state)?
-24. Request-path discipline holds in the harness too (its direct Bridge access
-    is specifically for trace evaluation — ordinary product code never does
-    this).
+24. Request-path discipline (R7) holds in the harness too: its direct Bridge
+    access is specifically for trace evaluation — ordinary product code never
+    does this.
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or split/reuse
 per Phase 4), re-run the harness, and only then proceed. An unverified state is
@@ -231,8 +242,8 @@ in the resulting state (`schemas/verification-record.schema.json`).
 **Do.** Publish component metadata, lineage, and Registry/index information.
 Register every capability: the capability manifests (one entry per
 implementation) + generic assembler build each implementation record and
-register it into the canonical Registry. Publish the decomposition itself —
-one contract per capability, referenced by its one or more capability-manifest
+register it into the canonical Registry. Publish the decomposition per R3 — one
+contract per capability, referenced by its one or more capability-manifest
 entries; the product manifest records only references (roles → capability
 IDs).
 

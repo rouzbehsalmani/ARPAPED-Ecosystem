@@ -17,13 +17,9 @@ must answer YES to all of the following:
 
 1. **Assembly and startup.** The product resolves the canonical Bridge from the
    ecosystem root and starts/drives without manual steps.
-2. **Capability decomposition.** Each role→capability mapping in the product
-   manifest resolves to a DISTINCT contract artifact (one contract per
-   responsibility — never two responsibilities under one contract); every
-   implementation is bound to that same contract by its own manifest entry,
-   and one capability may have several implementations; every operation
-   belongs to exactly one contract; no bundled catch-all capability, one-file
-   "all capabilities" manifest, or one-component-does-everything.
+2. **Capability decomposition and neutrality.** Enforced rules: **R2**, **R3**,
+   **R6** (see `00-core/capability-rules.md`). The harness evaluates them
+   directly and MUST fail when any is violated.
 3. **Every declared capability operation** is invoked over contract-shaped data
    through the canonical Bridge, the response is contract-shaped, and the FULL
    ordered trace is asserted: `validated → discovered → policy_evaluated →
@@ -58,20 +54,11 @@ nothing.
 
 ## Request-path discipline
 
-Every consumer-visible request travels one canonical path:
-`consumer code → Bridge → registry → policy → selector → executor` (see
-`04-runtime/capability-reference-discipline.md`).
-
-A product must construct requests in exactly ONE place: the consumer code that
-resolves roles→capability IDs and calls the Bridge. That is the only product
-code allowed to build a `BridgeRequest` or call `bridge.handle`, and it imports
-no component modules. Everything else — the product's terminal/CLI input
-handling included — reaches capabilities through that same point; it never
-builds a `BridgeRequest`, never calls `bridge.handle`, never imports component
-modules.
-
-The verification harness is the ONE exception: it builds requests directly —
-that is exactly how it inspects the trace.
+Enforced rule: **R7** in `00-core/capability-rules.md` — canonical path
+`consumer code → Bridge → registry → policy → selector → executor`, one single
+request-construction point in the product, and the verification harness as the
+sole exception (it builds requests directly — that is exactly how it inspects
+the trace). See also `04-runtime/capability-reference-discipline.md`.
 
 ## Regression discipline
 

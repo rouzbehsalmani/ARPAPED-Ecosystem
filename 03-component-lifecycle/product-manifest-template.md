@@ -83,4 +83,8 @@ product:
    The product manifest never references concrete components; implementation
    selection belongs to the Registry/selector.
 5. Version requirements MUST use semantic versioning constraints.
-6. Consumer code MUST reference `roles`, never concrete component modules/classes; roles resolve to capability IDs through the manifest (see `04-runtime/capability-reference-discipline.md`).
+6. Consumer code references `roles` per **R7**/**R3** (roles resolve to
+   capability IDs through this manifest; never concrete modules/classes).
+7. The manifest references capability contract ids ONLY per **R3**/**R4** (see
+   `00-core/capability-rules.md`); capability manifests live in the generic
+   capability area and are never hosted inside this product manifest.

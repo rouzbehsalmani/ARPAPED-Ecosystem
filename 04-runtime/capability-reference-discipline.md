@@ -23,6 +23,9 @@ consumer, the boundary is wrong.
 
 ## Core rule
 
+Consumer reference behavior is enforced by **R3** (references roles, never
+modules/classes) and **R7** (request path) in `00-core/capability-rules.md`.
+
 > A product/consumer MUST reference only capability identity (capability_id),
 > contract version, and contract operations. It MUST NOT reference an
 > implementation module, package, class, or registration function by name.
@@ -146,7 +149,7 @@ Bridge boundary is a violation.
 2. Never embed a `register` function or Registry reference inside a
    component; a component exposes only its `execute` implementation.
 3. A consumer must contain no `from <component_module> import ...` of
-   implementation modules/classes or registration functions.
+   implementation modules/classes or registration functions (per R3/R7).
 4. Contract inputs/outputs must be generic data (dicts/shapes from the
    contract), not implementation types.
 5. Before accepting a design, verify: "If I replace the component that
@@ -154,20 +157,15 @@ Bridge boundary is a violation.
    violates this discipline and MUST be corrected.
 6. Component modules live behind a boundary (e.g. a `components/` group)
    and expose only their executor; registration is assembled externally.
-7. The product's terminal/CLI input handling is ordinary consumer code: it
-   reaches capabilities through the product's single request-construction
-   point and contains NO `BridgeRequest` construction, NO `bridge.handle`
-   call, and NO component import (see "Request path and layering" below).
-8. Each responsibility is ONE capability contract — the single interface for
-    that capability. It may be satisfied by MULTIPLE implementations, each
-    bound by its own capability-manifest entry referencing the SAME contract;
-    the product manifest references capabilities and never bundles several
-    distinct responsibilities into a single catch-all capability, contract
-    file, or component (see "Capability decomposition" below).
+7. The product's terminal/CLI input handling is ordinary consumer code —
+   reached through the product's single request-construction point per R7 (see
+   "Request path and layering" below).
+8. Decomposition per **R2**/**R3** — see "Capability decomposition" below.
 
 ## Request path and layering
 
-Every consumer-visible capability request follows one canonical path:
+Enforced by **R7** in `00-core/capability-rules.md`. Every consumer-visible
+capability request follows one canonical path:
 
 ```text
 consumer code (terminal/CLI input, logic, anything)
@@ -176,41 +174,23 @@ consumer code (terminal/CLI input, logic, anything)
         ->  registry discovery  ->  policy  ->  selector  ->  component executor
 ```
 
-- **consumer code** — any product code that needs a capability, the
-  product's terminal/CLI input handling included. None of it builds a
-  `BridgeRequest`, calls `bridge.handle`, or imports a component module
-  directly; everything funnels through the single request-construction
-  point (below).
-- **single request-construction point** — the ONE place in the product that
-  resolves roles→capability IDs and constructs requests. It speaks only
-  capability IDs + contract operations through the canonical Bridge, is the
-  only product code that calls `bridge.handle`, and contains no component
-  import and no registration logic.
-- **bridge** is the canonical routing boundary; it returns the trace
-  (`validated → discovered → policy_evaluated → selected → executed`).
-- **component** is a registration-unaware executor reached only by the bridge.
-- The **verification harness** is the ONE exception that constructs requests
-  directly — that is exactly how it evaluates the trace. Product code may
-  not.
+R7 defines the single request-construction point, the no-BridgeRequest rule for
+all other product code, and the verification harness as the ONE exception
+constructing requests directly to evaluate the trace. The Bridge returns the
+trace `validated → discovered → policy_evaluated → selected → executed`; a
+component is a registration-unaware executor reached only by the Bridge.
 
 ## Capability decomposition
 
-A capability is one responsibility: one capability ID, ONE contract artifact.
-That contract is the single interface for the capability; implementations may
-be one or several, and each binds to the SAME contract through its own
-capability-manifest entry. The cycle splits goals into such units (Phase 1.5/2)
-and the Verify phase (7) proves the RESULT still carries them:
+Enforced by **R2**, **R3**, **R6** in `00-core/capability-rules.md`. The cycle
+splits goals into such units (Phase 1.5/2) and the Verify phase (7) proves the
+RESULT still carries them: the harness fails if one capability silently
+absorbed a second responsibility (forcing a `split/refactor` decision).
 
-- the product manifest references capabilities through roles (`role:
-  capability_id`); it never inlines capability definitions or a bundled
-  "all-in-one" contract file that masquerades as the ecosystem implementation
-  map;
-- every declared operation belongs to exactly one capability contract;
-- the verification harness asserts each role resolves to a DISTINCT contract
-  artifact — never two responsibilities under one contract — and that every
-  implementation is bound by its own manifest entry to that SAME contract, and
-  fails if one capability silently absorbed a second responsibility (forcing a
-  `split/refactor` decision).
+Identity and dependencies are product-neutral per **R1** and **R5**.
+Product-specific semantics belong in the consumer, the single
+request-construction point, or composition/configuration — not inside the
+reusable contract.
 
 A product whose "one capability does everything" only proves decomposition
 happened on paper but not in the result.

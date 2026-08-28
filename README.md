@@ -19,30 +19,32 @@ authoritative ecosystem root.
 
 1. `00-core/AGENT-BOOTSTRAP.md`
 2. `00-core/glossary.md` — definitions used everywhere
-3. `00-core/implementation-map.md`
-4. `02-cycle/agent-execution-protocol.md` — the cycle; conformance gates live inside each phase
-5. `01-discovery/agent-discovery-algorithm.md`
-6. `03-component-lifecycle/reusable-implementation-contract.md`
-7. `03-component-lifecycle/split-protocol.md`
-8. `04-runtime/bridge-contract-and-guide.md`
-9. `04-runtime/registry-implementation-contract.md`
-10. `04-runtime/verification-contract.md` — what a Verify pass must prove
-11. `05-governance/agent-conformance-gates.md` — phase → gate index
-12. `05-governance/agent-report-template.md`
+3. `00-core/capability-rules.md` — the numbered invariant rules (R1–R7)
+4. `00-core/implementation-map.md`
+5. `02-cycle/agent-execution-protocol.md` — the cycle; conformance gates live inside each phase
+6. `01-discovery/agent-discovery-algorithm.md`
+7. `03-component-lifecycle/reusable-implementation-contract.md`
+8. `03-component-lifecycle/split-protocol.md`
+9. `04-runtime/bridge-contract-and-guide.md`
+10. `04-runtime/registry-implementation-contract.md`
+11. `04-runtime/verification-contract.md` — what a Verify pass must prove
+12. `05-governance/agent-conformance-gates.md` — phase → gate index
+13. `05-governance/agent-report-template.md`
 
 ## For product creators
 
 1. `00-core/glossary.md`
-2. `03-component-lifecycle/product-manifest-template.md`
-3. `03-component-lifecycle/component-contract-template.md`
-4. `04-runtime/bridge-contract-and-guide.md` — request/response/error formats
-5. `04-runtime/capability-reference-discipline.md` — mandatory: never reference a concrete component
-6. `04-runtime/verification-contract.md` — mandatory: prove behavior headlessly before publishing
+2. `00-core/capability-rules.md` — the numbered invariant rules
+3. `03-component-lifecycle/product-manifest-template.md`
+4. `03-component-lifecycle/component-contract-template.md`
+5. `04-runtime/bridge-contract-and-guide.md` — request/response/error formats
+6. `04-runtime/capability-reference-discipline.md` — mandatory: never reference a concrete component
+7. `04-runtime/verification-contract.md` — mandatory: prove behavior headlessly before publishing
 
 ## This is not a product Blueprint
 
 No product-specific implementation is embedded here.
-No Task A/B/C evaluation scenario is embedded here.
+No concrete product evaluation scenario is embedded here.
 No worked product example exists here, by design — an example becomes a second
 source of truth and invites literal copying; the templates and contract formats
 are the shape.
