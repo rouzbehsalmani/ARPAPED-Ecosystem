@@ -1,4 +1,4 @@
-# Capability Rules (R1–R9)
+# Capability Rules (R1–R10)
 
 The complete, numbered set of invariant rules for the ARPAPED ecosystem. Every
 other document references these rules by number; nothing else states a rule in
@@ -125,3 +125,29 @@ executors — outside the canonical Bridge is a violation, in the product and in
 the harness. A "verification" that executes capabilities without the Bridge,
 or that records a trace it did not observe from the Bridge, is not
 verification and the cycle is not complete.
+
+## R10 — Product encapsulation
+
+A product package is a closed boundary. It contains ONLY:
+
+1. consumer logic (per **R3**/**R7**, reached through the product's single
+   request-construction point);
+2. its product manifest;
+3. its declared integration entry point.
+
+It MUST NOT embed non-product concerns:
+
+- ecosystem-assembly / registration code — no `assemble(...)`, no importing or
+  touching the canonical Registry, and no hardcoded capability manifest or
+  contract artifact paths (registration is an assembly/Publish concern, Phase 8);
+- harness / test scaffolding — no injected event-stream or scripted-input
+  classes whose only consumer is the verification harness (those live in the
+  harness, Phase 7).
+
+Conversely, any code OUTSIDE a product — Publish tooling, scripts, the verify
+harness, other products — MUST reach the product only through its declared
+public surface: the product manifest and the integration entry point. Importing
+a product's internals (private functions, classes, or constants such as grid
+dimensions) from Publish or Verify tooling is a violation; the Verify harness
+drives the product through that public surface (or reads generic state from the
+Bridge), never through product internals (see Gates 29–31).

@@ -88,3 +88,10 @@ product:
 7. The manifest references capability contract ids ONLY per **R3**/**R4** (see
    `00-core/capability-rules.md`); capability manifests live in the generic
    capability area and are never hosted inside this product manifest.
+8. The product package is a closed boundary per **R10** (Gates 29–31): it
+   hosts consumer logic + this manifest + the integration entry point only. It
+   contains no ecosystem-assembly/registration code (no `assemble`, no Registry
+   import, no hardcoded capability manifest/contract paths — Gate 29) and no
+   harness/test scaffolding (Gate 30). Outside tooling (Publish, Verify) reaches
+   the product only through this manifest and its entry point, never through
+   product internals (Gate 31).

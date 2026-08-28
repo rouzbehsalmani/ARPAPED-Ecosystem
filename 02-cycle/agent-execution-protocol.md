@@ -22,9 +22,9 @@ goal
 | 3 — Discover | 4, 5 |
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
-| 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28 |
-| 8 — Publish | 8, 9, 14 |
+| 6 — Integrate | 10, 13, 24, 27, 30, 31 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 31 |
+| 8 — Publish | 8, 9, 14, 29 |
 | 9 — Return state | 11 |
 
 A gate answered NO means the cycle is not complete.
@@ -187,7 +187,7 @@ the Bridge (`04-runtime/bridge-contract-and-guide.md`,
 consumer request — terminal/CLI input handling included — funnels through the
 product's single request-construction point.
 
-**Non-negotiables.** Gates 10, 13, 24, 27:
+**Non-negotiables.** Gates 10, 13, 24, 27, 30, 31:
 
 10. Is the resulting implementation compatible with runtime resolution?
 13. Do my consumers reference only capability contracts, never concrete
@@ -197,6 +197,12 @@ product's single request-construction point.
 27. Is the canonical Bridge the ONLY path that executes any capability
     operation — no direct executor/orchestrator calls in the product, in
     scripts, or in the harness (R9)?
+30. Is the product package free of harness/test scaffolding — no injected
+    event-stream or scripted-input class whose only consumer is the verify
+    harness (R10)?
+31. Is the product reached externally ONLY through its declared public surface
+    (product manifest + integration entry point) — no external import of
+    product private functions, classes, or constants (R10)?
 
 Every integration MUST inspect the Bridge trace on every response
 (`validated → discovered → policy_evaluated → selected → executed`). A trace
@@ -221,7 +227,7 @@ operator decision window, a reactive loop and injected input in the same
 session, regression checks for every previously reported defect, and a
 machine-readable verification record written into the resulting state.
 
-**Non-negotiables.** Gates 17–24, 27, 28:
+**Non-negotiables.** Gates 17–24, 27, 28, 31:
 
 17. Did I run the result through a verification harness — headlessly, no real
     terminal required?
@@ -248,6 +254,12 @@ machine-readable verification record written into the resulting state.
 28. Does every recorded capability trace equal the observed Bridge
     `response.trace` — copied, never invented or bypassed? A forged or
     self-constructed trace is a hard fail (R9).
+31. Does the harness drive the product only through its declared public surface
+    (product manifest + integration entry point) and read generic state from
+    the Bridge — never importing product private functions, classes, or
+    constants (R10)? Its direct `BridgeRequest` construction (R7 exception) is
+    unchanged: it still calls the same resolved canonical `bridge.handle(...)`
+    and records only the observed `response.trace`.
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or split/reuse
 per Phase 4), re-run the harness, and only then proceed. An unverified state is
@@ -268,13 +280,18 @@ contract per capability, referenced by its one or more capability-manifest
 entries; the product manifest records only references (roles → capability
 IDs).
 
-**Non-negotiables.** Gates 8, 9, 14:
+**Non-negotiables.** Gates 8, 9, 14, 29:
 
 8. If I split a component, did I preserve lineage and update discoverability?
 9. Is the resulting component discoverable through the canonical Registry?
 14. Is registration performed by the manifest + a generic assembler, so
     components contain no registration logic and swapping an implementation
     requires no consumer code change?
+29. Is the product package free of ecosystem-assembly/registration code — no
+    `assemble(...)`, no Registry import, no hardcoded capability manifest or
+    contract artifact paths (R10)? Registration lives in the manifest + generic
+    assembler at the ecosystem level; Publish tooling does not import a
+    product's registration module.
 
 **Produces.** A discoverable, registered, verified resulting state.
 

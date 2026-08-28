@@ -239,10 +239,34 @@ model. Consumers resolve the capability contract through the Bridge, receive
 generic contract-shaped data, and never import `<component_module>`,
 `<ImplementationClass>`, or a `register_*` function.
 
+## Product encapsulation boundary
+
+Enforced by **R10** in `00-core/capability-rules.md` (Gates 29–31). This
+strengthens (it does not replace) R7/R9. A product package is a closed
+boundary:
+
+- **Inside the package, only:** consumer logic (R7, through the product's single
+  request-construction point), the product manifest, and the declared
+  integration entry point.
+- **Never inside the package:** ecosystem-assembly/registration code (no
+  `assemble(...)`, no Registry import, no hardcoded capability manifest or
+  contract artifact paths — Gate 29), and no harness/test scaffolding (no
+  injected event-stream or scripted-input class solely for the verify harness —
+  Gate 30).
+- **External reach:** anything outside the product (Publish tooling, scripts,
+  the verify harness, other products) reaches it only through the declared
+  public surface (product manifest + integration entry point). No external
+  import of product private functions, classes, or constants such as grid
+  dimensions (Gate 31). The verify harness may read generic state from the
+  Bridge (`cartesian.grid/dimensions`, etc.) instead of importing product
+  constants.
+
 ## Conformance gate
 
 This rule is a hard gate in the agent conformance checklist. A cycle is not
 complete while any consumer references a concrete component or any component
 contains registration logic (Gates 13/16). The canonical Bridge is the only
 execution interface (R9, Gates 27/28), and every component is built contract →
-manifest → code (R8, Gate 26).
+manifest → code (R8, Gate 26). A product package holds only consumer logic, its
+product manifest, and its integration entry point, and is reached externally
+only through that surface (R10, Gates 29–31).

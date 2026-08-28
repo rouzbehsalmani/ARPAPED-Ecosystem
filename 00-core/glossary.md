@@ -5,7 +5,7 @@ other document in this Blueprint uses exactly these words. If a document seems
 to redefine one of these terms, the document is wrong, not this page.
 
 Invariant rules are NOT defined here: each is stated verbatim exactly once, in
-`00-core/capability-rules.md` (R1–R9), and documents cite rule numbers.
+`00-core/capability-rules.md` (R1–R10), and documents cite rule numbers.
 
 ## Core nouns
 
@@ -19,6 +19,7 @@ Invariant rules are NOT defined here: each is stated verbatim exactly once, in
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumers. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
 | **product** | A consumer application built on the ecosystem. It declares what it needs (capabilities, components, roles) in its manifest and never bundles implementation logic. |
+| **product boundary** | The closed encapsulation of a product package per **R10**: it holds only consumer logic, its product manifest, and its integration entry point — never ecosystem-assembly/registration code and never harness/test scaffolding — and it is reached from outside only through that declared public surface (Gates 29–31). |
 | **generic capability area** | The shared home of reusable capabilities at the ecosystem root (e.g. `generic/`). Placement per **R4**: reusable capabilities live here with their contract artifacts and capability manifests, resolved through the canonical Registry; a product directory is never their home. |
 | **consumer** | Any code that invokes a capability — a product, its terminal/CLI input layer, or another component. Reference behavior per **R7**: consumers use only capability IDs + contract operations through the Bridge and never name components. |
 | **manifest** | A data file that references contracts and binds identity. Two kinds: **product manifest** (identity, dependencies, roles, integration — one per consumer; references capability ids only, never hosts capability manifests) and **capability manifest** (one contract artifact + its operations and one executor-reference entry per implementation; lives with the capability's generic footprint, never fused into a product directory). Structure per **R3**, locality per **R4**. |

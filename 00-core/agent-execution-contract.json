@@ -20,7 +20,8 @@
     "r6_verification_hard_fails": true,
     "r7_request_path_discipline": true,
     "r8_contract_first_creation_order": true,
-    "r9_bridge_only_execution_interface": true
+    "r9_bridge_only_execution_interface": true,
+    "r10_product_encapsulation": true
   },
   "execution": {
     "cycle_model": "recursive_state_transition",
@@ -31,7 +32,8 @@
     "duplicate_existing_responsibility": false,
     "proactive_split_check": true,
     "contract_first_creation_order": true,
-    "bridge_only_execution_interface": true
+    "bridge_only_execution_interface": true,
+    "product_encapsulation": true
   },
   "verification": {
     "require_headless_execution": true,

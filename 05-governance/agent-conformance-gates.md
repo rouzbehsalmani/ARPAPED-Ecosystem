@@ -1,6 +1,6 @@
 # Agent Conformance Gates
 
-Pointer. The 28 gates are part of the cycle: each one lives inside the phase it
+Pointer. The 31 gates are part of the cycle: each one lives inside the phase it
 enforces in `02-cycle/agent-execution-protocol.md`, and the phase → gate map is
 at its top.
 
@@ -13,9 +13,9 @@ at its top.
 | 3 — Discover | 4, 5 |
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
-| 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17–24, 27, 28 |
-| 8 — Publish | 8, 9, 14 |
+| 6 — Integrate | 10, 13, 24, 27, 30, 31 |
+| 7 — Verify | 17–24, 27, 28, 31 |
+| 8 — Publish | 8, 9, 14, 29 |
 | 9 — Return | 11 |
 
 These are Blueprint conformance gates, not a product test suite. A NO on any
@@ -37,3 +37,25 @@ ecosystem entirely and write concrete code before any contract or manifest.
     executor/orchestrator calls in the product OR the harness?
 28. **Trace authenticity.** Does every recorded capability trace equal the
     observed Bridge `response.trace` (copied, not invented or bypassed)?
+
+## Gates 29–31 (v1.1)
+
+Gates 29–31 enforce **R10 (product encapsulation)**: a product package is a
+closed boundary holding only consumer logic, its product manifest, and its
+integration entry point — and it is reached from outside only through that
+public surface.
+
+29. **Product encapsulation — no in-package assembly.** Does the product
+    package contain no registration/Registry/`assemble` code and no hardcoded
+    capability manifest or contract artifact paths (registration lives in the
+    manifest + generic assembler, Phase 8)? Publish tooling may not import a
+    product's registration module.
+30. **Product encapsulation — no in-package harness scaffolding.** Does the
+    product package contain no harness/test scaffolding (no injected
+    event-stream or scripted-input class whose only consumer is the verify
+    harness)? Such scaffolding lives in the harness (Phase 7).
+31. **Product encapsulation — inbound/outbound coupling.** Is the product
+    reached externally ONLY through its declared public surface (product
+    manifest + integration entry point) — no external import of product
+    private functions, classes, or constants (e.g. grid dimensions) from
+    Publish or Verify tooling?

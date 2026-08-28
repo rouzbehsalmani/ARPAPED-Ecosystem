@@ -20,7 +20,7 @@ authoritative ecosystem root.
 
 1. `00-core/AGENT-BOOTSTRAP.md`
 2. `00-core/glossary.md` — definitions used everywhere
-3. `00-core/capability-rules.md` — the numbered invariant rules (R1–R9)
+3. `00-core/capability-rules.md` — the numbered invariant rules (R1–R10)
 4. `00-core/implementation-map.md`
 5. `02-cycle/agent-execution-protocol.md` — the cycle; conformance gates live inside each phase
 6. `01-discovery/agent-discovery-algorithm.md`
@@ -42,6 +42,10 @@ Bridge the only execution interface (no direct executor/orchestrator calls,
 including in the harness), and conformance gates **25–28** enforce a written
 bootstrap resolution record, contract-first creation, Bridge-only execution,
 and trace authenticity (traces must be the Bridge's observed `response.trace`).
+**R10** adds product encapsulation (gates **29–31**): a product package holds
+only consumer logic + its manifest + its integration entry point — no
+assembly/registration code, no harness scaffolding — and is reached from
+outside only through that public surface.
 
 ## For product creators
 
