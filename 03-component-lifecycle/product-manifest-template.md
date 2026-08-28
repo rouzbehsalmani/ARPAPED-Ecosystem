@@ -95,3 +95,11 @@ product:
    harness/test scaffolding (Gate 30). Outside tooling (Publish, Verify) reaches
    the product only through this manifest and its entry point, never through
    product internals (Gate 31).
+9. Every product lives in its own scoped territory at the ecosystem root
+   (a products area, a game area, an economy area — whichever the root
+   designates; no fixed folder name is mandated). The product directory and its
+   package are always named after the manifest identity `product.id`
+   (`<product_scope>/<product_id>/` and `<product_id>/`), so a product is located
+   from its id alone. No product code or manifest exists outside its own
+   territory, and tooling resolves a product by its id from this layout, never
+   by hard-coding a product name.

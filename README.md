@@ -42,10 +42,13 @@ Bridge the only execution interface (no direct executor/orchestrator calls,
 including in the harness), and conformance gates **25–28** enforce a written
 bootstrap resolution record, contract-first creation, Bridge-only execution,
 and trace authenticity (traces must be the Bridge's observed `response.trace`).
-**R10** adds product encapsulation (gates **29–31**): a product package holds
-only consumer logic + its manifest + its integration entry point — no
-assembly/registration code, no harness scaffolding — and is reached from
-outside only through that public surface.
+**R10** adds product encapsulation (gates **29–31**): every product lives in
+its own scoped territory at the ecosystem root and holds only consumer logic +
+its manifest + its integration entry point — no assembly/registration code, no
+harness scaffolding — and is reached from outside only through that public
+surface. Tooling (Publish, Verify, launcher) is product-generic: it resolves a
+product by its manifest id and never hard-codes a product name, directory, or
+import.
 
 ## For product creators
 

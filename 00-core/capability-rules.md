@@ -128,14 +128,29 @@ verification and the cycle is not complete.
 
 ## R10 — Product encapsulation
 
-A product package is a closed boundary. It contains ONLY:
+A product is a consumer application whose code is encapsulated in its own
+package. Every product lives, like any normal application, in its own scoped
+territory at the ecosystem root. The root designates the scope directory (a
+products area, a game area, an economy area — the folder name is not a
+Blueprint mandate); within that scope each product is one self-contained unit:
+
+```text
+<product_scope>/<product_id>/
+    <product-manifest artifact>    the product's public handle
+    <product_package>/             the product package (consumer logic only)
+```
+
+The scope directory, the product directory, and the package are ALWAYS named
+after the manifest identity `product.id`: `<product_id>` is exactly the id the
+manifest declares, so any tool can find a product from its id alone, without
+ever hard-coding a product name. A product territory holds ONLY:
 
 1. consumer logic (per **R3**/**R7**, reached through the product's single
    request-construction point);
 2. its product manifest;
 3. its declared integration entry point.
 
-It MUST NOT embed non-product concerns:
+A product territory MUST NOT embed non-product concerns:
 
 - ecosystem-assembly / registration code — no `assemble(...)`, no importing or
   touching the canonical Registry, and no hardcoded capability manifest or
@@ -146,8 +161,11 @@ It MUST NOT embed non-product concerns:
 
 Conversely, any code OUTSIDE a product — Publish tooling, scripts, the verify
 harness, other products — MUST reach the product only through its declared
-public surface: the product manifest and the integration entry point. Importing
-a product's internals (private functions, classes, or constants such as grid
-dimensions) from Publish or Verify tooling is a violation; the Verify harness
-drives the product through that public surface (or reads generic state from the
-Bridge), never through product internals (see Gates 29–31).
+public surface: the product manifest and the integration entry point. Tooling
+is product-generic: it resolves a product by its manifest id (locating
+`<product_scope>/<product_id>/`), never by hard-coding a product name, a product
+directory, or a product import. Importing a product's internals (private
+functions, classes, or constants) from Publish or Verify tooling is a
+violation; the Verify harness drives the product through that public surface
+(or reads generic state from the Bridge), never through product internals (see
+Gates 29–31).

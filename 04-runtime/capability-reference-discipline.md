@@ -242,13 +242,17 @@ generic contract-shaped data, and never import `<component_module>`,
 ## Product encapsulation boundary
 
 Enforced by **R10** in `00-core/capability-rules.md` (Gates 29–31). This
-strengthens (it does not replace) R7/R9. A product package is a closed
-boundary:
+strengthens (it does not replace) R7/R9. A product's complete implementation
+lives in its own scoped territory at the ecosystem root — a products area, a
+game area, an economy area, whichever the root designates (the folder name is
+not a Blueprint mandate). Within that scope the product is one self-contained
+unit, `<product_scope>/<product_id>/`, named by the manifest identity
+`product.id`, and is a closed boundary:
 
-- **Inside the package, only:** consumer logic (R7, through the product's single
+- **Inside the territory, only:** consumer logic (R7, through the product's single
   request-construction point), the product manifest, and the declared
   integration entry point.
-- **Never inside the package:** ecosystem-assembly/registration code (no
+- **Never inside the territory:** ecosystem-assembly/registration code (no
   `assemble(...)`, no Registry import, no hardcoded capability manifest or
   contract artifact paths — Gate 29), and no harness/test scaffolding (no
   injected event-stream or scripted-input class solely for the verify harness —
@@ -256,10 +260,14 @@ boundary:
 - **External reach:** anything outside the product (Publish tooling, scripts,
   the verify harness, other products) reaches it only through the declared
   public surface (product manifest + integration entry point). No external
-  import of product private functions, classes, or constants such as grid
-  dimensions (Gate 31). The verify harness may read generic state from the
-  Bridge (`cartesian.grid/dimensions`, etc.) instead of importing product
-  constants.
+  import of product private functions, classes, or constants (Gate 31). The
+  verify harness may read generic state from the Bridge instead of importing
+  product constants.
+- **Tooling is product-generic:** Publish/Verify/launcher tools resolve a
+  product by its manifest id (locating `<product_scope>/<product_id>/`), reading
+  the entry point from the manifest. They never hard-code a product name, a
+  product directory, or a direct `import <product>`. Adding a new product must
+  require only adding its territory — never editing a tool.
 
 ## Conformance gate
 
