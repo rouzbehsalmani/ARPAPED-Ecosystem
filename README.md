@@ -4,9 +4,10 @@ The operational Blueprint for the ARPAPED self-improving cycle.
 
 **The model in one line:** every capability execution goes through one canonical
 Bridge over contract-shaped data, and the cycle always verifies the result
-headlessly before publishing it. Definitions for every term (capability,
-contract, component, Bridge, trace, state, …) live in exactly one place:
-`00-core/glossary.md`.
+headlessly before publishing it. The Bridge is the only execution interface for
+any capability operation (R9), and every component is built contract → manifest
+→ code (R8). Definitions for every term (capability, contract, component,
+Bridge, trace, state, …) live in exactly one place: `00-core/glossary.md`.
 
 ## Important
 
@@ -19,7 +20,7 @@ authoritative ecosystem root.
 
 1. `00-core/AGENT-BOOTSTRAP.md`
 2. `00-core/glossary.md` — definitions used everywhere
-3. `00-core/capability-rules.md` — the numbered invariant rules (R1–R7)
+3. `00-core/capability-rules.md` — the numbered invariant rules (R1–R9)
 4. `00-core/implementation-map.md`
 5. `02-cycle/agent-execution-protocol.md` — the cycle; conformance gates live inside each phase
 6. `01-discovery/agent-discovery-algorithm.md`
@@ -34,6 +35,13 @@ authoritative ecosystem root.
 Manifests and contract artifacts are machine-validated against schemas in
 `schemas/` (`capability-manifest`, `product-manifest`, `component-contract`),
 and registration is performed by the generic assembler in `bridge/assembler.py`.
+
+The cycle is hardened so a product cannot silently bypass the ecosystem:
+**R8** mandates contract → manifest → code order, **R9** makes the canonical
+Bridge the only execution interface (no direct executor/orchestrator calls,
+including in the harness), and conformance gates **25–28** enforce a written
+bootstrap resolution record, contract-first creation, Bridge-only execution,
+and trace authenticity (traces must be the Bridge's observed `response.trace`).
 
 ## For product creators
 

@@ -7,9 +7,10 @@ responsibility itself.
 
 The invariant rules this contract enforces are defined verbatim in
 `00-core/capability-rules.md`: **R1** (identity), **R2** (contract artifact),
-**R4** (placement), **R5** (dependencies and order). They are not restated
-here. This document supplies the extraction judgement, the implementation
-shape, and the pre-implementation checkpoint.
+**R4** (placement), **R5** (dependencies and order), **R8** (contract-first
+creation order), **R9** (the Bridge is the only execution interface). They are
+not restated here. This document supplies the extraction judgement, the
+implementation shape, and the pre-implementation checkpoint.
 
 ## Generic essence vs intrinsic logic (illustrates R1)
 
@@ -34,10 +35,47 @@ logic and do not advertise it as a reusable capability (R1).
 - **R2** — see `00-core/capability-rules.md`.
 - **R4** — see `00-core/capability-rules.md`.
 - **R5** — see `00-core/capability-rules.md`.
+- **R8** — see `00-core/capability-rules.md`.
+- **R9** — see `00-core/capability-rules.md`.
+
+## Creation-Order Protocol (R8)
+
+For every new capability, construction proceeds in a strict, gate-able order.
+Each stage MUST be complete and validated before the next begins; this is
+enforced by conformance gate 26.
+
+```text
+1. CONTRACT  -> write the contract artifact (R2), validated against
+                schemas/component-contract.schema.json
+                    |
+2. MANIFEST  -> write the capability manifest (R3), validated against
+                schemas/capability-manifest.schema.json, declaring the
+                executor reference (module:attr) — the module may not exist yet
+                    |
+3. CONCRETE  -> implement the registration-unaware executor
+                execute(operation, input, policy) so it satisfies the contract
+                (R4 placement; never register; never import the Registry)
+```
+
+Checklist for each stage:
+
+- **Contract**: one materialized, versioned contract artifact (R2); operations,
+  generic inputs/outputs, and errors defined; validated against the contract
+  schema (R6 hard-fails if missing).
+- **Manifest**: capability id (R1 generic), contract version, one entry per
+  implementation, executor reference (validated against the manifest schema).
+- **Concrete code**: the executor only; satisfies the contract; no
+  registration logic (Gate 16); no product-prefixed id (R1); reachable only
+  through the Bridge (R9).
+
+Writing concrete code before its contract artifact and capability manifest
+exist and validate is a violation of **R8**. The contract is the specification
+the code is built against, never a summary of already-written code.
 
 ## Implementation structure
 
-Use this structure when a genuinely missing reusable component must be created.
+Use this structure when a genuinely missing reusable component must be created
+— applied across the R8 stages (contract first, then manifest, then code).
 The fields correspond to the contract artifact (see `component-contract-template.md`):
 
 ```text
@@ -70,4 +108,6 @@ Before implementation, ask:
 4. If yes, are those assumptions intrinsic to the responsibility?
 5. If not, move them to composition/configuration/adapter boundaries.
 
-Only after this checkpoint passes should implementation begin.
+Only after this checkpoint passes may the contract artifact be written; per
+R8 the contract and manifest come first, and only then is the concrete code
+implemented.

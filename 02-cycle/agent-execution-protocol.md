@@ -15,15 +15,15 @@ goal
 
 | Phase | Gate(s) enforced |
 |---|---|
-| Bootstrap (before Phase 1) | 1, 2, 3 |
+| Bootstrap (before Phase 1) | 1, 2, 3, 25 |
 | 1 — Understand | 3 |
 | 1.5 — Component health check | 12 |
 | 2 — Decompose the goal | 13, 21 (by construction) |
 | 3 — Discover | 4, 5 |
 | 4 — Decide | 6 |
-| 5 — Implement | 7, 15, 16 |
-| 6 — Integrate | 10, 13, 24 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24 |
+| 5 — Implement | 7, 15, 16, 26 |
+| 6 — Integrate | 10, 13, 24, 27 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28 |
 | 8 — Publish | 8, 9, 14 |
 | 9 — Return state | 11 |
 
@@ -38,19 +38,24 @@ the goal.
 discover authoritative metadata, build the implementation map, load operating
 rules, resolve the current state, accept the goal.
 
-**Non-negotiables.** Gates 1, 2, 3:
+**Non-negotiables.** Gates 1, 2, 3, 25:
 
 1. Did I resolve the canonical Bridge? (From the ecosystem root, never a
    product directory.)
 2. Did I resolve the canonical Registry?
 3. Did I avoid creating a parallel Bridge or Registry?
+25. Did I emit and reference a written ecosystem-resolution record naming the
+    canonical Bridge and Registry (and the implementation map)? The canonical
+    Bridge is the only execution interface for every capability operation —
+    in the product, scripts, and harness (R9).
 
 Plus the bootstrap hard prohibitions: no private Bridge/Registry, no copying
 the ecosystem into a product, no silently replacing an authoritative
 implementation, no global Registry scans, no treating a local manifest as
 ecosystem integration proof.
 
-**Produces.** Resolved ecosystem root + loaded rules + accepted `goal`.
+**Produces.** Resolved ecosystem root + loaded rules + accepted `goal` + a
+written `ecosystem-resolution` record.
 
 ## Phase 1 — Understand
 
@@ -145,15 +150,17 @@ imposes (R5).
 
 **What.** Create or adjust components only where the decision requires it.
 
-**Do.** For a new component: satisfy R1, R2, R4, R5 — see
-`00-core/capability-rules.md` — and run the product-neutrality checkpoint
+**Do.** For a new component, follow creation order per **R8** — contract
+artifact first (validated), then capability manifest (validated), then the
+concrete code — and satisfy R1, R2, R4, R5 — see `00-core/capability-rules.md`
+— and run the product-neutrality checkpoint
 (`reusable-implementation-contract.md`). Fill the contract artifact
 (`component-contract-template.md`). Executor shape
 `execute(operation, input, policy) -> output`; discoverability metadata,
 version and lineage. Components never register themselves and never import the
 Registry (Publish phase owns registration).
 
-**Non-negotiables.** Gates 7, 15, 16:
+**Non-negotiables.** Gates 7, 15, 16, 26:
 
 7. If I created a component, does it satisfy R1, R2, R4 — generic identity,
    a contract artifact, and a non-product home with a non-product executor
@@ -162,8 +169,12 @@ Registry (Publish phase owns registration).
     types?
 16. Do my components expose only their executor, without importing the Registry
     or embedding a `register` function?
+26. Did I write and validate the contract artifact and capability manifest
+    BEFORE writing the concrete code (R8)? No code exists whose contract +
+    manifest were not already in place and valid.
 
-**Produces.** Components + contracts + lineage, all registration-unaware.
+**Produces.** Components + contracts + lineage, all registration-unaware, each
+built contract → manifest → code.
 
 ## Phase 6 — Integrate
 
@@ -176,18 +187,22 @@ the Bridge (`04-runtime/bridge-contract-and-guide.md`,
 consumer request — terminal/CLI input handling included — funnels through the
 product's single request-construction point.
 
-**Non-negotiables.** Gates 10, 13, 24:
+**Non-negotiables.** Gates 10, 13, 24, 27:
 
 10. Is the resulting implementation compatible with runtime resolution?
 13. Do my consumers reference only capability contracts, never concrete
     component modules/classes/registration functions?
 24. Does the request path hold per R7 (one canonical consumer → Bridge path
     through a single request-construction point)?
+27. Is the canonical Bridge the ONLY path that executes any capability
+    operation — no direct executor/orchestrator calls in the product, in
+    scripts, or in the harness (R9)?
 
 Every integration MUST inspect the Bridge trace on every response
 (`validated → discovered → policy_evaluated → selected → executed`). A trace
 that does not reach `executed` is an integration failure to resolve before
-publishing.
+publishing. Traces are the Bridge's observed `response.trace`, never invented
+(Gate 28).
 
 **Produces.** An integrated product whose every request traverses the canonical
 path.
@@ -200,13 +215,13 @@ complete until the result has been executed and verified, not merely written.
 **Do.** Run the verification harness (`04-runtime/verification-contract.md`) —
 the checklist there is binding: assembly/startup, capability decomposition
 (R2/R3) incl. its product-neutrality hard fails (R6), every capability
-operation with its full ordered trace, every consumer control through a
-scripted stream, an operator decision window, a reactive loop and injected
-input in the same session, regression checks for every previously reported
-defect, and a machine-readable verification record written into the resulting
-state.
+operation with its full ordered trace over the SAME resolved canonical Bridge
+the product uses (R9), every consumer control through a scripted stream, an
+operator decision window, a reactive loop and injected input in the same
+session, regression checks for every previously reported defect, and a
+machine-readable verification record written into the resulting state.
 
-**Non-negotiables.** Gates 17–24:
+**Non-negotiables.** Gates 17–24, 27, 28:
 
 17. Did I run the result through a verification harness — headlessly, no real
     terminal required?
@@ -224,9 +239,15 @@ state.
     record (`check.trace`) for every capability operation?
 23. Is the operator decision window guaranteed (action interleaves between
     automatic transitions; auto-advance never exhausts the state)?
-24. Request-path discipline (R7) holds in the harness too: its direct Bridge
-    access is specifically for trace evaluation — ordinary product code never
+24. Request-path discipline (R7) holds in the harness too: its direct `BridgeRequest`
+    construction is specifically for trace evaluation, and it still calls the
+    same resolved canonical `bridge.handle(...)` — ordinary product code never
     does this.
+27. Is the canonical Bridge the ONLY path that executes any capability
+    operation in the harness — no direct executor/orchestrator calls (R9)?
+28. Does every recorded capability trace equal the observed Bridge
+    `response.trace` — copied, never invented or bypassed? A forged or
+    self-constructed trace is a hard fail (R9).
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or split/reuse
 per Phase 4), re-run the harness, and only then proceed. An unverified state is

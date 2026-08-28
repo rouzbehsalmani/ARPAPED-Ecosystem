@@ -44,6 +44,11 @@
             "type": "string",
             "enum": ["passed", "failed"]
           },
+          "check_type": {
+            "type": "string",
+            "enum": ["capability_operation", "invariant", "regression"],
+            "description": "Optional classifier. When set to 'capability_operation', the check MUST carry an observed 'trace' (see the conditional below) equal to the Bridge's own response.trace."
+          },
           "observed": {
             "type": ["string", "null"],
             "description": "Observed evidence (state, counts, message). Always present for failed checks; may also be recorded for passed checks."
@@ -53,13 +58,29 @@
             "items": {
               "type": "string"
             },
-            "description": "Observed full Bridge trace for this capability operation, evaluated as validated -> discovered -> policy_evaluated -> selected -> executed. Recorded for every capability operation check."
+            "description": "The OBSERVED full Bridge trace (the Bridge's own response.trace) for this capability operation, evaluated as validated -> discovered -> policy_evaluated -> selected -> executed. REQUIRED for every capability-operation check; must be copied from the Bridge, never constructed by the harness (R9, Gate 28).",
+            "minItems": 1
           },
           "regression_for": {
             "type": "string",
             "description": "Previous defect id this check protects against, when applicable."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "check_type": {
+                  "const": "capability_operation"
+                }
+              },
+              "required": ["check_type"]
+            },
+            "then": {
+              "required": ["trace"]
+            }
+          }
+        ]
       }
     },
     "passed": {

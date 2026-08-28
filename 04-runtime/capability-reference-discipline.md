@@ -193,9 +193,12 @@ consumer code (terminal/CLI input, logic, anything)
 
 R7 defines the single request-construction point, the no-BridgeRequest rule for
 all other product code, and the verification harness as the ONE exception
-constructing requests directly to evaluate the trace. The Bridge returns the
-trace `validated → discovered → policy_evaluated → selected → executed`; a
-component is a registration-unaware executor reached only by the Bridge.
+(size/scope: it builds `BridgeRequest`s directly), but even the harness MUST
+call the same resolved canonical `bridge.handle(...)` and record only the
+Bridge's observed `response.trace` — the Bridge is the only execution interface
+(R9, Gates 27/28). The Bridge returns the trace
+`validated → discovered → policy_evaluated → selected → executed`; a component
+is a registration-unaware executor reached only by the Bridge.
 
 ## Capability decomposition
 
@@ -240,4 +243,6 @@ generic contract-shaped data, and never import `<component_module>`,
 
 This rule is a hard gate in the agent conformance checklist. A cycle is not
 complete while any consumer references a concrete component or any component
-contains registration logic.
+contains registration logic (Gates 13/16). The canonical Bridge is the only
+execution interface (R9, Gates 27/28), and every component is built contract →
+manifest → code (R8, Gate 26).

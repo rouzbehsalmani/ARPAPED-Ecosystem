@@ -1,4 +1,4 @@
-# Capability Rules (R1–R7)
+# Capability Rules (R1–R9)
 
 The complete, numbered set of invariant rules for the ARPAPED ecosystem. Every
 other document references these rules by number; nothing else states a rule in
@@ -86,6 +86,42 @@ component module directly. Requests are constructed in exactly ONE place in
 the product: the single request-construction point, which resolves
 roles→capability ids, speaks only capability ids + contract operations through
 the canonical Bridge, and contains no component import and no registration
-logic. The verification harness is the ONE exception: it constructs requests
-directly — that is exactly how it inspects the trace. A component is a
-registration-unaware executor reached only by the Bridge.
+logic. The verification harness is the ONE exception to the *construction*
+rule: it builds `BridgeRequest`s directly — that is exactly how it inspects
+the trace — but it MUST still call the same resolved canonical
+`bridge.handle(...)` and record only the Bridge's observed `response.trace`
+(see **R9**). A component is a registration-unaware executor reached only by
+the Bridge.
+
+## R8 — Contract-first creation order
+
+For every capability, construction proceeds in a strict order, and each stage
+must be satisfiable before the next begins:
+
+```text
+1. contract artifact   (the what: operations, inputs, outputs, errors)
+2. capability manifest (the binding: id + contract + operations + executor ref)
+3. concrete code       (the how: the registration-unaware executor)
+```
+
+Rules: the contract artifact (R2) is written and validated FIRST; the
+capability manifest (R3) is written and validated SECOND, declaring the
+executor reference (which may name a not-yet-existing module); the concrete
+executor code is written THIRD to satisfy the contract. No component code is
+written or accepted unless its contract artifact and capability manifest
+already exist and validate. Writing concrete code before its contract +
+manifest is a violation — the contract is the specification the code is built
+against, never a summary of already-written code.
+
+## R9 — The Bridge is the only execution interface
+
+The resolved canonical Bridge is the ONLY way to execute any capability
+operation — in the product, in any script, and in the verification harness
+alike. The harness may construct `BridgeRequest`s directly (R7), but it must
+still call the SAME resolved canonical `bridge.handle(...)` that the product
+uses, and it must record only the Bridge's observed `response.trace`. Any
+direct invocation of a component executor — or of an orchestrator that calls
+executors — outside the canonical Bridge is a violation, in the product and in
+the harness. A "verification" that executes capabilities without the Bridge,
+or that records a trace it did not observe from the Bridge, is not
+verification and the cycle is not complete.

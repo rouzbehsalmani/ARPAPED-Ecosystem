@@ -5,7 +5,7 @@ other document in this Blueprint uses exactly these words. If a document seems
 to redefine one of these terms, the document is wrong, not this page.
 
 Invariant rules are NOT defined here: each is stated verbatim exactly once, in
-`00-core/capability-rules.md` (R1–R7), and documents cite rule numbers.
+`00-core/capability-rules.md` (R1–R9), and documents cite rule numbers.
 
 ## Core nouns
 

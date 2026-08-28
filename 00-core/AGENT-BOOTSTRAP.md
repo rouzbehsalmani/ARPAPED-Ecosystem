@@ -48,6 +48,33 @@ ECOSYSTEM
 
 Every node must resolve to an authoritative artifact in the ecosystem.
 
+## 3.5 Write the ecosystem-resolution record
+
+Bootstrap MUST emit a written, resolvable **ecosystem-resolution record** that
+captures the resolved canonical identities — at minimum the canonical Bridge
+and Registry, and the implementation map — so the resolution is discoverable,
+auditable, and reusable by the next cycle (Gate 25). The record is part of the
+resulting state and is referenced in the cycle report. Without it, the cycle
+cannot proceed; a resolved-but-unrecorded Bridge is treated as unresolved.
+
+Concretely, the record declares (in a machine-readable form, e.g. a small JSON
+artifact or a dedicated section of the report):
+
+```text
+resolved:
+  bridge:   <canonical bridge identity/version>
+  registry: <canonical registry identity/version>
+  policy:   <canonical policy stage>
+  selector: <canonical selector>
+  generic_area: <generic/ capability area path at the ecosystem root>
+  root:     <the authoritative ecosystem root supplied by the operator>
+map:
+  - <primitive> -> <authoritative artifact path>
+```
+
+The canonical Bridge is the ONLY execution interface for every capability
+operation in the product, in scripts, and in the verification harness (R9).
+
 ## 4. Load the operating rules
 
 The agent MUST load and obey:

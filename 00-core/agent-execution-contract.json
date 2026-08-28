@@ -8,7 +8,19 @@
     "require_canonical_bridge_resolution": true,
     "require_registry_resolution": true,
     "require_policy_resolution": true,
-    "require_current_state_resolution": true
+    "require_current_state_resolution": true,
+    "require_ecosystem_resolution_record": true
+  },
+  "rules": {
+    "r1_hard_identity": true,
+    "r2_contract_artifact": true,
+    "r3_one_contract_many_manifests": true,
+    "r4_generic_placement": true,
+    "r5_dependencies_and_order": true,
+    "r6_verification_hard_fails": true,
+    "r7_request_path_discipline": true,
+    "r8_contract_first_creation_order": true,
+    "r9_bridge_only_execution_interface": true
   },
   "execution": {
     "cycle_model": "recursive_state_transition",
@@ -17,7 +29,9 @@
     "private_bridge": false,
     "private_registry": false,
     "duplicate_existing_responsibility": false,
-    "proactive_split_check": true
+    "proactive_split_check": true,
+    "contract_first_creation_order": true,
+    "bridge_only_execution_interface": true
   },
   "verification": {
     "require_headless_execution": true,
@@ -26,6 +40,8 @@
     "require_trace_validated_to_executed": true,
     "require_trace_evaluation": true,
     "require_trace_in_record": true,
+    "require_trace_authenticity": true,
+    "require_bridge_only_harness": true,
     "require_operator_decision_window": true,
     "require_capability_decomposition": true,
     "require_request_path_discipline": true,
