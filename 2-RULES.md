@@ -15,6 +15,7 @@ wrong, not this page. The cycle that applies these rules phase by phase is
 
 | Term | Definition |
 |---|---|
+| **cycle** | One complete pass through the phases in `1-CYCLE.md` (Phase 0 Bootstrap through Phase 9 Return state): it starts from a `current_state` + `goal` and produces a verified `resulting state`, which becomes the next cycle's `current_state`. This is the unit the Blueprint is named after — the loop is "self-improving" because each cycle's output is the next cycle's input, with no private agent memory required in between (Gate 11). |
 | **ecosystem root** | The authoritative ARPAPED project root supplied by the operator. It is a single application. The agent resolves every canonical implementation from here; it never creates a second copy. |
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
