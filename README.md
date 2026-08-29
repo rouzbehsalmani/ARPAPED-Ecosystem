@@ -1,5 +1,12 @@
 # ARPAPED Self-Improving Cycle Blueprint — Agent Executable
 
+**If you are about to write code in this repository, read
+`0-WALKTHROUGH.md` first — in full, before your first line of code.** This
+is not a suggestion: every past attempt that skipped it produced a plain
+monolith script with no contracts, no manifests, no Bridge, and no
+capabilities — the exact failure this Blueprint exists to prevent. That has
+already happened more than once on this exact repository.
+
 The operational Blueprint for the ARPAPED self-improving cycle.
 
 **The model in one line:** every capability execution goes through one
@@ -17,17 +24,17 @@ authoritative ecosystem root.
 
 ## Start here
 
-1. **`WALKTHROUGH.md` — about to build something? Start here.** It turns
+1. **`0-WALKTHROUGH.md` — about to build something? Start here.** It turns
    the phases and rules below into literal file paths, imports, and commands
    for this repository, including a small runnable skeleton showing the
    contract → manifest → executor → Bridge wiring end to end.
-2. `CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
+2. `1-CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
    Discover → Decide → Implement → Integrate → Verify → Publish → Return
    state, with every conformance gate inlined at the phase that enforces it.
-3. `RULES.md` — every definition (glossary), the numbered invariant rules
+3. `2-RULES.md` — every definition (glossary), the numbered invariant rules
    (R1–R8), and the Bridge/Registry/verification contracts that make "go
    through the Bridge" enforceable rather than aspirational.
-4. `TEMPLATES.md` — the component contract template and the cycle report
+4. `3-TEMPLATES.md` — the component contract template and the cycle report
    template.
 
 Manifests and contract artifacts are machine-validated against the schemas in
@@ -37,14 +44,17 @@ registration is performed by the generic assembler in `bridge/assembler.py`.
 The cycle is hardened so a result cannot silently bypass the ecosystem: **R7**
 mandates contract → manifest → code order, **R8** makes the canonical Bridge
 the only execution interface (no direct executor/orchestrator calls, including
-in the harness), and conformance gates 25–28 (in `CYCLE.md`) enforce a written
+in the harness), and conformance gates 25–28 (in `1-CYCLE.md`) enforce a written
 bootstrap resolution record, contract-first creation, Bridge-only execution,
 and trace authenticity (traces must be the Bridge's observed `response.trace`).
 
-## This is not a worked example
+## This is not a worked product
 
-No concrete implementation is embedded here. No concrete evaluation scenario
-is embedded here. No worked example exists here, by design — an example
-becomes a second source of truth and invites literal copying; the templates
-and contract formats are the shape. The Blueprint defines the reusable
-operating system for the self-improving cycle.
+No concrete application is embedded here, and no concrete evaluation
+scenario is embedded here — an embedded product would become a second
+source of truth and invite literal copying. `0-WALKTHROUGH.md` does contain
+small, deliberately trivial wiring skeletons (a single toy capability, and a
+handful composed together) — copy their *shape* (contracts, manifests, the
+request-construction pattern), never their toy domain content. The
+templates and contract formats are the shape; the Blueprint defines the
+reusable operating system for the self-improving cycle.

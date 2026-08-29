@@ -1,6 +1,6 @@
 # Rules: Definitions, Invariants, Bridge Enforcement
 
-Building something concrete right now? See `WALKTHROUGH.md` — it turns these
+Building something concrete right now? See `0-WALKTHROUGH.md` — it turns these
 rules into literal file paths and commands. This file is the definitions/
 invariants reference it points back to.
 
@@ -9,7 +9,7 @@ self-improving cycle. Every other document uses exactly these words and cites
 these rules by number; nothing else states a rule in full. If a document
 seems to redefine a term or restate a rule differently, that document is
 wrong, not this page. The cycle that applies these rules phase by phase is
-`CYCLE.md`; reusable artifact shapes are in `TEMPLATES.md`.
+`1-CYCLE.md`; reusable artifact shapes are in `3-TEMPLATES.md`.
 
 ## Glossary
 
@@ -19,7 +19,7 @@ wrong, not this page. The cycle that applies these rules phase by phase is
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
 | **contract** | The machine-readable interface of a capability: identity, version, operations (name, input, output, errors), dependencies, policy, invariants, discoverability, lineage. One contract artifact per capability (R2). |
-| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (template: `TEMPLATES.md`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
+| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (template: `3-TEMPLATES.md`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
 | **generic component** | A small, single-task component that is reusable across cycles. "Generic" describes the component's nature (one task, reusable), never a location (R1, R4). |
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumer code. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
@@ -356,7 +356,7 @@ implementation-specific type as contract data.
 
 **Where registration lives.** Registration is NOT a component concern; it is
 an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
-`CYCLE.md`). Three indirections make the rule enforceable:
+`1-CYCLE.md`). Three indirections make the rule enforceable:
 
 1. **Capability contract data lives in a manifest, not in code.** The
    manifest declares the capability contract identity and, one per
@@ -436,7 +436,7 @@ model.
 6. Component modules live behind a boundary (e.g. a `components/` group) and
    expose only their executor; registration is assembled externally.
 
-This is a hard gate in the cycle (`CYCLE.md`): a cycle is not complete while
+This is a hard gate in the cycle (`1-CYCLE.md`): a cycle is not complete while
 any consumer references a concrete component or any component contains
 registration logic (Gates 13/16). The canonical Bridge is the only execution
 interface (R8, Gates 27/28), and every component is built contract →
@@ -445,7 +445,7 @@ manifest → code (R7, Gate 26).
 ## Verification contract
 
 The self-improving cycle publishes a **verified** state, not a written state.
-This is the mandatory checklist for Phase 7 in `CYCLE.md`; the harness lives
+This is the mandatory checklist for Phase 7 in `1-CYCLE.md`; the harness lives
 alongside the result and is part of the resulting state. It exists because
 assembled results routinely shipped with defects that purely "look right" on
 paper: fail to start after a rename, crash on valid contract data, advertise
@@ -544,7 +544,7 @@ rather than embedding a duplicate implementation:
 | Connector | canonical connector contract | direct hidden dependency |
 | Resource Exchange | canonical resource execution path when required | private resource runtime |
 | Capability binding | manifests (one entry per implementation) + generic assembler (Publish phase) binding capability→implementation(s) | registration embedded in components or consumer code |
-| Contract artifact | one materialized, versioned interface file per capability (R2; see `TEMPLATES.md`) | contract shapes living only implicitly in code |
+| Contract artifact | one materialized, versioned interface file per capability (R2; see `3-TEMPLATES.md`) | contract shapes living only implicitly in code |
 
 Exact filesystem paths are intentionally resolved from authoritative
 manifests rather than hard-coded by this Blueprint.

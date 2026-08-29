@@ -1,13 +1,13 @@
 # The Self-Improving Cycle
 
-Building something concrete right now? See `WALKTHROUGH.md` — it turns the
+Building something concrete right now? See `0-WALKTHROUGH.md` — it turns the
 phases below into literal file paths and commands. This file is the
 phase/gate reference it points back to.
 
 The operational spine of the Blueprint. Every capability execution goes through
 one canonical Bridge over contract-shaped data, and the cycle always verifies
 the result headlessly before publishing it. Definitions and the numbered
-invariant rules (R1–R8) it enforces live in `RULES.md`; nothing here restates
+invariant rules (R1–R8) it enforces live in `2-RULES.md`; nothing here restates
 a rule in full — every phase cites the rule number it enforces.
 
 ## Cycle input
@@ -55,13 +55,13 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    discovery/Registry, policy, capability model, component model, packaging
    model, implementation model, connector model, resource execution) must
    resolve to an authoritative artifact in the ecosystem (see the resolution
-   table in `RULES.md`).
+   table in `2-RULES.md`).
 4. Write a resolvable **ecosystem-resolution record** — machine-readable
    (e.g. a small JSON artifact or a dedicated report section) — naming at
    minimum the resolved canonical Bridge, Registry, policy stage, selector,
    the `contracts/` area, and the root, plus the implementation map. Without
    it the cycle cannot proceed: a resolved-but-unrecorded Bridge is treated as
-   unresolved. The record is referenced in the cycle report (`TEMPLATES.md`).
+   unresolved. The record is referenced in the cycle report (`3-TEMPLATES.md`).
 5. Load the operating rules: this Blueprint, the ecosystem's authoritative
    manifests, canonical Bridge/Registry contracts, immutable architectural
    decisions, capability/component reuse rules, repository-local policies.
@@ -109,7 +109,7 @@ written ecosystem-resolution record.
 
 **Do.** Identify the canonical requirements → manifest → implementation →
 contract chain for every primitive the goal touches (resolution table in
-`RULES.md`). Do not infer missing architecture from package code if the
+`2-RULES.md`). Do not infer missing architecture from package code if the
 ecosystem already defines it.
 
 **Non-negotiables.** Gate 3: a second ecosystem copy or an invented
@@ -233,11 +233,11 @@ capability manifest (validated against `schemas/capability-manifest.schema.json`
 declaring the executor reference, which may name a not-yet-existing module),
 then the concrete registration-unaware executor code
 (`execute(operation, input, policy) -> output`) — and satisfy R1–R4. Before
-writing the contract, apply the product-neutrality checkpoint in `RULES.md`
+writing the contract, apply the product-neutrality checkpoint in `2-RULES.md`
 to confirm the responsibility is genuinely generic, not a one-off dressed up
 as a capability. Components never register themselves and never import the
 Registry (Publish phase owns registration, per R8's indirection rules in
-`RULES.md`).
+`2-RULES.md`).
 
 **Non-negotiables.** Gates 7, 15, 16, 26:
 
@@ -261,7 +261,7 @@ built contract → manifest → code.
 second request pipeline.
 
 **Do.** Consumers speak only capability IDs + contract operations through the
-Bridge (`RULES.md`). Request path per R6: every consumer request — including
+Bridge (`2-RULES.md`). Request path per R6: every consumer request — including
 terminal/CLI input handling — funnels through the application's single
 request-construction point.
 
@@ -292,7 +292,7 @@ canonical path.
 
 **What.** Prove the resulting state by executing it headlessly. A cycle is
 not complete until the result has been executed and verified, not merely
-written. The full checklist a pass must satisfy lives in `RULES.md`
+written. The full checklist a pass must satisfy lives in `2-RULES.md`
 ("Verification contract"); this phase runs it.
 
 **Do.** Run the verification harness: assembly/startup, capability

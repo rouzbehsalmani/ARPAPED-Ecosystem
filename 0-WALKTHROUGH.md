@@ -1,10 +1,23 @@
 # Build Walkthrough
 
-`CYCLE.md` defines the phases and gates. `RULES.md` defines the invariants
+**Read this file in full before writing any code in this repository.** Every
+past attempt that skipped it produced a plain monolith — a single class with
+a pile of methods, no contracts, no manifests, no Bridge, no capabilities.
+That is not a hypothetical risk; it has happened multiple times. If you read
+nothing else here, read this one rule: **default to capability.** Any
+distinct need — including things that look like plain infrastructure
+(reading input, tracking time, dispatching a command) — gets a contract,
+manifest, and executor, wired through the Bridge already implemented at
+`bridge/`. The only two exceptions, anywhere in this document, are the
+single request-construction point and the process entry point (both defined
+below). A class with several methods that directly mutate application state
+is a sign you're about to repeat the mistake — stop and decompose it into
+capabilities instead.
+
+`1-CYCLE.md` defines the phases and gates. `2-RULES.md` defines the invariants
 they enforce. This file turns both into literal actions for **this specific
 repository**, in the order you actually do them, before you write a single
-line of feature code. If you were asked to build an application "based on
-this Blueprint," start here.
+line of feature code.
 
 ## 0. What already exists here — use it, never reinvent it
 
@@ -20,15 +33,15 @@ Blueprint tells you to resolve are **already implemented in this repo**, at
 | Selector | `from bridge.selector import DeterministicSelector` (or `CircuitBreakingSelector` for failover) | `bridge/selector.py` |
 | Assembler | `from bridge.assembler import assemble` | `bridge/assembler.py` |
 
-This **is** the canonical execution boundary that `CYCLE.md` Phase 0 tells you
-to resolve, and the "generic assembler" `RULES.md` and `TEMPLATES.md` refer
+This **is** the canonical execution boundary that `1-CYCLE.md` Phase 0 tells you
+to resolve, and the "generic assembler" `2-RULES.md` and `3-TEMPLATES.md` refer
 to. Do not write a new Bridge, Registry, Policy, or Selector class, and do not
 edit `bridge/*.py` — only import from it. `contracts/` does not exist yet in
 this repo; you create it as you add capabilities. There is no product
 concept and no per-application copy of the Bridge: one Bridge, built once,
 serves every capability you add.
 
-## 1. Bootstrap (CYCLE.md Phase 0 — Gates 1, 2, 3, 25)
+## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25)
 
 Before decomposing the goal:
 
@@ -266,7 +279,7 @@ for manifest_path in Path("capabilities").rglob("manifest.yaml"):
     assemble(yaml.safe_load(manifest_path.read_text()), _registry)
 ```
 
-## 6. Headless verification harness (Phase 7, RULES.md "Verification contract")
+## 6. Headless verification harness (Phase 7, 2-RULES.md "Verification contract")
 
 Lives outside the application packages, e.g. `tests/verify.py`. It must:
 
@@ -294,7 +307,7 @@ Fail closed: if any check fails, fix it and re-run before step 7.
 
 - Confirm `registry.discover(capability_id, contract_version, operation)`
   returns a candidate for every capability you built.
-- Write the cycle report using the template in `TEMPLATES.md`.
+- Write the cycle report using the template in `3-TEMPLATES.md`.
 - The resulting state — `contracts/`, `capabilities/`, `app/`, `tests/`,
   `state/verification-record.json`, and the report — is everything the next
   cycle needs. No private memory of this session should be required to
@@ -310,3 +323,198 @@ Fail closed: if any check fails, fix it and re-run before step 7.
   an operating procedure.
 - Skipping the verification harness because the application "runs fine
   manually."
+
+## Worked skeleton 2: composing capabilities, no dispatcher class (R4, R6)
+
+`demo.echo` (step 3) shows the mechanics for *one* capability. It never
+shows how a capability composes others, so this closes that gap — the same
+gap that, left undocumented, keeps producing a plain orchestration
+class/dispatcher instead of capabilities. This is still scaffolding: copy
+the shape (contracts, the `dependencies` declaration, calling a dependency
+through the request-construction point, the thin entry loop), never the
+counter/command domain content.
+
+Three capabilities:
+
+- `command.parse` (generic) — the same shape as `demo.echo`'s `parse`-style
+  operations: a verb+args parser over a caller-supplied grammar.
+- `counter.adjust` (generic) — given a value, a delta, and bounds, returns
+  the clamped new value. A stand-in for any generic state-transition
+  capability.
+- `session.step` (**specific** — R4) — depends on both of the above. This is
+  the interesting one: a responsibility that composes other capabilities is
+  itself a capability, with its own contract, not a plain class.
+
+**The two generic contracts**, abbreviated (same full shape as `demo.echo`'s
+contract — identity/responsibility/interface/dependencies/discoverability/
+versioning/lineage — just the interesting parts shown):
+
+```yaml
+# contracts/command.parse.contract.yaml
+contract:
+  identity: {id: command.parse, name: Command Parse, version: "1.0.0", domain: command, family: command, type: capability}
+  interface:
+    operations:
+      - name: parse
+        description: Splits text into verb + args against a caller-supplied grammar.
+        input:
+          - {name: text, type: string, required: true}
+          - {name: grammar, type: object, required: true, description: "verb -> expected arg count"}
+        output: {type: object, description: "{ verb, args, valid, error_code }"}
+        errors: [{code: INVALID_INPUT, description: text or grammar malformed}]
+  dependencies: {capabilities: [], components: [], resources: []}
+  # discoverability / versioning / lineage: same shape as demo.echo's contract
+```
+
+```yaml
+# contracts/counter.adjust.contract.yaml
+contract:
+  identity: {id: counter.adjust, name: Counter Adjust, version: "1.0.0", domain: counter, family: counter, type: capability}
+  interface:
+    operations:
+      - name: adjust
+        description: Returns value + delta, clamped to [min, max].
+        input:
+          - {name: value, type: integer, required: true}
+          - {name: delta, type: integer, required: true}
+          - {name: min, type: integer, required: true}
+          - {name: max, type: integer, required: true}
+        output: {type: object, description: "{ value }"}
+        errors: [{code: INVALID_INPUT, description: min > max}]
+  dependencies: {capabilities: [], components: [], resources: []}
+```
+
+**The specific contract, in full** — note `dependencies.capabilities`
+naming the two generic ones (R4: both more generic than `session.step`):
+
+```yaml
+# contracts/session.step.contract.yaml
+contract:
+  identity: {id: session.step, name: Session Step, version: "1.0.0", domain: session, family: session, type: capability}
+  responsibility:
+    description: >
+      Interprets one line of input against the current counter value and
+      returns the next value and a message. Composes command.parse and
+      counter.adjust — it does not reimplement parsing or clamping itself.
+  interface:
+    operations:
+      - name: run
+        description: Advances one interaction.
+        input:
+          - {name: text, type: string, required: true}
+          - {name: count, type: integer, required: true}
+        output: {type: object, description: "{ count, message, done }"}
+        errors: [{code: UNKNOWN_VERB, description: text did not match the grammar}]
+  dependencies:
+    capabilities: [command.parse, counter.adjust]
+    components: []
+    resources: []
+  discoverability: {tags: [session], metadata: {}}
+  versioning: {compatibility: backward, deprecation_policy: none}
+  lineage: {created_by: walkthrough-skeleton, changed_by: walkthrough-skeleton, history: []}
+```
+
+Manifests follow the exact shape from step 3 (`capability_id`,
+`contract_version`, one `implementations[]` entry each, `executor:
+"module.path:execute"`) — omitted here since nothing about their shape
+changes. The two generic executors are as plain as their contracts —
+neither calls another capability, so neither needs the lazy-import gotcha
+below:
+
+```python
+# capabilities/command/parse/executor.py
+def execute(operation, input, policy):
+    text, grammar = input["text"], input["grammar"]
+    tokens = text.strip().split()
+    if not tokens:
+        return {"verb": None, "args": [], "valid": False, "error_code": "EMPTY_TEXT"}
+    verb, args = tokens[0], tokens[1:]
+    if verb not in grammar or len(args) != grammar[verb]:
+        return {"verb": verb, "args": args, "valid": False, "error_code": "UNKNOWN_VERB"}
+    return {"verb": verb, "args": args, "valid": True, "error_code": None}
+```
+
+```python
+# capabilities/counter/adjust/executor.py
+def execute(operation, input, policy):
+    value, delta = input["value"], input["delta"]
+    lo, hi = input["min"], input["max"]
+    return {"value": max(lo, min(hi, value + delta))}
+```
+
+**The executor that composes its dependencies** — the actual mechanism this
+skeleton exists to show,
+`capabilities/session/step/executor.py`:
+
+```python
+from bridge.bridge import BridgeError
+
+GRAMMAR = {"inc": 0, "dec": 0, "set": 1, "quit": 0}
+
+def execute(operation, input, policy):
+    from app.requests import call  # lazy import — see the gotcha below
+
+    if operation != "run":
+        raise BridgeError("UNSUPPORTED_OPERATION", "execution", f"no such operation: {operation}")
+
+    text, count = input["text"], input["count"]
+    parsed = call("command.parse", "parse", {"text": text, "grammar": GRAMMAR}).output
+    if not parsed["valid"]:
+        return {"count": count, "message": f"unrecognized: {text}", "done": False}
+
+    verb, args = parsed["verb"], parsed["args"]
+    if verb == "quit":
+        return {"count": count, "message": "bye", "done": True}
+    if verb == "inc":
+        delta = 1
+    elif verb == "dec":
+        delta = -1
+    else:  # "set" — grammar guarantees exactly one arg here
+        delta = int(args[0]) - count
+
+    adjusted = call("counter.adjust", "adjust", {"value": count, "delta": delta, "min": 0, "max": 100}).output
+    new_count = adjusted["value"]
+    return {"count": new_count, "message": f"count is now {new_count}", "done": False}
+```
+
+**Gotcha: lazy-import the request-construction point.** `app/requests.py`
+assembles every manifest — which imports every executor — as part of its
+own module body (step 5). If `session.step`'s executor did `from
+app.requests import call` at module *top level*, that import would run
+while `app.requests` is still mid-initialization (it hasn't finished
+defining `call` yet), raising a circular-import error at startup. Importing
+`call` *inside* `execute(...)` instead, as shown above, sidesteps this
+entirely: by the time `execute` actually runs, `app.requests` has long
+since finished loading. Any executor that calls other capabilities needs
+this lazy import; one that doesn't (like `demo.echo`'s) doesn't.
+
+**The entry point** — genuinely nothing but a loop that calls one capability
+per line, which is the whole point:
+
+```python
+from app.requests import call
+
+def main():
+    count = 0
+    print("Type: inc | dec | set <n> | quit")
+    while True:
+        text = input("> ")
+        response = call("session.step", "run", {"text": text, "count": count})
+        count = response.output["count"]
+        print(response.output["message"])
+        if response.output["done"]:
+            break
+
+if __name__ == "__main__":
+    main()
+```
+
+No dispatcher class. No verb-handler methods. No if/elif ladder of domain
+logic outside a contract. The entry point's only job is calling the one
+composed capability and printing the result.
+
+**Verifying it**: call `session.step` directly (as in step 6) and assert
+its own outer `response.trace` reaches `executed` — you do not need to
+"bubble up" the traces of the `command.parse`/`counter.adjust` calls nested
+inside its executor; verify those two the same way, directly and
+independently, exactly like any other capability operation.

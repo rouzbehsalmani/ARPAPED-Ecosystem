@@ -1,11 +1,11 @@
 # Templates
 
-Building something concrete right now? See `WALKTHROUGH.md` — it shows these
+Building something concrete right now? See `0-WALKTHROUGH.md` — it shows these
 templates filled in and wired to the real Bridge. This file is the shape
 reference it points back to.
 
-Two reusable artifact shapes referenced from `CYCLE.md` and `RULES.md`. Rules
-governing these shapes (R1–R8) are defined once, in `RULES.md`; this page is
+Two reusable artifact shapes referenced from `1-CYCLE.md` and `2-RULES.md`. Rules
+governing these shapes (R1–R8) are defined once, in `2-RULES.md`; this page is
 structure only.
 
 ## Component contract template
@@ -90,11 +90,11 @@ ecosystem's authoritative manifests; the shape above is structural only.
 7. Inputs and outputs MUST be generic contract-shaped data, never the
    implementing component's internal classes or module names — a consumer
    must be able to swap the component without changing its contract data
-   (`RULES.md`, "Capability reference discipline").
+   (`2-RULES.md`, "Capability reference discipline").
 8. The contract MUST NOT name or depend on the implementing module,
    package, or class; the component is bound to the contract through a
    data-driven capability manifest, not through consumer code.
-9. Contract identity per R1; extraction judgement in `RULES.md`.
+9. Contract identity per R1; extraction judgement in `2-RULES.md`.
 10. This file's shape IS the capability's contract artifact: existence and
     uniqueness per R2, locality per R3.
 11. `dependencies` per R4.
@@ -132,7 +132,7 @@ For each responsibility: `reuse | compose | split/refactor | create`
 `<canonical path reference>`
 
 ## Verification
-Report against the checklist in `RULES.md` ("Verification contract"). For
+Report against the checklist in `2-RULES.md` ("Verification contract"). For
 each point — assembly/startup; capability decomposition; every capability
 operation with the full ordered trace; every consumer interaction via
 scripted stream; operator decision window; reactive same-session;
