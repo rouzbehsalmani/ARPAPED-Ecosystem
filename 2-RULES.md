@@ -144,7 +144,12 @@ A Verify pass (Phase 7) MUST fail when:
    package placement violates the single-application packaging layout;
 3. a component's executor path is not a normal module path within the
    application, or a single file monolithically bundles independent
-   responsibilities instead of composing small reusable components.
+   responsibilities instead of composing small reusable components;
+4. a process entry point (or a local helper it calls) branches on the
+   content of an incoming request/event to decide an action, or itself
+   calls two or more different capabilities and combines/sequences their
+   results — that decision or composition logic is an unextracted
+   capability, not entry-point plumbing.
 
 ## R6 — Request-path discipline
 
