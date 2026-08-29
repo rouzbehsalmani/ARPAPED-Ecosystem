@@ -1,5 +1,9 @@
 # Rules: Definitions, Invariants, Bridge Enforcement
 
+Building something concrete right now? See `WALKTHROUGH.md` — it turns these
+rules into literal file paths and commands. This file is the definitions/
+invariants reference it points back to.
+
 The single source of definitions and invariant rules for the ARPAPED
 self-improving cycle. Every other document uses exactly these words and cites
 these rules by number; nothing else states a rule in full. If a document

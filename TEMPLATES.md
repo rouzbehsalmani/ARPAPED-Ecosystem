@@ -1,5 +1,9 @@
 # Templates
 
+Building something concrete right now? See `WALKTHROUGH.md` — it shows these
+templates filled in and wired to the real Bridge. This file is the shape
+reference it points back to.
+
 Two reusable artifact shapes referenced from `CYCLE.md` and `RULES.md`. Rules
 governing these shapes (R1–R8) are defined once, in `RULES.md`; this page is
 structure only.

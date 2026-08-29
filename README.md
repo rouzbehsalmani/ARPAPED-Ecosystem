@@ -17,13 +17,17 @@ authoritative ecosystem root.
 
 ## Start here
 
-1. `CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
+1. **`WALKTHROUGH.md` — about to build something? Start here.** It turns
+   the phases and rules below into literal file paths, imports, and commands
+   for this repository, including a small runnable skeleton showing the
+   contract → manifest → executor → Bridge wiring end to end.
+2. `CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
    Discover → Decide → Implement → Integrate → Verify → Publish → Return
    state, with every conformance gate inlined at the phase that enforces it.
-2. `RULES.md` — every definition (glossary), the numbered invariant rules
+3. `RULES.md` — every definition (glossary), the numbered invariant rules
    (R1–R8), and the Bridge/Registry/verification contracts that make "go
    through the Bridge" enforceable rather than aspirational.
-3. `TEMPLATES.md` — the component contract template and the cycle report
+4. `TEMPLATES.md` — the component contract template and the cycle report
    template.
 
 Manifests and contract artifacts are machine-validated against the schemas in

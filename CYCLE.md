@@ -1,5 +1,9 @@
 # The Self-Improving Cycle
 
+Building something concrete right now? See `WALKTHROUGH.md` — it turns the
+phases below into literal file paths and commands. This file is the
+phase/gate reference it points back to.
+
 The operational spine of the Blueprint. Every capability execution goes through
 one canonical Bridge over contract-shaped data, and the cycle always verifies
 the result headlessly before publishing it. Definitions and the numbered

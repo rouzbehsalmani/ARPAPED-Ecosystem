@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Capability Manifest",
-  "description": "Machine-readable declaration of a capability contract and the executor references that implement it. Lives with the capability's generic footprint (R3/R4), one entry per implementation. Consumed by the generic assembler during the Publish phase (Phase 8) to build and register implementation records into the canonical Registry.",
+  "description": "Machine-readable declaration of a capability contract and the executor references that implement it. Lives with the capability's generic footprint (R3), one entry per implementation. Consumed by the generic assembler during the Publish phase (Phase 8) to build and register implementation records into the canonical Registry.",
   "type": "object",
   "required": [
     "capability_id",
