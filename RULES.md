@@ -76,9 +76,28 @@ A capability id names the generic responsibility as `domain.operation` —
 precise, concrete, and small-scale, never an app-bound or one-off label,
 never a vague role name (`<domain>.manager`). "Generic" here describes the
 nature of the responsibility: it is a single task that another cycle's
-responsibility can reuse. If a responsibility is genuinely the private detail
-of one larger composed unit, it stays that unit's local logic; it is not
-advertised as a separate reusable capability.
+responsibility can reuse.
+
+**Default to capability.** When a need exists and nothing in the Registry
+satisfies it, the response is to create the capability — contract, manifest,
+executor (R7) — not to write it as ad hoc local code. This applies even when
+the need looks like plain infrastructure or plumbing (reading input,
+tracking time, dispatching a command, sequencing a few other calls
+together): if it is a distinct thing the application needs done, it is a
+capability candidate first, local code only as a last resort. A responsibility
+that composes several generic capabilities is itself a **specific**
+capability (R4) — it gets its own contract declaring the generic ones as
+`dependencies` and is reached through the Bridge like anything else; "it
+composes other capabilities" is a reason to give it a contract, never a
+reason to leave it local.
+
+Exactly two things are never capabilities, and both are a structural floor,
+not a judgment call: the single request-construction point itself (R6 — it
+has to exist before any `BridgeRequest` can be built), and the literal
+process entry point that starts the application (something has to run
+before the Bridge can route anything to it). Nothing else qualifies for
+"stays local" — not a business engine, not a clock, not an input reader, not
+a dispatcher.
 
 ## R2 — Contract artifact
 
@@ -187,10 +206,10 @@ the cycle is not complete.
 
 ## Extraction judgement (illustrates R1)
 
-Extract the generic essence and leave the specific semantics in the consumer
-or in composition/configuration. When analyzing a responsibility, separate
-what is a plain generic operation from what is one-off, consumer-only
-meaning:
+Extract the generic essence and leave only truly one-off values (not logic)
+in configuration/composition. When analyzing a responsibility, separate what
+is a plain generic operation from what is one-off, consumer-only meaning —
+and remember R1's default: when in doubt, it's a capability.
 
 | Appears one-off | Generic essence |
 |---|---|
@@ -198,10 +217,15 @@ meaning:
 | A feature's own command vocabulary | **`<domain>.<operation>`** — a generic parser of `verb + args` with a configurable grammar |
 | A feature-specific rendering/framing | **`<domain>.<operation>`** — a generic layout/render over plain data |
 | Feature-specific validation/costing | **`<domain>.<operation>`** — a configurable bounds/validity check, where the costs, kinds, and rules are inputs, not built-ins |
-| A domain-specific growth/business engine | intrinsic to the consumer — stays consumer-local, composed over the generic capabilities above |
+| A scripted-command dispatcher (deciding what a parsed command does) | **`<domain>.<operation>`** — a capability in its own right; it may depend on other capabilities (R4), it does not stop being one for composing them |
+| A clock/time source (so ticking is controllable, not wall-clock) | **`<domain>.<operation>`** — a capability with a swappable implementation (e.g. real vs. manual), exactly like any other; not a hidden application-only class |
+| Raw input/device polling (reading a key, a sensor, a socket) | **`<domain>.<operation>`** — the I/O boundary is a capability too; "it's just plumbing" is not an exemption |
+| A responsibility that sequences/composes several other capabilities (a "business engine") | **`<domain>.<operation>`** — a *specific* capability (R4): its contract declares the generic capabilities it composes as `dependencies`; composing others is why it has a contract, not why it's exempt from one |
 
-If the responsibility is genuinely intrinsic to one consumer, keep it as
-local logic and do not advertise it as a reusable capability (R1).
+The only two things that are never capabilities are named in R1: the single
+request-construction point and the process entry point. Everything else —
+however small, however plumbing-like, however specific to one consumer's
+composition of other capabilities — gets a contract.
 
 **Product-neutrality checkpoint.** Before writing the contract artifact, ask:
 
@@ -464,7 +488,10 @@ and must answer YES to all of:
 scripted-input path and a controllable clock: ticking is driven by explicit
 `tick`/`wait` events, never wall-clock time, and the scripted path shares
 handlers with the real console path. If the scripted path bypasses real
-logic, the harness verifies nothing.
+logic, the harness verifies nothing. The clock that provides this is itself
+a capability like any other (R1) — not a hidden, application-only class —
+so a real and a manual/injectable time source are simply two implementations
+of the same contract.
 
 **Request-path discipline** (R6, R8) — canonical path `consumer code ->
 Bridge -> registry -> policy -> selector -> executor`, one single
