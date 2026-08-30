@@ -92,13 +92,19 @@ capability (R4) — it gets its own contract declaring the generic ones as
 composes other capabilities" is a reason to give it a contract, never a
 reason to leave it local.
 
-Exactly two things are never capabilities, and both are a structural floor,
-not a judgment call: the single request-construction point itself (R6 — it
-has to exist before any `BridgeRequest` can be built), and the literal
-process entry point that starts the application (something has to run
-before the Bridge can route anything to it). Nothing else qualifies for
-"stays local" — not a business engine, not a clock, not an input reader, not
-a dispatcher.
+Exactly one thing is never a capability, and it is a structural floor, not a
+judgment call: the single request-construction point itself (R6 — it has to
+exist before any `BridgeRequest` can be built). The process entry point that
+starts the application is not a second exemption — it is ordinary consumer
+code, bound by R6 like any other: it may do nothing but call capabilities
+through the request-construction point, plus the minimal process
+bootstrapping needed to start and stop. If the entry point needs a real
+service — a web server, a device-polling loop, a scheduler — that service is
+a capability with its own contract, manifest, and executor, whose
+implementation is free to use whatever external library or network service
+it needs; the entry point only calls it. Nothing qualifies for "stays local"
+— not a business engine, not a clock, not an input reader, not a dispatcher,
+not a web server.
 
 ## R2 — Contract artifact
 
@@ -145,14 +151,8 @@ A Verify pass (Phase 7) MUST fail when:
 3. a component's executor path is not a normal module path within the
    application, or a single file monolithically bundles independent
    responsibilities instead of composing small reusable components;
-4. a process entry point (or a local helper it calls) branches on the
-   content of an incoming request/event to decide an action, or itself
-   calls two or more different capabilities and combines/sequences their
-   results — that decision or composition logic is an unextracted
-   capability, not entry-point plumbing. This governs the entry point's own
-   code, not a capability's implementation: an executor may freely use any
-   external library, framework, or network service it needs to do its job
-   — the contract defines the WHAT, never the HOW inside the executor.
+4. a process entry point performs work beyond what R1 permits for consumer
+   code.
 
 ## R6 — Request-path discipline
 
@@ -231,10 +231,10 @@ and remember R1's default: when in doubt, it's a capability.
 | Raw input/device polling (reading a key, a sensor, a socket) | **`<domain>.<operation>`** — the I/O boundary is a capability too; "it's just plumbing" is not an exemption |
 | A responsibility that sequences/composes several other capabilities (a "business engine") | **`<domain>.<operation>`** — a *specific* capability (R4): its contract declares the generic capabilities it composes as `dependencies`; composing others is why it has a contract, not why it's exempt from one |
 
-The only two things that are never capabilities are named in R1: the single
-request-construction point and the process entry point. Everything else —
-however small, however plumbing-like, however specific to one consumer's
-composition of other capabilities — gets a contract.
+The only thing that is never a capability is named in R1: the single
+request-construction point. Everything else — however small, however
+plumbing-like, however specific to one consumer's composition of other
+capabilities — gets a contract.
 
 **Product-neutrality checkpoint.** Before writing the contract artifact, ask:
 

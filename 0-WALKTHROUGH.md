@@ -8,10 +8,10 @@ nothing else here, read this one rule: **default to capability.** Any
 distinct need — including things that look like plain infrastructure
 (reading input, tracking time, dispatching a command) — gets a contract,
 manifest, and executor, wired through the Bridge already implemented at
-`bridge/`. The only two exceptions, anywhere in this document, are the
-single request-construction point and the process entry point (both defined
-below). A class with several methods that directly mutate application state
-is a sign you're about to repeat the mistake — stop and decompose it into
+`bridge/`. The only structural exception is the single request-construction
+point (defined below); the entry point itself is ordinary consumer code, per
+R1. A class with several methods that directly mutate application state is a
+sign you're about to repeat the mistake — stop and decompose it into
 capabilities instead.
 
 `1-CYCLE.md` defines the phases and gates. `2-RULES.md` defines the invariants
@@ -81,11 +81,9 @@ together. All of those are capability candidates first, local code only as a
 last resort. Composing several other capabilities is a reason to give a
 responsibility its own contract (a *specific* capability per R4, depending on
 the generic ones) — never a reason to leave it as an ad hoc class or module.
-Exactly two things in this entire walkthrough are never capabilities: the
-single request-construction point (step 4) and the program's entry point
-(step 4's caller — whatever starts the application and its top-level loop).
-Both are a structural floor, not a judgment call — something has to exist
-before the Bridge can route anything. Nothing else gets to skip a contract.
+The only structural exception in this entire walkthrough is the single
+request-construction point (step 4); the entry point that calls it is
+ordinary consumer code, per R1. Nothing else gets to skip a contract.
 
 ## 3. Per capability: contract → manifest → code, in that order (Phase 5, R7)
 
@@ -259,12 +257,10 @@ calls `requests.call(...)`. Nothing else constructs a `BridgeRequest` or
 calls `bridge.handle` directly (the verification harness in step 6 is the
 one exception, per R6).
 
-This module, plus the process entry point that starts the application (its
+This module is the only structural exception (R1). The process entry point
+that calls it is ordinary consumer code, not a second exemption — its
 top-level loop should do little more than call capabilities in sequence
-through this module), are the *only* two kinds of code this walkthrough ever
-treats as exempt from capability decomposition (R1). A command dispatcher, a
-clock, an input reader, a "business engine" that sequences a few capability
-calls — none of those are exemptions; they're capabilities (step 2).
+through this module (step 2).
 
 ## 5. Assemble every manifest at startup (Phase 8 mechanics, R8's indirections)
 
