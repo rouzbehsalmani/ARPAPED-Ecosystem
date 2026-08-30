@@ -141,7 +141,11 @@ A Verify pass (Phase 7) MUST fail when:
    application, or a single file monolithically bundles independent
    responsibilities instead of composing small reusable components;
 4. a process entry point performs work beyond what R9 permits for consumer
-   code.
+   code;
+5. a capability's executor imports the process entry point module (or
+   anything that transitively re-exposes it) — dependency flows one way
+   only, entry point → capabilities via the request-construction point (R6,
+   R9), never the reverse.
 
 ## R6 — Request-path discipline
 
