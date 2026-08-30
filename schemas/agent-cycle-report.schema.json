@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Agent Cycle Report",
+  "description": "Machine-readable report of one completed cycle (1-CYCLE.md, Phase 0-9). The counterpart to agent-cycle-input.schema.json: that schema defines what goes into a cycle, this one defines what comes out. Written into the resulting state alongside the verification record it references.",
+  "type": "object",
+  "required": [
+    "goal",
+    "starting_state",
+    "decisions",
+    "new_capabilities",
+    "reused_capabilities",
+    "bridge_integration",
+    "verification",
+    "resulting_state",
+    "next_cycle_readiness"
+  ],
+  "properties": {
+    "goal": {
+      "type": "object",
+      "description": "The goal accepted at bootstrap, after the ecosystem was resolved."
+    },
+    "starting_state": {
+      "type": "string",
+      "description": "The current_state the cycle began from."
+    },
+    "reusable_discovery": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "References to canonical implementations resolved (Bridge, Registry, Policy, Selector, assembler, existing capabilities) — Phase 1/3."
+    },
+    "decisions": {
+      "type": "array",
+      "description": "One entry per responsibility decomposed in Phase 2, decided in Phase 4.",
+      "items": {
+        "type": "object",
+        "required": ["responsibility", "decision", "reason"],
+        "properties": {
+          "responsibility": {"type": "string"},
+          "decision": {
+            "type": "string",
+            "enum": ["reuse", "compose", "split_refactor", "create", "structural_floor"]
+          },
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "new_capabilities": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Capability ids created this cycle (Phase 5)."
+    },
+    "reused_capabilities": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Capability ids reused from a prior cycle, unchanged."
+    },
+    "split_refactor_operations": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Lineage references for any component split this cycle (Phase 1.5, Phase 8 Gate 8)."
+    },
+    "registry_changes": {
+      "type": "string",
+      "description": "What was assembled/registered into the canonical Registry this cycle (Phase 8)."
+    },
+    "bridge_integration": {
+      "type": "string",
+      "description": "Confirmation that every request traverses the canonical path through the single request-construction point (R6)."
+    },
+    "verification": {
+      "type": "object",
+      "description": "Report against the checklist in 2-RULES.md (\"Verification contract\").",
+      "required": ["harness", "verification_record_ref", "status"],
+      "properties": {
+        "harness": {"type": "string", "description": "Path/identity of the verification harness in the resulting state."},
+        "trace_evaluation": {"type": "string", "description": "Summary of observed Bridge traces for every capability operation."},
+        "failures_and_fixes": {"type": "string", "description": "Failures observed and fixes applied; regression re-run status."},
+        "verification_record_ref": {"type": "string", "description": "Path to the verification-record.schema.json instance this cycle produced."},
+        "status": {"type": "string", "enum": ["verified", "failed"]}
+      }
+    },
+    "resulting_state": {
+      "type": "string",
+      "description": "The authoritative discoverable state this cycle produced — the next cycle's current_state."
+    },
+    "next_cycle_readiness": {
+      "type": "string",
+      "description": "How the resulting state is discoverable without private agent memory (Gate 11)."
+    }
+  }
+}

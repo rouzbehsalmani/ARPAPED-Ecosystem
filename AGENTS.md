@@ -22,4 +22,4 @@ point itself is ordinary consumer code, per R1. If you are about to write a
 class with several methods that directly mutate application state, stop —
 that is a capability (or several), not a class.
 
-Read order: `0-WALKTHROUGH.md` → `1-CYCLE.md` → `2-RULES.md` → `3-TEMPLATES.md`.
+Read order: `0-WALKTHROUGH.md` → `1-CYCLE.md` → `2-RULES.md`.

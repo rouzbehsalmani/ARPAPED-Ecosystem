@@ -26,7 +26,7 @@ authoritative ecosystem root.
 
 1. **`0-WALKTHROUGH.md` — about to build something? Start here.** It turns
    the phases and rules below into literal file paths, imports, and commands
-   for this repository, including a small runnable skeleton showing the
+   for this repository, including a small runnable sample app showing the
    contract → manifest → executor → Bridge wiring end to end.
 2. `1-CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
    Discover → Decide → Implement → Integrate → Verify → Publish → Return
@@ -34,8 +34,10 @@ authoritative ecosystem root.
 3. `2-RULES.md` — every definition (glossary), the numbered invariant rules
    (R1–R8), and the Bridge/Registry/verification contracts that make "go
    through the Bridge" enforceable rather than aspirational.
-4. `3-TEMPLATES.md` — the component contract template and the cycle report
-   template.
+
+Contract, manifest, and cycle-report shapes are formally defined in
+`schemas/` and demonstrated concretely in `bridge/samples/hello_world/` —
+there is no separate template document.
 
 Manifests and contract artifacts are machine-validated against the schemas in
 `schemas/` (`capability-manifest`, `component-contract`, and friends), and

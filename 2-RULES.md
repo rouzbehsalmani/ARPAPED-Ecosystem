@@ -9,7 +9,8 @@ self-improving cycle. Every other document uses exactly these words and cites
 these rules by number; nothing else states a rule in full. If a document
 seems to redefine a term or restate a rule differently, that document is
 wrong, not this page. The cycle that applies these rules phase by phase is
-`1-CYCLE.md`; reusable artifact shapes are in `3-TEMPLATES.md`.
+`1-CYCLE.md`; the contract/manifest/report shapes these rules govern are
+defined in `schemas/` and demonstrated in `bridge/samples/hello_world/`.
 
 ## Glossary
 
@@ -20,7 +21,7 @@ wrong, not this page. The cycle that applies these rules phase by phase is
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
 | **contract** | The machine-readable interface of a capability: identity, version, operations (name, input, output, errors), dependencies, policy, invariants, discoverability, lineage. One contract artifact per capability (R2). |
-| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (template: `3-TEMPLATES.md`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
+| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `schemas/component-contract.schema.json`; worked example: `bridge/samples/hello_world/contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
 | **generic component** | A small, single-task component that is reusable across cycles. "Generic" describes the component's nature (one task, reusable), never a location (R1, R4). |
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumer code. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
@@ -251,8 +252,9 @@ implemented.
 ## The Bridge contract
 
 The agent resolves and uses the ecosystem's existing canonical Bridge; the
-Blueprint never prescribes a replacement implementation. Verify from
-authoritative ecosystem artifacts: Bridge identity, its canonical request
+Blueprint never prescribes a replacement implementation, in any language.
+Verify from authoritative ecosystem artifacts — resolved via
+`bridge/MANIFEST.yaml`, never hard-coded — its identity, canonical request
 path, validation stage, discovery stage, policy stage, selection stage,
 execution handoff, and tracing/receipt requirements. A consumer of this path
 must not reproduce the Bridge pipeline locally.
@@ -260,54 +262,33 @@ must not reproduce the Bridge pipeline locally.
 **Architecture.**
 
 ```text
-consumer code -> BridgeRequest -> Bridge
+consumer code -> request -> Bridge
   ├── Registry (discovery)
   ├── Policy (authorization)
   ├── Selector (routing)
-  └── Executor (implementation) -> BridgeResponse -> consumer code
+  └── Executor (implementation) -> response -> consumer code
 ```
 
-**Request / response / error format.**
-
-```python
-@dataclass(frozen=True)
-class BridgeRequest:
-    request_id: str           # unique request identifier
-    capability_id: str        # ID of the capability to execute
-    contract_version: str     # required contract version
-    operation: str            # operation name from the contract
-    input: dict[str, Any]     # operation input matching the contract
-    policy_context: PolicyContext  # authorization context
-
-@dataclass(frozen=True)
-class BridgeResponse:
-    request_id: str           # matches the request
-    capability_id: str        # capability that was executed
-    contract_version: str     # contract version that was used
-    implementation_id: str    # specific implementation that ran
-    output: dict[str, Any]    # operation output
-    trace: tuple[str, ...]    # stage trace — evaluation evidence
-
-@dataclass
-class BridgeError(Exception):
-    code: str                 # e.g. "BRIDGE_NO_IMPLEMENTATION"
-    stage: str                # stage where the error occurred
-    message: str              # human-readable message
-    details: dict | None      # additional error context
-```
+**Request / response / error shape.** Defined once, language-agnostically,
+in `schemas/bridge-protocol.schema.json`: a request carries
+`request_id`, `capability_id`, `contract_version`, `operation`, `input`,
+`policy_context`; a response adds `implementation_id`, `output`, `trace`; an
+error carries `code`, `stage`, `message`, `details`. The exact
+language-level representation (a class, a struct, a plain map) is whatever
+the resolved Bridge implementation under `bridge/` uses — this Blueprint
+defines the shape, not the representation.
 
 **Usage pattern.**
 
-1. Resolve the Bridge from the ecosystem root, never from consumer code:
-   `Bridge(registry=..., policy=..., selector=...)`, each `resolve_from_ecosystem()`.
+1. Resolve the Bridge from the ecosystem root per `bridge/MANIFEST.yaml`,
+   never construct one from consumer code.
 2. Create a request with real capability IDs from the ecosystem's
    authoritative manifests — never invented locally.
 3. Handle the response and treat the trace as evidence, not control flow:
-   check `"executed" in response.trace` for debugging only; a verification
-   harness evaluates the full trace per R5/R8.
-4. Handle `BridgeError` explicitly: `BRIDGE_ALL_IMPLEMENTATIONS_FAILED` (no
-   healthy implementation), `BRIDGE_POLICY_DENIED` (not authorized),
-   `BRIDGE_NO_IMPLEMENTATION` (capability not available) — never let it
+   checking whether `executed` was reached is for debugging only; a
+   verification harness evaluates the full trace per R5/R8.
+4. Handle every error explicitly by its code (e.g. all implementations
+   failed, policy denied, no implementation available) — never let one
    propagate unhandled.
 
 **Bridge-specific rules.**
@@ -316,7 +297,7 @@ class BridgeError(Exception):
    pipeline.
 2. Never bypass the Bridge to call an implementation directly.
 3. Include a unique `request_id` in every request.
-4. Handle `BridgeError`; do not let it propagate unhandled.
+4. Handle every Bridge error explicitly; do not let one propagate unhandled.
 5. Never use the trace for control flow.
 6. Request `input` and response `output` are generic contract-shaped data;
    implementation-specific types must not cross the Bridge boundary.
@@ -341,10 +322,12 @@ component that implements it: a consumer that references a concrete
 component is not independent of it and cannot reuse ecosystem infrastructure
 without rewriting its own code. The repeating failure this prevents:
 
-```python
-# FORBIDDEN — the consumer names a concrete component module/class
-from <component_module_a> import <TypeA>, register_<component_a>
-register_<component_a>(self.registry)   # change <component_a> -> edit consumer
+```text
+FORBIDDEN — the consumer names a concrete component module/class directly,
+and calls its registration function itself:
+  reference <component_module_a>'s <TypeA> and register_<component_a>
+  call register_<component_a> against the registry
+  (change <component_a> -> edit the consumer)
 ```
 
 If changing the component that provides a capability requires editing any
@@ -553,7 +536,7 @@ rather than embedding a duplicate implementation:
 | Connector | canonical connector contract | direct hidden dependency |
 | Resource Exchange | canonical resource execution path when required | private resource runtime |
 | Capability binding | manifests (one entry per implementation) + generic assembler (Publish phase) binding capability→implementation(s) | registration embedded in components or consumer code |
-| Contract artifact | one materialized, versioned interface file per capability (R2; see `3-TEMPLATES.md`) | contract shapes living only implicitly in code |
+| Contract artifact | one materialized, versioned interface file per capability (R2; shape in `schemas/component-contract.schema.json`) | contract shapes living only implicitly in code |
 
 Exact filesystem paths are intentionally resolved from authoritative
 manifests rather than hard-coded by this Blueprint.

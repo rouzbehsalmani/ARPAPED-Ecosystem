@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Bridge Protocol",
+  "description": "Language-agnostic shape of the request, response, and error a canonical Bridge exchanges with a consumer. Any Bridge implementation, in any language, exposes data matching these three shapes. See bridge/MANIFEST.yaml for where this ecosystem's actual implementation lives.",
+  "$defs": {
+    "policyContext": {
+      "type": "object",
+      "description": "The five policy-decision sources kept explicit and out of the capability body.",
+      "required": ["user", "consumer", "ecosystem", "provider", "module"],
+      "properties": {
+        "user": {"type": "object"},
+        "consumer": {"type": "object"},
+        "ecosystem": {"type": "object"},
+        "provider": {"type": "object"},
+        "module": {"type": "object"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "description": "What a consumer passes to the Bridge's handle operation.",
+      "required": ["request_id", "capability_id", "contract_version", "operation", "input", "policy_context"],
+      "properties": {
+        "request_id": {"type": "string", "description": "Unique per request."},
+        "capability_id": {"type": "string", "description": "The capability to execute."},
+        "contract_version": {"type": "string", "description": "Required contract version, e.g. an exact version or a range like \">=1.0.0\"."},
+        "operation": {"type": "string", "description": "Operation name from the capability's contract."},
+        "input": {"type": "object", "description": "Operation input, shaped by the contract."},
+        "policy_context": {"$ref": "#/$defs/policyContext"}
+      }
+    },
+    "response": {
+      "type": "object",
+      "description": "What the Bridge's handle operation returns on success.",
+      "required": ["request_id", "capability_id", "contract_version", "implementation_id", "output", "trace"],
+      "properties": {
+        "request_id": {"type": "string", "description": "Matches the request."},
+        "capability_id": {"type": "string"},
+        "contract_version": {"type": "string", "description": "Contract version actually used."},
+        "implementation_id": {"type": "string", "description": "The specific implementation that ran."},
+        "output": {"type": "object", "description": "Operation output, shaped by the contract."},
+        "trace": {"$ref": "bridge-trace.schema.json"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "description": "What the Bridge raises when a request cannot complete.",
+      "required": ["code", "stage", "message"],
+      "properties": {
+        "code": {"type": "string", "description": "e.g. BRIDGE_NO_IMPLEMENTATION, BRIDGE_POLICY_DENIED, BRIDGE_ALL_IMPLEMENTATIONS_FAILED."},
+        "stage": {"type": "string", "description": "The trace stage where the error occurred."},
+        "message": {"type": "string"},
+        "details": {"type": ["object", "null"]}
+      }
+    }
+  }
+}

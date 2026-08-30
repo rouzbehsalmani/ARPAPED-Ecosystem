@@ -1,0 +1,43 @@
+# Authoritative, language-agnostic descriptor of this ecosystem's canonical
+# Bridge. Docs never name a file, class, or import path directly — they
+# point here instead. If this Bridge is ever reimplemented in a different
+# language or restructured, update ONLY this file (and the implementation
+# itself); no document elsewhere in this Blueprint needs to change.
+#
+# Schemas are NOT listed here: contract/manifest/protocol shapes are pure
+# data-structure definitions, not coupled to the Bridge's implementation
+# language, so they live in the stable top-level `schemas/` and never move
+# or change just because this file's contents do. `samples/` (below) IS
+# concrete to this Bridge's implementation and gets rewritten alongside it.
+bridge:
+  execution_boundary:
+    location: bridge/bridge.py
+    role: >
+      Routes a request through registry discovery -> policy -> selector ->
+      executor and returns a trace. There is exactly one canonical Bridge.
+  registry:
+    location: bridge/registry.py
+    role: >
+      Canonical discovery/index service: capability+operation -> bounded
+      implementation candidates.
+  policy:
+    location: bridge/policy.py
+    role: >
+      Canonical authorization stage that evaluates each candidate against
+      the request's policy context.
+  selector:
+    location: bridge/selector.py
+    role: >
+      Canonical routing stage that picks which allowed candidate executes
+      (with failover awareness).
+  assembler:
+    location: bridge/assembler.py
+    role: >
+      Generic Publish-phase helper: reads capability manifests, imports each
+      executor, builds implementation records, and registers them into the
+      canonical Registry.
+
+samples:
+  location: bridge/samples/
+  contents:
+    - hello_world   # a single, real, runnable console app — see its README.md

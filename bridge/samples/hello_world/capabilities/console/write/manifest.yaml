@@ -1,0 +1,10 @@
+# Sample capability manifest, valid against schemas/capability-manifest.schema.json.
+# Co-located with its executor in the owning package, per R3.
+capability_id: console.write
+contract: bridge/samples/hello_world/contracts/console.write.contract.yaml
+contract_version: "1.0.0"
+implementations:
+  - implementation_id: console.write.default
+    version: "1.0.0"
+    operations: [write]
+    executor: bridge.samples.hello_world.capabilities.console.write.executor:execute

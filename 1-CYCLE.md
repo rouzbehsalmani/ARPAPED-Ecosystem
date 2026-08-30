@@ -61,7 +61,8 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    minimum the resolved canonical Bridge, Registry, policy stage, selector,
    the `contracts/` area, and the root, plus the implementation map. Without
    it the cycle cannot proceed: a resolved-but-unrecorded Bridge is treated as
-   unresolved. The record is referenced in the cycle report (`3-TEMPLATES.md`).
+   unresolved. The record is referenced in the cycle report
+   (`schemas/agent-cycle-report.schema.json`).
 5. Load the operating rules: this Blueprint, the ecosystem's authoritative
    manifests, canonical Bridge/Registry contracts, immutable architectural
    decisions, capability/component reuse rules, repository-local policies.

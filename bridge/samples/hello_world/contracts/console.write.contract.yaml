@@ -1,0 +1,48 @@
+# Sample contract artifact, valid against schemas/component-contract.schema.json.
+# Part of the runnable hello-world sample app (see ../README.md). Follows
+# the recommended layout from 0-WALKTHROUGH.md step 3: contract artifacts
+# under contracts/, named <domain>.<operation>.contract.yaml.
+#
+# Deliberately the simplest possible capability, to prove the
+# contract -> manifest -> executor -> Bridge wiring end to end, including the
+# point that even writing to a console is a capability, not entry-point
+# plumbing. Scaffolding — copy the shape, not the domain content.
+contract:
+  identity:
+    id: console.write
+    name: Console Write
+    version: "1.0.0"
+    domain: console
+    family: console
+    type: capability
+  responsibility:
+    description: Writes the given text to the console.
+    invariants:
+      - does not modify its input
+  interface:
+    operations:
+      - name: write
+        description: Writes text to the console.
+        input:
+          - name: text
+            type: string
+            required: true
+            description: Text to write.
+        output:
+          type: object
+          description: Empty object on success.
+        errors: []
+  dependencies:
+    capabilities: []
+    components: []
+    resources: []
+  discoverability:
+    tags: [console]
+    metadata: {}
+  versioning:
+    compatibility: backward
+    deprecation_policy: none
+  lineage:
+    created_by: walkthrough-sample
+    changed_by: walkthrough-sample
+    history: []
