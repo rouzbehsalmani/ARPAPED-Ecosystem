@@ -7,7 +7,7 @@ phase/gate reference it points back to.
 The operational spine of the Blueprint. Every capability execution goes through
 one canonical Bridge over contract-shaped data, and the cycle always verifies
 the result headlessly before publishing it. Definitions and the numbered
-invariant rules (R1–R8) it enforces live in `2-RULES.md`; nothing here restates
+invariant rules (R1–R9) it enforces live in `2-RULES.md`; nothing here restates
 a rule in full — every phase cites the rule number it enforces.
 
 ## Cycle input

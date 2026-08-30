@@ -32,7 +32,7 @@ authoritative ecosystem root.
    Discover → Decide → Implement → Integrate → Verify → Publish → Return
    state, with every conformance gate inlined at the phase that enforces it.
 3. `2-RULES.md` — every definition (glossary), the numbered invariant rules
-   (R1–R8), and the Bridge/Registry/verification contracts that make "go
+   (R1–R9), and the Bridge/Registry/verification contracts that make "go
    through the Bridge" enforceable rather than aspirational.
 
 Contract, manifest, and cycle-report shapes are formally defined in

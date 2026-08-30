@@ -84,7 +84,7 @@ responsibility its own contract (a *specific* capability per R4, depending on
 the generic ones) — never a reason to leave it as an ad hoc class or module.
 The only structural exception in this entire walkthrough is the single
 request-construction point (step 4); the entry point that calls it is
-ordinary consumer code, per R1. Nothing else gets to skip a contract.
+ordinary consumer code, per R9. Nothing else gets to skip a contract.
 
 **Run this checklist for every distinct need, including the entry point's
 own needs:**
@@ -164,8 +164,8 @@ calls through that one operation. Nothing else constructs a request or calls
 the Bridge's handle operation directly (the verification harness in step 6
 is the one exception, per R6).
 
-This module is the only structural exception (R1). The process entry point
-that calls it is ordinary consumer code, not a second exemption — its
+This module is the only structural exception (R6). The process entry point
+that calls it is ordinary consumer code, not a second exemption (R9) — its
 top-level loop should do little more than call capabilities in sequence
 through this module (step 2).
 
@@ -221,5 +221,5 @@ Fail closed: if any check fails, fix it and re-run before step 7.
   manually."
 - Building a real service (a web server, a scheduler) directly inside the
   entry point because "it's just infrastructure." If the entry point needs a
-  real service, that service is a capability (R1) — the entry point only
+  real service, that service is a capability (R9) — the entry point only
   calls it.

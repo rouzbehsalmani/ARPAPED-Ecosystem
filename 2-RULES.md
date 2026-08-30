@@ -91,21 +91,9 @@ that composes several generic capabilities is itself a **specific**
 capability (R4) — it gets its own contract declaring the generic ones as
 `dependencies` and is reached through the Bridge like anything else; "it
 composes other capabilities" is a reason to give it a contract, never a
-reason to leave it local.
-
-Exactly one thing is never a capability, and it is a structural floor, not a
-judgment call: the single request-construction point itself (R6 — it has to
-exist before any `BridgeRequest` can be built). The process entry point that
-starts the application is not a second exemption — it is ordinary consumer
-code, bound by R6 like any other: it may do nothing but call capabilities
-through the request-construction point, plus the minimal process
-bootstrapping needed to start and stop. If the entry point needs a real
-service — a web server, a device-polling loop, a scheduler — that service is
-a capability with its own contract, manifest, and executor, whose
-implementation is free to use whatever external library or network service
-it needs; the entry point only calls it. Nothing qualifies for "stays local"
-— not a business engine, not a clock, not an input reader, not a dispatcher,
-not a web server.
+reason to leave it local. The narrow exception to this — the single
+request-construction point itself, and the entry point that calls it — is a
+request-path concern, not an identity one: see R6.
 
 ## R2 — Contract artifact
 
@@ -152,7 +140,7 @@ A Verify pass (Phase 7) MUST fail when:
 3. a component's executor path is not a normal module path within the
    application, or a single file monolithically bundles independent
    responsibilities instead of composing small reusable components;
-4. a process entry point performs work beyond what R1 permits for consumer
+4. a process entry point performs work beyond what R9 permits for consumer
    code.
 
 ## R6 — Request-path discipline
@@ -175,6 +163,11 @@ builds `BridgeRequest`s directly — that is exactly how it inspects the trace
 — but it MUST still call the same resolved canonical `bridge.handle(...)`
 and record only the Bridge's observed `response.trace` (R8). A component is
 a registration-unaware executor reached only by the Bridge.
+
+Exactly one thing is never a capability, and it is a structural floor, not a
+judgment call: the single request-construction point itself — it has to
+exist before any `BridgeRequest` can be built. What the process entry point
+that calls it may and may not contain is its own rule: R9.
 
 ## R7 — Contract-first creation order
 
@@ -214,6 +207,23 @@ canonical Bridge is a violation, in packages and in the harness alike. A
 records a trace it did not observe from the Bridge, is not verification and
 the cycle is not complete.
 
+## R9 — The entry point is not exempt
+
+The process entry point that starts the application is not a second
+exemption alongside the single request-construction point (R6) — it is
+ordinary consumer code, bound by R6 like any other: it may do nothing but
+call capabilities through the request-construction point, plus the minimal
+process bootstrapping needed to start and stop. If the entry point needs a
+real service — a web server, a device-polling loop, a scheduler — that
+service is a capability with its own contract, manifest, and executor,
+whose implementation is free to use whatever external library or network
+service it needs; the entry point only calls it. Nothing qualifies for
+"stays local" — not a business engine, not a clock, not an input reader, not
+a dispatcher, not a web server. This is the single most frequently violated
+rule in this Blueprint's history: an entry point that builds a service
+inline (any transport, any language) instead of extracting the decision of
+what a request means into its own capability.
+
 ## Extraction judgement (illustrates R1)
 
 Extract the generic essence and leave only truly one-off values (not logic)
@@ -232,7 +242,7 @@ and remember R1's default: when in doubt, it's a capability.
 | Raw input/device polling (reading a key, a sensor, a socket) | **`<domain>.<operation>`** — the I/O boundary is a capability too; "it's just plumbing" is not an exemption |
 | A responsibility that sequences/composes several other capabilities (a "business engine") | **`<domain>.<operation>`** — a *specific* capability (R4): its contract declares the generic capabilities it composes as `dependencies`; composing others is why it has a contract, not why it's exempt from one |
 
-The only thing that is never a capability is named in R1: the single
+The only thing that is never a capability is named in R6: the single
 request-construction point. Everything else — however small, however
 plumbing-like, however specific to one consumer's composition of other
 capabilities — gets a contract.
