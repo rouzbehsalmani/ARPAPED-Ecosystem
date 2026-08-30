@@ -325,6 +325,33 @@ existing Registry cannot satisfy the Blueprint's scale requirements, that is
 an ecosystem implementation gap to report and address — not a reason to
 create a local Registry.
 
+**The discovery cascade.** At scale, one selective key is not enough — the
+Registry MUST support searching narrowest-to-widest and stopping at the
+first level that returns a bounded, non-empty set, never merging across
+levels and never scanning the level below it:
+
+1. **Exact** — this capability id + operation, a pinned version and/or a
+   specific implementation id.
+2. **Scoped** — this capability id + operation, any compatible version.
+3. **Family** — the contract's `identity.domain` + `identity.family` +
+   operation, across capability ids. Family names are only meaningful within
+   their domain (a family lives inside a domain) — indexing on family alone
+   would merge unrelated domains that happen to reuse the same family name.
+4. **Domain** — the contract's `identity.domain` + operation, across
+   families.
+5. **Cross-domain** — the contract's `discoverability.tags` + operation,
+   across domains — this is how a genuinely generic capability (R1) gets
+   found from an unrelated domain instead of being recreated.
+
+`family`/`domain`/`tags` are read from the capability's own contract, never
+duplicated into its manifest (R2/R3) — the reference assembler
+(`bridge/assembler.py`) does this when given a root to resolve the
+manifest's `contract` path against. An implementation registered without
+that root is still fully discoverable at Exact/Scoped; it is simply invisible
+to Family/Domain/Cross-domain search until it is. Creation is the last
+resort once all five levels are exhausted — never the default response to a
+new responsibility (Phase 4).
+
 ## Capability reference discipline
 
 This makes MANDATORY the separation between a capability contract and the

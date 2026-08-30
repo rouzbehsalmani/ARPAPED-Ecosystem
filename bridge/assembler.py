@@ -20,13 +20,24 @@ product reference. Everything it needs arrives as manifest data:
 
 Components remain registration-unaware executors, and swapping a component
 requires editing the manifest, never consumer code.
+
+When given a ``root`` (see ``assemble``), the assembler additionally resolves
+each manifest's ``contract`` path against it and reads that contract's
+``identity.domain``, ``identity.family``, and ``discoverability.tags`` — the
+source of truth for those fields is always the contract (R2/R3), never the
+manifest. This is what makes Family/Domain/Cross-domain discovery possible
+(2-RULES.md "Registry contract"); omitting ``root`` keeps prior behavior
+unchanged (Exact/Scoped discovery only).
 """
 
 from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
+
+import yaml
 
 from .registry import CapabilityImplementation, CapabilityRegistry
 
@@ -52,14 +63,27 @@ class ManifestEntry:
     enabled: bool = True
     healthy: bool = True
     metadata: Optional[dict[str, Any]] = None
+    domain: str = ""
+    family: str = ""
+    tags: tuple[str, ...] = ()
 
     @classmethod
-    def from_dict(cls, capability_id: str, contract_version: str, entry: dict[str, Any]) -> "ManifestEntry":
+    def from_dict(
+        cls,
+        capability_id: str,
+        contract_version: str,
+        entry: dict[str, Any],
+        *,
+        domain: str = "",
+        family: str = "",
+        tags: tuple[str, ...] = (),
+    ) -> "ManifestEntry":
         """Builds a typed entry from a raw capability-manifest ``implementations`` item.
 
         ``capability_id`` and ``contract_version`` come from the manifest level
         (per ``schemas/capability-manifest.schema.json``); ``entry`` is one item
-        of its ``implementations`` list.
+        of its ``implementations`` list. ``domain``/``family``/``tags`` come
+        from the referenced contract, when a ``root`` was given to ``assemble``.
         """
 
         if not isinstance(capability_id, str) or not capability_id.strip():
@@ -102,16 +126,49 @@ class ManifestEntry:
             enabled=bool(entry.get("enabled", True)),
             healthy=bool(entry.get("healthy", True)),
             metadata=entry.get("metadata"),
+            domain=domain,
+            family=family,
+            tags=tags,
         )
 
 
-def from_manifest(manifest: dict[str, Any]) -> list[ManifestEntry]:
+def _read_contract_identity(manifest: dict[str, Any], root: Optional[Path]) -> tuple[str, str, tuple[str, ...]]:
+    """Resolves a manifest's ``contract`` path against ``root`` and reads its identity/discoverability.
+
+    Returns ``("", "", ())`` when ``root`` is omitted or the manifest has no
+    ``contract`` path — Exact/Scoped discovery still work without this; only
+    Family/Domain/Cross-domain need it.
+    """
+
+    if root is None:
+        return "", "", ()
+    contract_path = manifest.get("contract")
+    if not isinstance(contract_path, str) or not contract_path.strip():
+        return "", "", ()
+
+    resolved = root / contract_path
+    try:
+        contract_doc = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AssemblerError(f"cannot read contract {resolved}: {exc}") from exc
+
+    contract = (contract_doc or {}).get("contract", {})
+    identity = contract.get("identity", {})
+    discoverability = contract.get("discoverability", {})
+    domain = identity.get("domain", "") or ""
+    family = identity.get("family", "") or ""
+    tags = tuple(discoverability.get("tags", []) or ())
+    return domain, family, tags
+
+
+def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> list[ManifestEntry]:
     """Decodes one canonical capability manifest into its typed implementation entries.
 
     The canonical shape matches ``schemas/capability-manifest.schema.json``:
     a ``capability_id`` and ``contract_version`` at the manifest level, plus an
     ``implementations`` list — each item one implementation of that one
-    contract.
+    contract. When ``root`` is given, each entry's ``domain``/``family``/
+    ``tags`` are read from the manifest's referenced contract.
     """
 
     capability_id = manifest.get("capability_id")
@@ -121,8 +178,10 @@ def from_manifest(manifest: dict[str, Any]) -> list[ManifestEntry]:
     if not isinstance(implementations, list) or not implementations:
         raise AssemblerError("capability manifest must declare a non-empty 'implementations' list")
 
+    domain, family, tags = _read_contract_identity(manifest, root)
+
     return [
-        ManifestEntry.from_dict(capability_id, contract_version, item)
+        ManifestEntry.from_dict(capability_id, contract_version, item, domain=domain, family=family, tags=tags)
         for item in implementations
         if isinstance(item, dict)
     ]
@@ -163,21 +222,35 @@ def _to_implementation(entry: ManifestEntry) -> CapabilityImplementation:
         enabled=entry.enabled,
         healthy=entry.healthy,
         metadata=entry.metadata,
+        domain=entry.domain,
+        family=entry.family,
+        tags=entry.tags,
     )
 
 
-def assemble(manifest: dict[str, Any] | Iterable[dict[str, Any]], registry: CapabilityRegistry) -> list[str]:
+def assemble(
+    manifest: dict[str, Any] | Iterable[dict[str, Any]],
+    registry: CapabilityRegistry,
+    *,
+    root: Optional[Path] = None,
+) -> list[str]:
     """Assembles every declared implementation into the canonical Registry.
 
     Accepts a single capability manifest (per
     ``schemas/capability-manifest.schema.json``) or an iterable of capability
     manifests. Returns the registered implementation ids.
 
+    ``root``, when given, is used to resolve each manifest's ``contract``
+    path so the assembler can attach that contract's domain/family/tags to
+    the registered implementation, enabling Family/Domain/Cross-domain
+    discovery (2-RULES.md "Registry contract"). Omitting it keeps prior
+    behavior unchanged.
+
     Fail closed: if any implementation cannot be imported or registered, an
     ``AssemblerError`` is raised and nothing is partially accepted.
     """
 
-    entries = _collect_entries(manifest)
+    entries = _collect_entries(manifest, root=root)
     if not entries:
         raise AssemblerError("no implementations declared in the manifest(s)")
 
@@ -191,6 +264,8 @@ def assemble(manifest: dict[str, Any] | Iterable[dict[str, Any]], registry: Capa
 
 def _collect_entries(
     manifest: dict[str, Any] | Iterable[dict[str, Any]],
+    *,
+    root: Optional[Path] = None,
 ) -> list[ManifestEntry]:
     """Normalizes a manifest (or iterable of manifests) into typed entries.
 
@@ -210,5 +285,5 @@ def _collect_entries(
 
     entries: list[ManifestEntry] = []
     for item in manifests:
-        entries.extend(from_manifest(item))
+        entries.extend(from_manifest(item, root=root))
     return entries

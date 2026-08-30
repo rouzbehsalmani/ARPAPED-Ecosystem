@@ -20,10 +20,11 @@ from bridge.registry import CapabilityRegistry
 from bridge.selector import DeterministicSelector
 
 _APP_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _APP_ROOT.parent.parent.parent
 
 _registry = CapabilityRegistry()
 for _manifest_path in sorted((_APP_ROOT / "capabilities").rglob("manifest.yaml")):
-    assemble(yaml.safe_load(_manifest_path.read_text(encoding="utf-8")), _registry)
+    assemble(yaml.safe_load(_manifest_path.read_text(encoding="utf-8")), _registry, root=_REPO_ROOT)
 
 _bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector())
 

@@ -171,15 +171,22 @@ index-driven — never a scan of every component.
 
 1. Extract required responsibilities from the goal.
 2. For each, construct the most selective valid discovery key.
-3. Resolve the relevant Registry index/shard.
-4. Retrieve a bounded candidate set.
-5. Filter by contract compatibility, then by version/lifecycle constraints,
-   then by policy/execution constraints.
-6. Prefer direct reusable candidates.
-7. If none satisfy the requirement, widen the discovery scope by one level and
-   repeat until a bounded candidate set is found or the allowed scope is
-   exhausted.
-8. Only then consider split/refactor or creation (Phase 4).
+3. Search the five-level cascade, narrowest first, stopping at the first
+   level that returns a bounded, non-empty candidate set (Registry contract,
+   `2-RULES.md`): **Exact** (this capability id + operation + a pinned
+   version/implementation) → **Scoped** (this capability id + operation, any
+   compatible version) → **Family** (`identity.domain` + `identity.family` +
+   operation — a family is only meaningful within its domain) →
+   **Domain** (`identity.domain` + operation) → **Cross-domain**
+   (`discoverability.tags` + operation). Each level is its own index — never
+   a scan of the level below it, let alone of every component.
+4. Filter the returned candidate set by contract compatibility, then by
+   version/lifecycle constraints, then by policy/execution constraints.
+5. Prefer direct reusable candidates; a Family/Domain/Cross-domain match may
+   need composing (Phase 4) rather than reusing verbatim.
+6. Only once all five levels are exhausted with nothing usable does creation
+   become the answer (Phase 4) — creation is the last resort of discovery,
+   never the default response to a new responsibility.
 
 The normal query path is `selective key -> relevant index -> bounded
 candidates`, never `all components -> local filtering` — discovery must not

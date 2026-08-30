@@ -1,31 +1,72 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Selective Discovery Key",
+  "description": "One lookup in the 5-level discovery cascade (2-RULES.md 'Registry contract'): Exact -> Scoped -> Family -> Domain -> Cross-domain. `level` names which lookup this key performs; the fields that matter depend on it. `operation` and `contract_version` are always required.",
   "type": "object",
   "required": [
-    "domain",
-    "capability_family",
-    "capability_type",
-    "contract"
+    "level",
+    "operation",
+    "contract_version"
   ],
   "properties": {
+    "level": {
+      "type": "string",
+      "enum": ["exact", "scoped", "family", "domain", "cross_domain"],
+      "description": "Which cascade level this key performs. Exact/Scoped need capability_id; Family needs domain + capability_family; Domain needs domain; Cross-domain needs tags."
+    },
+    "operation": {
+      "type": "string",
+      "description": "The contract operation being looked up. Required at every level."
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Required contract version — an exact version for level=exact, a range/'*' otherwise."
+    },
+    "capability_id": {
+      "type": "string",
+      "description": "Required for level=exact and level=scoped."
+    },
+    "implementation_id": {
+      "type": "string",
+      "description": "Optional, level=exact only: pins one specific implementation."
+    },
     "domain": {
-      "type": "string"
+      "type": "string",
+      "description": "Required for level=domain and level=family; the contract's identity.domain."
     },
     "capability_family": {
-      "type": "string"
+      "type": "string",
+      "description": "Required for level=family, alongside domain; the contract's identity.family. A family is only meaningful within its domain — never looked up by family name alone."
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Required for level=cross_domain; the contract's discoverability.tags."
     },
     "capability_type": {
-      "type": "string"
-    },
-    "contract": {
-      "type": "string"
-    },
-    "version": {
-      "type": "string"
+      "type": "string",
+      "description": "Optional narrowing at any level: capability | connector | service."
     },
     "constraints": {
       "type": "object"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"level": {"const": "family"}}, "required": ["level"]},
+      "then": {"required": ["domain", "capability_family"]}
+    },
+    {
+      "if": {"properties": {"level": {"const": "domain"}}, "required": ["level"]},
+      "then": {"required": ["domain"]}
+    },
+    {
+      "if": {"properties": {"level": {"enum": ["exact", "scoped"]}}, "required": ["level"]},
+      "then": {"required": ["capability_id"]}
+    },
+    {
+      "if": {"properties": {"level": {"const": "cross_domain"}}, "required": ["level"]},
+      "then": {"required": ["tags"]}
+    }
+  ]
 }

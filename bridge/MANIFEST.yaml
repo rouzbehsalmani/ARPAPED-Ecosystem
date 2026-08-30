@@ -19,7 +19,9 @@ bridge:
     location: bridge/registry.py
     role: >
       Canonical discovery/index service: capability+operation -> bounded
-      implementation candidates.
+      implementation candidates. Supports the 5-level discovery cascade
+      (Exact -> Scoped -> Family -> Domain -> Cross-domain; see
+      `discover_cascade` and 2-RULES.md "Registry contract").
   policy:
     location: bridge/policy.py
     role: >
