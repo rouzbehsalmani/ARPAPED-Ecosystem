@@ -149,7 +149,10 @@ A Verify pass (Phase 7) MUST fail when:
    content of an incoming request/event to decide an action, or itself
    calls two or more different capabilities and combines/sequences their
    results — that decision or composition logic is an unextracted
-   capability, not entry-point plumbing.
+   capability, not entry-point plumbing. This governs the entry point's own
+   code, not a capability's implementation: an executor may freely use any
+   external library, framework, or network service it needs to do its job
+   — the contract defines the WHAT, never the HOW inside the executor.
 
 ## R6 — Request-path discipline
 
