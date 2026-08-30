@@ -180,6 +180,11 @@ assemble it into the registry using the assembler resolved per
 
 Lives outside the application packages, e.g. `tests/verify`. It must:
 
+- Confirm every contract validates against
+  `schemas/component-contract.schema.json` and every manifest against
+  `schemas/capability-manifest.schema.json` — a prerequisite the harness
+  itself checks, not a final afterthought tacked on after the operation
+  checks below.
 - Reuse the SAME Bridge the request-construction point builds — never
   assemble a second one.
 - For every capability operation, call it (directly, or through the
@@ -197,7 +202,13 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   verbatim from the observed response), `passed`, `failed`, `status`
   (`"verified"` or `"failed"`).
 
-Fail closed: if any check fails, fix it and re-run before step 7.
+**This is a loop, not a one-shot:**
+
+1. Run the harness.
+2. Any check fails? Fix that specific defect (or split/reuse per Phase 4) —
+   then go back to step 1.
+3. Only once every check passes on a fresh run does step 7 begin. An
+   unverified state is never published (R5, Gate 20).
 
 ## 7. Publish and return state (Phase 8–9)
 
