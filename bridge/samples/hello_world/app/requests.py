@@ -1,21 +1,32 @@
 """Single request-construction point for this sample app (Phase 6, R6).
 
-Exactly one module builds requests and calls the Bridge's handle operation:
-build a registry; assemble every manifest found under capabilities/ into it
-(Phase 8 mechanics, step 5); construct the Bridge from that registry plus
-the policy and selector resolved from bridge/MANIFEST.yaml. It then exposes
-one `call` operation. Nothing else in this sample constructs a request or
-calls the Bridge directly.
+Exactly one module builds the Bridge and hands out access to it: build a
+registry; assemble every manifest found under capabilities/ into it (Phase 8
+mechanics, step 5); construct the Bridge from that registry plus the policy
+and selector resolved from bridge/MANIFEST.yaml. It then exposes one
+`resolve` operation. Nothing else in this sample imports the Bridge,
+constructs a request, or calls `bridge.handle` directly.
+
+`resolve` is a thin pass-through to `Bridge.resolve` (bridge/bridge.py):
+callers resolve a capability+operation once and get back a handle whose
+`call(...)` they invoke as many times as they need (discover once, call many
+times). The handle only reuses the discovery stage — policy is still
+evaluated and a candidate is still selected and executed fresh on every
+call, through the same `bridge.handle` every request goes through, and the
+handle re-checks its cached candidates' live state on each use (self-healing
+by re-discovering if they've all become unusable) rather than trusting a
+stale snapshot. Building the request itself is Bridge library code, not
+application code, so this stays consistent with R6: this module is still the
+only place in the app that reaches the Bridge at all.
 """
 
-import uuid
 from pathlib import Path
 
 import yaml
 
 from bridge.assembler import assemble
-from bridge.bridge import Bridge, BridgeRequest
-from bridge.policy import PolicyContext, StaticPolicyEngine
+from bridge.bridge import Bridge
+from bridge.policy import StaticPolicyEngine
 from bridge.registry import CapabilityRegistry
 from bridge.selector import DeterministicSelector
 
@@ -29,14 +40,11 @@ for _manifest_path in sorted((_APP_ROOT / "capabilities").rglob("manifest.yaml")
 _bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector())
 
 
-def call(capability_id, operation, input, policy_context=None):
-    request = BridgeRequest(
-        request_id=uuid.uuid4().hex,
-        capability_id=capability_id,
-        contract_version=">=1.0.0",
-        operation=operation,
-        input=input,
-        policy_context=policy_context
-        or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
-    )
-    return _bridge.handle(request)
+def resolve(capability_id, operation, contract_version="*"):
+    """`contract_version` is a version-range constraint (see registry.py's
+    `_matches_version`), owned by the caller's own compatibility expectations
+    for this capability+operation — not something this module can invent on
+    a capability's behalf. It defaults to "*" (any registered version) since
+    this sample makes no version claim of its own.
+    """
+    return _bridge.resolve(capability_id, operation, contract_version)

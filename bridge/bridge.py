@@ -17,11 +17,12 @@ Consumers may use the trace for debugging, auditing, and observability.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from .policy import PolicyContext, StaticPolicyEngine
-from .registry import CapabilityRegistry
+from .registry import CapabilityRegistry, ResolvedCapability
 from .selector import DeterministicSelector
 
 
@@ -63,6 +64,44 @@ class BridgeError(Exception):
         return f"{self.code}@{self.stage}: {self.message}"
 
 
+class BoundCapability:
+    """A capability+operation resolved once, callable many times.
+
+    Returned by `Bridge.resolve(...)`. Holds a `ResolvedCapability` (the
+    Registry's discovery cache — see registry.py) plus the identity fields
+    needed to build a request. Only discovery is reused across calls: policy
+    is evaluated and a candidate is selected and executed fresh every time
+    `call` runs, through the same `Bridge.handle` every other request goes
+    through.
+    """
+
+    def __init__(
+        self,
+        bridge: "Bridge",
+        resolved: ResolvedCapability,
+        capability_id: str,
+        operation: str,
+        contract_version: str,
+    ) -> None:
+        self._bridge = bridge
+        self._resolved = resolved
+        self._capability_id = capability_id
+        self._operation = operation
+        self._contract_version = contract_version
+
+    def call(self, input: dict[str, Any], policy_context: Optional[PolicyContext] = None) -> BridgeResponse:
+        request = BridgeRequest(
+            request_id=uuid.uuid4().hex,
+            capability_id=self._capability_id,
+            contract_version=self._contract_version,
+            operation=self._operation,
+            input=input,
+            policy_context=policy_context
+            or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
+        )
+        return self._bridge.handle(request, resolved=self._resolved)
+
+
 class Bridge:
     """Coordinates validation, discovery, policy, selection, and execution without merging responsibilities."""
 
@@ -76,12 +115,33 @@ class Bridge:
         self.policy = policy
         self.selector = selector
 
-    def handle(self, request: BridgeRequest) -> BridgeResponse:
+    def resolve(self, capability_id: str, operation: str, contract_version: str = "*", **kwargs: Any) -> BoundCapability:
+        """Discovers `capability_id`+`operation` once and returns a handle whose
+        `call(...)` re-runs policy, selection, and execution on every use but
+        reuses that discovery (see `BoundCapability`). `kwargs` forward to
+        `CapabilityRegistry.resolve` (`exact_version`, `implementation_id`,
+        `family`, `domain`, `tags`) for callers that need a cascade level
+        other than Scoped.
+        """
+        resolved = self.registry.resolve(capability_id, operation, contract_version, **kwargs)
+        return BoundCapability(self, resolved, capability_id, operation, contract_version)
+
+    def handle(self, request: BridgeRequest, resolved: Optional[ResolvedCapability] = None) -> BridgeResponse:
+        """Runs the full request path. `resolved` is an optional handle from
+        `CapabilityRegistry.resolve(...)`: when given, its cached candidate ids are
+        re-checked live instead of re-running the discovery cascade, so a caller that
+        expects to invoke the same capability+operation many times can discover once
+        and still get a fresh discovered/policy_evaluated/selected/executed trace on
+        every call. Policy, selection, and execution are unaffected either way.
+        """
         request.validate()
         trace = ["validated"]
-        discovered = self.registry.discover(
-            request.capability_id, request.contract_version, request.operation,
-        )
+        if resolved is not None:
+            discovered = resolved.live_candidates()
+        else:
+            discovered = self.registry.discover(
+                request.capability_id, request.contract_version, request.operation,
+            )
         trace.append("discovered")
         if not discovered:
             raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered")

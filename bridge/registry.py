@@ -288,3 +288,141 @@ class CapabilityRegistry:
                 return "cross_domain", candidates
 
         return "none", ()
+
+    def resolve_candidate_ids(
+        self,
+        capability_id: str,
+        operation: str,
+        contract_version: str,
+        *,
+        exact_version: Optional[str] = None,
+        implementation_id: Optional[str] = None,
+        family: Optional[str] = None,
+        domain: Optional[str] = None,
+        tags: tuple[str, ...] = (),
+    ) -> tuple[str, tuple[str, ...]]:
+        """Same cascade as ``discover_cascade``, but returns implementation id
+        strings rather than resolved objects.
+
+        Ids, not objects, are what is safe to cache: ``CapabilityImplementation``
+        is frozen, and ``set_enabled``/``set_healthy`` replace an id's entry
+        with a new instance rather than mutating it, so a cached *object*
+        reference would go stale exactly when health/enablement changes. A
+        cached *id* never does — re-reading ``_items[id]`` is always current.
+        """
+
+        level, candidates = self.discover_cascade(
+            capability_id,
+            operation,
+            contract_version,
+            exact_version=exact_version,
+            implementation_id=implementation_id,
+            family=family,
+            domain=domain,
+            tags=tags,
+        )
+        return level, tuple(c.implementation_id for c in candidates)
+
+    def resolve(
+        self,
+        capability_id: str,
+        operation: str,
+        contract_version: str,
+        *,
+        exact_version: Optional[str] = None,
+        implementation_id: Optional[str] = None,
+        family: Optional[str] = None,
+        domain: Optional[str] = None,
+        tags: tuple[str, ...] = (),
+    ) -> "ResolvedCapability":
+        """Discovers once, returning a handle reusable across many calls.
+
+        Mirrors object instantiation: resolve once, call many times, instead
+        of re-walking the cascade on every single call. See
+        ``ResolvedCapability`` for what stays live versus what is cached.
+        """
+
+        return ResolvedCapability(
+            self,
+            capability_id,
+            operation,
+            contract_version,
+            exact_version=exact_version,
+            implementation_id=implementation_id,
+            family=family,
+            domain=domain,
+            tags=tags,
+        )
+
+
+class ResolvedCapability:
+    """A cached discovery result, reusable across many calls without
+    re-walking the Registry's indexes each time.
+
+    Only implementation ids are cached (see ``resolve_candidate_ids``) — never
+    their enabled/healthy/priority state, which is always re-read live from
+    the Registry, so health/enable changes are respected automatically with
+    no invalidation bookkeeping. This handle does not touch policy,
+    selection, or execution; a caller (typically the Bridge) still evaluates
+    policy and selects among ``live_candidates()`` fresh on every call, per
+    R6/R8 — only the discovery step is cached.
+
+    Self-healing: if every cached candidate turns out unusable (disabled,
+    unhealthy, or the cache was simply captured before something newer was
+    registered), ``live_candidates()`` transparently re-runs discovery once
+    to find what is currently available, rather than requiring the caller to
+    notice staleness and ask for a refresh.
+    """
+
+    def __init__(
+        self,
+        registry: CapabilityRegistry,
+        capability_id: str,
+        operation: str,
+        contract_version: str,
+        *,
+        exact_version: Optional[str] = None,
+        implementation_id: Optional[str] = None,
+        family: Optional[str] = None,
+        domain: Optional[str] = None,
+        tags: tuple[str, ...] = (),
+    ) -> None:
+        self._registry = registry
+        self._capability_id = capability_id
+        self._operation = operation
+        self._contract_version = contract_version
+        self._exact_version = exact_version
+        self._implementation_id_filter = implementation_id
+        self._family = family
+        self._domain = domain
+        self._tags = tags
+        self.level, self._candidate_ids = self._resolve()
+
+    def _resolve(self) -> tuple[str, tuple[str, ...]]:
+        return self._registry.resolve_candidate_ids(
+            self._capability_id,
+            self._operation,
+            self._contract_version,
+            exact_version=self._exact_version,
+            implementation_id=self._implementation_id_filter,
+            family=self._family,
+            domain=self._domain,
+            tags=self._tags,
+        )
+
+    def _live(self) -> tuple[CapabilityImplementation, ...]:
+        return self._registry._bounded(list(self._candidate_ids), self._contract_version)
+
+    def live_candidates(self) -> tuple[CapabilityImplementation, ...]:
+        """Current, compatible, enabled, and healthy implementations among the
+        cached ids -- re-checked fresh every call, cheaply (a handful of dict
+        lookups, not an index walk). Re-discovers once, automatically, if
+        that comes back empty.
+        """
+
+        candidates = self._live()
+        if candidates:
+            return candidates
+
+        self.level, self._candidate_ids = self._resolve()
+        return self._live()
