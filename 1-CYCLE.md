@@ -29,7 +29,7 @@ goal
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30 |
 | 8 — Publish | 8, 9, 14 |
 | 9 — Return state | 11 |
 
@@ -348,6 +348,9 @@ the resulting state.
 29. Does every capability-operation check run under a bounded per-stage
     timeout (never an unbounded wait), with a timeout treated as a hard
     failure rather than grounds to wait longer or retry indefinitely (R5)?
+30. For every capability that calls another one, is the declared dependency
+    graph acyclic, and does it call only what it declared under
+    `dependencies.capabilities` (R4, R5)?
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or
 split/reuse per Phase 4), re-run the harness, and only then proceed. An

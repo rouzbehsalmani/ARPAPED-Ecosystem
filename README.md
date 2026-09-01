@@ -41,7 +41,8 @@ there is no separate template document.
 
 Manifests and contract artifacts are machine-validated against the schemas in
 `schemas/` (`capability-manifest`, `component-contract`, and friends), and
-registration is performed by the generic assembler in `bridge/assembler.py`.
+registration is performed by the generic assembler resolved via
+`bridge/MANIFEST.yaml`.
 
 The cycle is hardened so a result cannot silently bypass the ecosystem: **R7**
 mandates contract → manifest → code order, **R8** makes the canonical Bridge

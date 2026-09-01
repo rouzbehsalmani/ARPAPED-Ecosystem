@@ -28,7 +28,7 @@ defined in `schemas/` and demonstrated in `bridge/samples/hello_world/`.
 | **consumer** | Any application code that invokes a capability. Reference behavior per R6: consumer code uses only capability IDs + contract operations through the single request-construction point and the Bridge, and never names components. |
 | **manifest** | A data file that binds a contract artifact to its operations and to one executor-reference entry per implementation (one contract → one capability manifest → executor entries). The contract artifact, its capability manifests, and its executors are co-located in their owning package within the single application (R3). |
 | **packaging** | How the single application is structured as normal packages: contract artifacts under `contracts/`; component executors and capability manifests co-located in their owning packages; small generic components built and composed before the specific responsibilities over them (generics → specifics, R4); entry points and the single request-construction point at the application level; tests and the verification harness live outside the application packages. |
-| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Reference implementation: `bridge/assembler.py`. |
+| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Resolved from `bridge/MANIFEST.yaml`, never hard-coded. |
 | **Bridge** | The canonical execution boundary. Routes every request through registry discovery → policy → selector → executor and returns a trace. There is exactly one canonical Bridge. |
 | **Registry** | The canonical discovery/index service: capability+operation → bounded implementation candidates. There is exactly one canonical Registry. |
 | **Policy** | The canonical authorization stage that evaluates each candidate against the request's policy context. |
@@ -130,6 +130,22 @@ the small reusable components first, then composes the more specific
 capability over them. A specific capability is a thin composition over
 generic contracts — never a reimplementation of them.
 
+A dependency an executor needs *live* access to during its own execution —
+not just pre-computed input data its caller already resolved and passed in
+— is resolved through the same canonical Bridge, injected at assembly time,
+never by changing the executor's basic call signature and never by reaching
+the Bridge some other way. R6/R8 still hold without exception: the nested
+call is a real Bridge request — validated, discovered, policy-evaluated,
+selected, executed, with its own genuine trace — never a raw executor-to-
+executor call. The declared `dependencies.capabilities` list is the only
+thing such a capability may call this way; calling anything outside it is a
+violation, not just an omission (R5). The declared dependency graph MUST be
+acyclic — an ecosystem's assembler verifies this before anything is
+registered or invoked, not discovered as runtime recursion. The resolved
+assembler and Bridge (`bridge/MANIFEST.yaml`) implement this via an
+`executor_kind: factory` manifest entry, given resolved access to its
+declared dependencies at assembly time.
+
 ## R5 — Verification hard-fails
 
 A Verify pass (Phase 7) MUST fail when:
@@ -153,7 +169,11 @@ A Verify pass (Phase 7) MUST fail when:
    promptly — that the work has actually started, never return a fabricated
    or assumed status, and must never block waiting for the ongoing work
    itself to finish; the truly indefinite part is handed off to work the
-   operation does not wait on.
+   operation does not wait on;
+7. a capability's declared dependency graph (`dependencies.capabilities`,
+   R4) contains a cycle, or a capability's executor invokes a capability it
+   did not declare there — the declared list is an enforced boundary, not
+   documentation.
 
 ## R6 — Request-path discipline
 
@@ -344,9 +364,8 @@ any more than the running Bridge can scan every registration. The ecosystem
 must provide a searchable, incrementally-maintained capability catalog for
 this — incrementally maintained meaning publishing one new capability
 appends to it, never requires rescanning everything already published. No
-particular format is mandated; the reference implementation's
-`bridge/assembler.py` and `schemas/capability-catalog.schema.json` are one
-worked example.
+particular format is mandated. Resolved from `bridge/MANIFEST.yaml`; one
+data shape for it is `schemas/capability-catalog.schema.json`.
 
 **The discovery cascade.** At scale, one selective key is not enough — the
 Registry MUST support searching narrowest-to-widest and stopping at the
@@ -367,8 +386,8 @@ levels and never scanning the level below it:
    found from an unrelated domain instead of being recreated.
 
 `family`/`domain`/`tags` are read from the capability's own contract, never
-duplicated into its manifest (R2/R3) — the reference assembler
-(`bridge/assembler.py`) does this when given a root to resolve the
+duplicated into its manifest (R2/R3) — the reference assembler (resolved via
+`bridge/MANIFEST.yaml`) does this when given a root to resolve the
 manifest's `contract` path against. An implementation registered without
 that root is still fully discoverable at Exact/Scoped; it is simply invisible
 to Family/Domain/Cross-domain search until it is. Creation is the last
@@ -445,9 +464,9 @@ an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
    Publish (Phase 8), the assembler reads each capability manifest
    (validated against `schemas/capability-manifest.schema.json`), imports
    each entry's executor (`module:attr`), builds the implementation record,
-   and registers it into the canonical Registry. Reference implementation:
-   `bridge/assembler.py`. Swapping a component = editing the manifest, never
-   the code or any consumer.
+   and registers it into the canonical Registry. Resolved from
+   `bridge/MANIFEST.yaml`, never hard-coded. Swapping a component = editing
+   the manifest, never the code or any consumer.
 
 **Contract data is generic.** Inputs and outputs must be shaped by the
 capability contract, not by the implementing component:

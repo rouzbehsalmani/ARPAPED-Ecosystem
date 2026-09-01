@@ -108,6 +108,64 @@ class BoundCapability:
         )
         return self._bridge.handle(request, resolved=self._resolved, on_stage=on_stage)
 
+    def call_with_timeout(
+        self,
+        input: dict[str, Any],
+        policy_context: Optional[PolicyContext] = None,
+        stage_timeout: float = 10.0,
+    ) -> BridgeResponse:
+        """Same as `call`, but bounded (see `Bridge.handle_with_timeout`) —
+        a stage that never progresses raises `BRIDGE_STAGE_TIMEOUT` instead
+        of blocking indefinitely. Useful on its own, and for a dependency
+        handle held by a capability-composing executor factory (see
+        `Dependencies`): a hang three levels deep gets caught at the level
+        it actually happens, independently of whatever budget an outer
+        caller set for itself.
+        """
+        request = BridgeRequest(
+            request_id=uuid.uuid4().hex,
+            capability_id=self._capability_id,
+            contract_version=self._contract_version,
+            operation=self._operation,
+            input=input,
+            policy_context=policy_context
+            or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
+        )
+        return self._bridge.handle_with_timeout(request, resolved=self._resolved, stage_timeout=stage_timeout)
+
+
+class Dependencies:
+    """Given to a capability's executor FACTORY once, at assembly time —
+    never to the executor itself (see the manifest's optional
+    `executor_kind: factory`, bridge/assembler.py). Mirrors `Bridge.resolve`
+    exactly, but scoped to exactly the capability ids this capability's own
+    contract declared under `dependencies.capabilities` (R4): resolving
+    anything else raises `BRIDGE_UNDECLARED_DEPENDENCY`, which is what makes
+    a contract's declared dependency list an enforced runtime boundary, not
+    just documentation.
+
+    A factory calls `resolve(...)` once per operation it needs and closes
+    over the returned `BoundCapability`; the executor closure it returns
+    calls `.call(...)` (or `.call_with_timeout(...)`) on that handle per
+    invocation — the same "discover once, call many times" shape used
+    everywhere else in this reference Bridge. Every resulting call is a
+    real, fully-traced Bridge request (R6/R8) — never a raw executor-to-
+    executor call.
+    """
+
+    def __init__(self, bridge: "Bridge", declared_capability_ids: frozenset[str]) -> None:
+        self._bridge = bridge
+        self._declared = declared_capability_ids
+
+    def resolve(self, capability_id: str, operation: str, contract_version: str = "*", **kwargs: Any) -> BoundCapability:
+        if capability_id not in self._declared:
+            raise BridgeError(
+                "BRIDGE_UNDECLARED_DEPENDENCY", "validation",
+                f"{capability_id!r} is not declared in this capability's contract "
+                "dependencies.capabilities — add it there before depending on it (R4)",
+            )
+        return self._bridge.resolve(capability_id, operation, contract_version, **kwargs)
+
 
 class Bridge:
     """Coordinates validation, discovery, policy, selection, and execution without merging responsibilities."""

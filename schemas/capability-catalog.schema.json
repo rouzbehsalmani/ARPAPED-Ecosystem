@@ -68,6 +68,17 @@
       "items": {"type": "string"},
       "description": "The contract's discoverability.tags — the Cross-domain cascade level."
     },
+    "dependencies": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The contract's dependencies.capabilities (R4) — capability ids this implementation may call, live, through the Bridge, when executor_kind is 'factory'. Enforced at runtime by Dependencies (bridge/bridge.py): resolving anything outside this list raises."
+    },
+    "executor_kind": {
+      "type": "string",
+      "enum": ["direct", "factory"],
+      "default": "direct",
+      "description": "'direct' (default): executor_path IS the executor. 'factory': executor_path is invoked once with a Dependencies scoped to `dependencies`, and its return value becomes the executor."
+    },
     "description": {
       "type": "string",
       "description": "The contract's responsibility.description, carried here purely for agent keyword search (Phase 3 -- Discover). Never consumed by the runtime loader."

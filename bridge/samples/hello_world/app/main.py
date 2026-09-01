@@ -17,6 +17,14 @@ harness uses (bounded per-stage timeout, via `Bridge.handle_with_timeout`)
 so a hung capability operation fails fast and diagnosably instead of
 blocking an unattended pipeline forever (2-RULES.md R5).
 
+The third call, to `greeting.compose`, proves capability-to-capability
+calls (2-RULES.md R4): that capability's executor factory resolved
+console.write once (see capabilities/greeting/compose/executor.py) and
+calls it through the Bridge, same as this module does — a real, nested,
+fully-traced request, never a shortcut. Its own trace reaching `executed`
+is only possible if that nested call itself completed the full
+validated/discovered/policy_evaluated/selected/executed path.
+
 Run from the repository root:
     python -m bridge.samples.hello_world.app.main
 """
@@ -37,6 +45,10 @@ def main():
 
     second = writer.call({"text": "Hello, world!"})
     assert second.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
+
+    composer = resolve("greeting.compose", "compose")
+    third = composer.call({"name": "ARPAPED"})
+    assert third.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
 
 
 if __name__ == "__main__":

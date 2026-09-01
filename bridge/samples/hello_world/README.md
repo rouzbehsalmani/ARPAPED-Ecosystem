@@ -1,10 +1,11 @@
 # Sample: hello world console app
 
 The simplest possible complete, runnable example of the pattern
-`0-WALKTHROUGH.md` describes: one capability (`console.write`), a single
-request-construction point, and a process entry point that decides nothing —
-laid out in the same `contracts/` / `capabilities/<domain>/<operation>/` /
-`app/` structure the walkthrough recommends for any real application.
+`0-WALKTHROUGH.md` describes: two capabilities (`console.write`, and
+`greeting.compose` which depends on it), a single request-construction
+point, and a process entry point that decides nothing — laid out in the same
+`contracts/` / `capabilities/<domain>/<operation>/` / `app/` structure the
+walkthrough recommends for any real application.
 
 This is scaffolding to prove the wiring, not a feature — copy the shape (the
 folder layout, the file order, the fields, the request-construction
@@ -14,16 +15,20 @@ pattern), never this domain content, into a real capability.
 
 ```
 contracts/
-  console.write.contract.yaml    the capability's contract artifact (schema-valid)
+  console.write.contract.yaml       console.write's contract artifact (schema-valid)
+  greeting.compose.contract.yaml    greeting.compose's — declares console.write as a dependency
 capabilities/
   console/write/
     manifest.yaml                 binds the contract to the executor below
     executor.py                   registration-unaware: given text, writes it to the console
+  greeting/compose/
+    manifest.yaml                 executor_kind: factory — see "Capability-to-capability calls"
+    executor.py                   resolves console.write once, calls it through the Bridge
 build_catalog.py                  generates capability-catalog.jsonl (Phase 8, Publish)
 capability-catalog.jsonl          generated — see "Capability catalog" below
 app/
   requests.py                     the single request-construction point (R6) — exposes resolve()
-  main.py                         the entry point — decides nothing, resolves once, calls twice
+  main.py                         the entry point — decides nothing, resolves once per capability
 ```
 
 `app/main.py` calls `requests.resolve("console.write", "write")` once and
@@ -44,6 +49,22 @@ returned. This is the same mechanism a verification harness relies on for
 bounded, per-stage timeouts (`Bridge.handle_with_timeout`) — a capability
 operation that never progresses is a hard failure, detected fast, instead of
 an unattended pipeline hanging forever with nobody to notice (2-RULES.md R5).
+
+## Capability-to-capability calls
+
+`greeting.compose` needs *live* access to `console.write` during its own
+execution (not just pre-computed input handed to it by its caller), so its
+manifest sets `executor_kind: factory` and its `executor:` path names a
+factory instead of an executor directly — `bridge/assembler.py` calls it
+once, at assembly time, with a `Dependencies` (bridge/bridge.py) scoped to
+exactly what its contract declared under `dependencies.capabilities` (R4).
+`capabilities/greeting/compose/executor.py` resolves `console.write` once
+from that `Dependencies` and closes over the handle; the returned
+`execute(operation, input, policy)` calls it — a real, fully-traced Bridge
+request every time, never a shortcut (R6/R8). Resolving anything the
+contract didn't declare would raise `BRIDGE_UNDECLARED_DEPENDENCY`; the
+declared dependency graph is also verified acyclic before anything is
+registered (R5).
 
 ## Capability catalog
 
@@ -74,10 +95,12 @@ From the repository root:
 python -m bridge.samples.hello_world.app.main
 ```
 
-Expected output — two lines, both printed by the executor, never by
-`app/main.py`:
+Expected output — three lines, all printed by console.write's executor
+(directly for the first two, and via the nested Bridge call from
+`greeting.compose` for the third), never by `app/main.py`:
 
 ```
 This is a test of the Bridge's console.write capability.
 Hello, world!
+Greetings, ARPAPED!
 ```

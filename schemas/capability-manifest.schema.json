@@ -51,7 +51,13 @@
           },
           "executor": {
             "type": "string",
-            "description": "Reference to the registration-unaware executor as 'module:attr'. The component is reached only by the Bridge; it never registers itself."
+            "description": "Reference to the executor as 'module:attr'. The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', this instead names a factory — (dependencies) -> executor — called once at assembly time."
+          },
+          "executor_kind": {
+            "type": "string",
+            "enum": ["direct", "factory"],
+            "default": "direct",
+            "description": "'direct' (default): executor IS the registration-unaware executor. 'factory': executor is invoked once at assembly time with a Dependencies scoped to this contract's dependencies.capabilities (R4), and its return value becomes the executor — for a capability that needs live access to another capability during its own execution, not just pre-computed input from its caller."
           },
           "priority": {
             "type": "integer",

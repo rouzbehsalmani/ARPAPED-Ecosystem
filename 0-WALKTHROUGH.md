@@ -127,6 +127,15 @@ For every capability from step 2:
 Writing the executor before its contract and manifest exist is a Gate 26
 violation, no matter how small the capability is.
 
+**A capability that needs live access to another one** (not just
+pre-computed input its caller already resolved) is the one case with a
+different manifest shape: set `executor_kind: factory` on that
+implementation entry, and point `executor` at a factory — `(dependencies) ->
+executor` — instead of the executor itself, resolved from the same
+canonical Bridge per `bridge/MANIFEST.yaml`. It may only call what its own
+contract declared under `dependencies.capabilities` (R4) — never invent a
+different wiring locally, and never reach the Bridge any other way.
+
 ### Worked sample: hello world
 
 The simplest possible complete, **runnable** example: a console "hello

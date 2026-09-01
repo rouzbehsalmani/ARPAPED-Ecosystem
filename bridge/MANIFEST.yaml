@@ -48,7 +48,12 @@ bridge:
       see schemas/capability-catalog.schema.json and 2-RULES.md "The
       Registry contract") so neither an agent doing discovery nor the
       runtime bootstrap has to walk and re-parse every manifest and
-      contract in the ecosystem.
+      contract in the ecosystem. For an implementation entry with
+      executor_kind: factory, invokes it once with a Dependencies (see
+      bridge/bridge.py) scoped to that contract's declared
+      dependencies.capabilities (2-RULES.md R4), and verifies the whole
+      declared dependency graph is acyclic before registering or invoking
+      any factory (R5).
 
 samples:
   location: bridge/samples/

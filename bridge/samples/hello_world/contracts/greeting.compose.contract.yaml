@@ -1,0 +1,48 @@
+# Sample contract artifact, valid against schemas/component-contract.schema.json.
+# Part of the runnable hello-world sample app (see ../README.md).
+#
+# The second capability in this sample, added specifically to prove
+# capability-to-capability calls end to end: this capability declares
+# console.write as a dependency (dependencies.capabilities below) and its
+# manifest (../capabilities/greeting/compose/manifest.yaml) sets
+# executor_kind: factory so it gets live, Bridge-routed access to it — see
+# 2-RULES.md R4. Scaffolding — copy the shape, not the domain content.
+contract:
+  identity:
+    id: greeting.compose
+    name: Greeting Compose
+    version: "1.0.0"
+    domain: greeting
+    family: greeting
+    type: capability
+  responsibility:
+    description: Composes a greeting message for a name and writes it via console.write.
+    invariants:
+      - does not modify its input
+  interface:
+    operations:
+      - name: compose
+        description: Builds a greeting for the given name and writes it to the console.
+        input:
+          - name: name
+            type: string
+            required: true
+            description: Name to greet.
+        output:
+          type: object
+          description: Empty object on success.
+        errors: []
+  dependencies:
+    capabilities: [console.write]
+    components: []
+    resources: []
+  discoverability:
+    tags: [greeting]
+    metadata: {}
+  versioning:
+    compatibility: backward
+    deprecation_policy: none
+  lineage:
+    created_by: walkthrough-sample
+    changed_by: walkthrough-sample
+    history: []
