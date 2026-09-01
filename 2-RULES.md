@@ -145,7 +145,15 @@ A Verify pass (Phase 7) MUST fail when:
 5. a capability's executor imports the process entry point module (or
    anything that transitively re-exposes it) — dependency flows one way
    only, entry point → capabilities via the request-construction point (R6,
-   R9), never the reverse.
+   R9), never the reverse;
+6. an operation does not reach `executed` within a bounded verification
+   timeout — a timeout is a hard failure, never grounds to wait longer or
+   retry silently. An operation whose responsibility includes launching
+   ongoing work (e.g. a server) must itself verify — synchronously and
+   promptly — that the work has actually started, never return a fabricated
+   or assumed status, and must never block waiting for the ongoing work
+   itself to finish; the truly indefinite part is handed off to work the
+   operation does not wait on.
 
 ## R6 — Request-path discipline
 

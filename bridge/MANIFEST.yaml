@@ -15,6 +15,12 @@ bridge:
     role: >
       Routes a request through registry discovery -> policy -> selector ->
       executor and returns a trace. There is exactly one canonical Bridge.
+      Each trace stage is also observable live via handle's on_stage
+      callback, and handle_with_timeout runs a request under a bounded
+      per-stage timeout instead of an unbounded wait, raising
+      BRIDGE_STAGE_TIMEOUT with whatever partial trace was genuinely
+      observed (2-RULES.md R5) -- required for verification in an
+      unattended pipeline with nobody to notice or interrupt a hung call.
   registry:
     location: bridge/registry.py
     role: >

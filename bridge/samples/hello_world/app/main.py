@@ -10,6 +10,13 @@ Calling `resolve` once and reusing the handle for both calls below is the
 runs once, while each `call` still gets its own fresh policy_evaluated /
 selected / executed trace.
 
+The first call also passes `on_stage`, observing each trace stage live as
+the Bridge reaches it (bridge/bridge.py) instead of only seeing the trace
+once the call has already returned — the same mechanism a verification
+harness uses (bounded per-stage timeout, via `Bridge.handle_with_timeout`)
+so a hung capability operation fails fast and diagnosably instead of
+blocking an unattended pipeline forever (2-RULES.md R5).
+
 Run from the repository root:
     python -m bridge.samples.hello_world.app.main
 """
@@ -20,8 +27,13 @@ from bridge.samples.hello_world.app.requests import resolve
 def main():
     writer = resolve("console.write", "write")
 
-    first = writer.call({"text": "This is a test of the Bridge's console.write capability."})
+    stages_seen = []
+    first = writer.call(
+        {"text": "This is a test of the Bridge's console.write capability."},
+        on_stage=stages_seen.append,
+    )
     assert first.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
+    assert tuple(stages_seen) == first.trace
 
     second = writer.call({"text": "Hello, world!"})
     assert second.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")

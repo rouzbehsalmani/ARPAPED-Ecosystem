@@ -198,6 +198,16 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   request-construction point) and assert the response trace equals
   `validated → discovered → policy_evaluated → selected → executed` — copied
   from the observed response, never hand-written.
+- Run every capability-operation check under a bounded per-stage timeout
+  resolved from the canonical Bridge (`bridge/MANIFEST.yaml`), never an
+  unbounded wait. A stage that never progresses is a hard failure (R5) —
+  record it with whatever partial trace was actually observed before the
+  timeout, never a reason to wait longer or retry silently. This matters
+  most for any operation that starts ongoing/background work (a server, a
+  long-lived process): its executor must itself verify, synchronously and
+  promptly, that the work has actually started before returning — never a
+  fabricated or assumed status — and must never block waiting for the
+  ongoing work itself to finish.
 - Drive every consumer-visible interaction through a scripted command
   stream using the same dispatcher the real interface uses.
 - Include at least one case proving an operator decision window: a scripted

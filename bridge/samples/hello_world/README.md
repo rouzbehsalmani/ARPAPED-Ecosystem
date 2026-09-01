@@ -38,6 +38,13 @@ stale result. `Bridge.resolve`/`BoundCapability` (bridge/bridge.py) are what
 actually build the request; `app/requests.py` stays the only application
 module that reaches the Bridge at all.
 
+The first call also passes `on_stage`, observing each trace stage live as
+the Bridge reaches it instead of only seeing the trace once the call has
+returned. This is the same mechanism a verification harness relies on for
+bounded, per-stage timeouts (`Bridge.handle_with_timeout`) — a capability
+operation that never progresses is a hard failure, detected fast, instead of
+an unattended pipeline hanging forever with nobody to notice (2-RULES.md R5).
+
 ## Capability catalog
 
 `app/requests.py` registers capabilities from `capability-catalog.jsonl`

@@ -29,7 +29,7 @@ goal
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29 |
 | 8 — Publish | 8, 9, 14 |
 | 9 — Return state | 11 |
 
@@ -310,11 +310,13 @@ written. The full checklist a pass must satisfy lives in `2-RULES.md`
 **Do.** Run the verification harness: assembly/startup, capability
 decomposition (R2/R3) incl. its small-reusability hard fails (R5), every
 capability operation with its full ordered trace over the SAME resolved
-canonical Bridge the application uses (R8), every consumer control through a
-scripted stream, an operator decision window, a reactive loop and injected
-input in the same session, regression checks for every previously reported
-defect, and a machine-readable verification record written into the
-resulting state.
+canonical Bridge the application uses (R8), run under a bounded per-stage
+timeout rather than an unbounded wait — a stage that never progresses is a
+hard failure, not grounds to wait longer (R5) — every consumer control
+through a scripted stream, an operator decision window, a reactive loop and
+injected input in the same session, regression checks for every previously
+reported defect, and a machine-readable verification record written into
+the resulting state.
 
 **Non-negotiables.** Gates 17–24, 27, 28:
 
@@ -343,6 +345,9 @@ resulting state.
 28. Does every recorded capability trace equal the observed Bridge
     `response.trace` — copied, never invented or bypassed? A forged or
     self-constructed trace is a hard fail (R8).
+29. Does every capability-operation check run under a bounded per-stage
+    timeout (never an unbounded wait), with a timeout treated as a hard
+    failure rather than grounds to wait longer or retry indefinitely (R5)?
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or
 split/reuse per Phase 4), re-run the harness, and only then proceed. An

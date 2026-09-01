@@ -17,9 +17,11 @@ Consumers may use the trace for debugging, auditing, and observability.
 
 from __future__ import annotations
 
+import threading
+import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .policy import PolicyContext, StaticPolicyEngine
 from .registry import CapabilityRegistry, ResolvedCapability
@@ -89,7 +91,12 @@ class BoundCapability:
         self._operation = operation
         self._contract_version = contract_version
 
-    def call(self, input: dict[str, Any], policy_context: Optional[PolicyContext] = None) -> BridgeResponse:
+    def call(
+        self,
+        input: dict[str, Any],
+        policy_context: Optional[PolicyContext] = None,
+        on_stage: Optional[Callable[[str], None]] = None,
+    ) -> BridgeResponse:
         request = BridgeRequest(
             request_id=uuid.uuid4().hex,
             capability_id=self._capability_id,
@@ -99,7 +106,7 @@ class BoundCapability:
             policy_context=policy_context
             or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
         )
-        return self._bridge.handle(request, resolved=self._resolved)
+        return self._bridge.handle(request, resolved=self._resolved, on_stage=on_stage)
 
 
 class Bridge:
@@ -126,23 +133,42 @@ class Bridge:
         resolved = self.registry.resolve(capability_id, operation, contract_version, **kwargs)
         return BoundCapability(self, resolved, capability_id, operation, contract_version)
 
-    def handle(self, request: BridgeRequest, resolved: Optional[ResolvedCapability] = None) -> BridgeResponse:
+    def handle(
+        self,
+        request: BridgeRequest,
+        resolved: Optional[ResolvedCapability] = None,
+        on_stage: Optional[Callable[[str], None]] = None,
+    ) -> BridgeResponse:
         """Runs the full request path. `resolved` is an optional handle from
         `CapabilityRegistry.resolve(...)`: when given, its cached candidate ids are
         re-checked live instead of re-running the discovery cascade, so a caller that
         expects to invoke the same capability+operation many times can discover once
         and still get a fresh discovered/policy_evaluated/selected/executed trace on
         every call. Policy, selection, and execution are unaffected either way.
+
+        `on_stage`, when given, is called synchronously with each stage name the
+        instant it is reached — the same five stages the returned trace carries,
+        just observable live instead of only once the whole call returns. This is
+        what lets a caller (see `handle_with_timeout`) tell where a call is stuck
+        while it is still running, rather than only after it finally returns (or
+        never does).
         """
+        trace: list[str] = []
+
+        def _reached(stage: str) -> None:
+            trace.append(stage)
+            if on_stage is not None:
+                on_stage(stage)
+
         request.validate()
-        trace = ["validated"]
+        _reached("validated")
         if resolved is not None:
             discovered = resolved.live_candidates()
         else:
             discovered = self.registry.discover(
                 request.capability_id, request.contract_version, request.operation,
             )
-        trace.append("discovered")
+        _reached("discovered")
         if not discovered:
             raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered")
 
@@ -154,14 +180,14 @@ class Bridge:
                 allowed.append(implementation)
             else:
                 rejections[implementation.implementation_id] = decision.reason_code
-        trace.append("policy_evaluated")
+        _reached("policy_evaluated")
         if not allowed:
             raise BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected", rejections)
 
         ranked = self.selector.rank(tuple(allowed)) if hasattr(self.selector, "rank") else (self.selector.select(tuple(allowed)),)
         if not ranked:
             raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "All allowed candidates are temporarily unavailable")
-        trace.append("selected")
+        _reached("selected")
         failures: dict[str, dict[str, Any]] = {}
         for selected in ranked:
             try:
@@ -193,7 +219,7 @@ class Bridge:
                 "BRIDGE_ALL_IMPLEMENTATIONS_FAILED", "execution",
                 "All allowed and selectable implementations failed", failures,
             )
-        trace.append("executed")
+        _reached("executed")
         return BridgeResponse(
             request_id=request.request_id,
             capability_id=request.capability_id,
@@ -202,3 +228,69 @@ class Bridge:
             output=output,
             trace=tuple(trace),
         )
+
+    def handle_with_timeout(
+        self,
+        request: BridgeRequest,
+        resolved: Optional[ResolvedCapability] = None,
+        stage_timeout: float = 10.0,
+    ) -> BridgeResponse:
+        """Runs `handle` under a bounded per-stage timeout instead of an
+        unbounded wait (R5): if no new trace stage is reached within
+        `stage_timeout` seconds of the last one (or of the call starting),
+        raises `BridgeError("BRIDGE_STAGE_TIMEOUT", <last stage reached, or
+        "start">, ..., details={"trace": <the partial stages genuinely
+        observed so far>})` instead of blocking indefinitely. That partial
+        trace is real, observed data — it simply never reaches `executed`,
+        which is exactly what makes it a failure, never something to wait
+        longer for.
+
+        Runs `handle` on a background thread and watches its `on_stage`
+        calls from this thread. That background thread is NOT forcibly
+        killed if it never returns — Python cannot safely do that — so this
+        is a detection net for an unattended pipeline (surface a stuck call
+        fast, with evidence of where it stuck), not a substitute for R5's
+        requirement that an operation itself must not block indefinitely.
+        """
+
+        result: dict[str, Any] = {}
+        done = threading.Event()
+        lock = threading.Lock()
+        stages: list[str] = []
+        last_update = [time.monotonic()]
+
+        def _on_stage(stage: str) -> None:
+            with lock:
+                stages.append(stage)
+                last_update[0] = time.monotonic()
+
+        def _run() -> None:
+            try:
+                result["response"] = self.handle(request, resolved=resolved, on_stage=_on_stage)
+            except BridgeError as exc:
+                result["error"] = exc
+            except Exception as exc:
+                result["error"] = BridgeError(
+                    "BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request",
+                    {"cause_type": type(exc).__name__},
+                )
+            finally:
+                done.set()
+
+        threading.Thread(target=_run, daemon=True).start()
+
+        while not done.wait(timeout=0.05):
+            with lock:
+                elapsed = time.monotonic() - last_update[0]
+                observed = list(stages)
+            if elapsed > stage_timeout:
+                last_stage = observed[-1] if observed else "start"
+                raise BridgeError(
+                    "BRIDGE_STAGE_TIMEOUT", last_stage,
+                    f"No trace progress within {stage_timeout}s after {last_stage!r}",
+                    {"trace": observed},
+                )
+
+        if "error" in result:
+            raise result["error"]
+        return result["response"]
