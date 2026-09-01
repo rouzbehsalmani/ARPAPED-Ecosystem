@@ -562,7 +562,19 @@ and must answer YES to all of:
    effect.
 7. **Invariants, not formatting.** Results are decided on observable
    behavior (state, counts, reached states, pause/speed/reset semantics),
-   never on rendered layout.
+   never on rendered layout. This extends to graphical/3D output: a
+   rendering capability's own responsibility is producing a structured
+   scene description (objects, positions, materials, camera parameters)
+   from state — that description is observable behavior like any other
+   capability output, and the harness asserts it the same way. Whether a
+   third-party rendering engine then rasterizes it into pixels correctly is
+   trusted library behavior, not something the capability re-proves. If
+   pixel-level fidelity genuinely needs checking, that is a golden-image
+   comparison against a once-approved reference image published as part of
+   the resulting state — never a per-cycle request for a human to look and
+   describe what they see; the whole point of a resulting state is that the
+   next cycle needs no private memory, human or otherwise, to continue
+   (Gate 11).
 8. **Record.** A machine-readable verification record
    (`schemas/verification-record.schema.json`) is written into the
    resulting state, referenceable from the cycle report, and green. Every
