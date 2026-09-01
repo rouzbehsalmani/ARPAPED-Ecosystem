@@ -172,9 +172,16 @@ through this module (step 2).
 ## 5. Assemble every manifest at startup (Phase 8 mechanics, R8's indirections)
 
 As part of building the request-construction point (step 4), register every
-capability once, at load time: for every manifest file under `capabilities/`,
-assemble it into the registry using the assembler resolved per
+capability once, at load time, using the assembler resolved per
 `bridge/MANIFEST.yaml`. This is the only place assembly/registration runs.
+
+For a handful of capabilities, walking `capabilities/` directly and
+assembling each manifest found is fine. It stops scaling once there are more
+than a handful — see the worked sample below, which instead registers from a
+generated capability catalog (built once, at Publish time, from the same
+`capabilities/` tree) so startup never has to walk and re-parse it; see
+2-RULES.md "The Registry contract" for why authoring-time discovery needs
+the same catalog.
 
 ## 6. Headless verification harness (Phase 7, 2-RULES.md "Verification contract")
 

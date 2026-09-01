@@ -28,14 +28,27 @@ source of truth for those fields is always the contract (R2/R3), never the
 manifest. This is what makes Family/Domain/Cross-domain discovery possible
 (2-RULES.md "Registry contract"); omitting ``root`` keeps prior behavior
 unchanged (Exact/Scoped discovery only).
+
+At scale, neither an agent deciding whether to reuse/compose/create (Phase 3
+— Discover) nor the runtime bootstrap should have to walk and re-parse every
+manifest and contract in the tree. This module also builds and consumes a
+generated **capability catalog** (JSON Lines, one implementation per line;
+see ``schemas/capability-catalog.schema.json``) for that: ``append_to_catalog``
+(Publish-time, O(1) per newly published capability — never re-walks what
+already exists), ``rebuild_catalog`` (a maintenance operation: initial
+creation from a pre-existing tree, or recovery/compaction), and
+``assemble_from_catalog`` (runtime bootstrap, reading the catalog instead of
+walking ``capabilities/``). All three reuse ``from_manifest`` and
+``_load_executor`` — no parsing logic is duplicated for the catalog path.
 """
 
 from __future__ import annotations
 
 import importlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Iterator, Optional, Sequence
 
 import yaml
 
@@ -287,3 +300,147 @@ def _collect_entries(
     for item in manifests:
         entries.extend(from_manifest(item, root=root))
     return entries
+
+
+def _read_contract_description(manifest: dict[str, Any], root: Path) -> str:
+    """Reads a manifest's contract's ``responsibility.description``, for the
+    catalog's ``description`` field only (agent keyword-search relevance) —
+    never consumed by ``from_manifest`` or registration itself.
+    """
+
+    contract_path = manifest.get("contract") if isinstance(manifest, dict) else None
+    if not isinstance(contract_path, str) or not contract_path.strip():
+        return ""
+    try:
+        contract_doc = yaml.safe_load((root / contract_path).read_text(encoding="utf-8"))
+    except OSError:
+        return ""
+    contract = (contract_doc or {}).get("contract", {})
+    return contract.get("responsibility", {}).get("description", "") or ""
+
+
+def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str, Any]]:
+    """Parses one manifest file (and the contract it references) into catalog
+    records. The shared unit ``append_to_catalog`` and ``rebuild_catalog``
+    both build on — parsing logic lives once, in ``from_manifest``/
+    ``_read_contract_identity``.
+    """
+
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    entries = from_manifest(manifest, root=repo_root)
+    description = _read_contract_description(manifest, repo_root)
+    contract_path = manifest.get("contract", "") if isinstance(manifest, dict) else ""
+    try:
+        manifest_rel = manifest_path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        manifest_rel = manifest_path.as_posix()
+
+    for entry in entries:
+        yield {
+            "implementation_id": entry.implementation_id,
+            "capability_id": entry.capability_id,
+            "package_version": entry.package_version,
+            "contract_version": entry.contract_version,
+            "operations": list(entry.operations),
+            "executor_path": entry.executor_path,
+            "priority": entry.priority,
+            "enabled": entry.enabled,
+            "healthy": entry.healthy,
+            "metadata": entry.metadata,
+            "domain": entry.domain,
+            "family": entry.family,
+            "tags": list(entry.tags),
+            "description": description,
+            "manifest_path": manifest_rel,
+            "contract_path": contract_path,
+        }
+
+
+def append_to_catalog(catalog_path: Path, manifest_path: Path, repo_root: Path) -> list[str]:
+    """Appends one manifest's implementation record(s) to an existing catalog
+    (Phase 8, Publish). Cost is independent of how large the catalog already
+    is: only ``manifest_path`` (and the one contract it references) is read —
+    nothing already in the catalog is re-read or re-walked. This is what a
+    growing ecosystem calls once per newly published capability; see
+    ``rebuild_catalog`` for full regeneration.
+    """
+
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    appended: list[str] = []
+    with catalog_path.open("a", encoding="utf-8") as f:
+        for record in _manifest_records(manifest_path, repo_root):
+            f.write(json.dumps(record, sort_keys=True))
+            f.write("\n")
+            appended.append(record["implementation_id"])
+    return appended
+
+
+def rebuild_catalog(capabilities_root: Path, repo_root: Path, catalog_path: Path) -> int:
+    """Regenerates the whole catalog from scratch by walking
+    ``capabilities_root`` once. A maintenance operation — initial creation
+    from a pre-existing tree, or recovery/compaction — not something a
+    per-capability publish should call; see ``append_to_catalog`` for that.
+
+    Fail closed: a duplicate ``implementation_id`` across the tree raises
+    ``AssemblerError`` rather than silently overwriting a catalog line.
+    """
+
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    seen_ids: set[str] = set()
+    count = 0
+    with catalog_path.open("w", encoding="utf-8") as f:
+        for manifest_path in sorted(capabilities_root.rglob("manifest.yaml")):
+            for record in _manifest_records(manifest_path, repo_root):
+                implementation_id = record["implementation_id"]
+                if implementation_id in seen_ids:
+                    raise AssemblerError(
+                        f"duplicate implementation_id {implementation_id!r} while rebuilding catalog"
+                    )
+                seen_ids.add(implementation_id)
+                f.write(json.dumps(record, sort_keys=True))
+                f.write("\n")
+                count += 1
+    return count
+
+
+def assemble_from_catalog(catalog_path: Path, registry: CapabilityRegistry) -> list[str]:
+    """Registers every implementation from a generated catalog (see
+    ``append_to_catalog``/``rebuild_catalog``) instead of walking and
+    re-parsing ``capabilities/`` at every startup. Trusts the catalog as-is —
+    it does not re-derive domain/family/tags from contracts itself.
+
+    Fail closed: a missing catalog raises ``AssemblerError`` rather than
+    silently falling back to walking the tree.
+    """
+
+    if not catalog_path.exists():
+        raise AssemblerError(
+            f"capability catalog not found at {catalog_path}; generate it first "
+            "(see append_to_catalog/rebuild_catalog in bridge/assembler.py)"
+        )
+
+    registered: list[str] = []
+    with catalog_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            implementation = CapabilityImplementation(
+                implementation_id=record["implementation_id"],
+                package_version=record["package_version"],
+                capability_id=record["capability_id"],
+                contract_version=record["contract_version"],
+                operations=tuple(record["operations"]),
+                executor=_load_executor(record["executor_path"]),
+                priority=record.get("priority", 100),
+                enabled=record.get("enabled", True),
+                healthy=record.get("healthy", True),
+                metadata=record.get("metadata"),
+                domain=record.get("domain", ""),
+                family=record.get("family", ""),
+                tags=tuple(record.get("tags", ())),
+            )
+            registry.register(implementation)
+            registered.append(implementation.implementation_id)
+    return registered

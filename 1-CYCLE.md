@@ -190,7 +190,11 @@ index-driven — never a scan of every component.
 
 The normal query path is `selective key -> relevant index -> bounded
 candidates`, never `all components -> local filtering` — discovery must not
-become `O(total_components)`. Every selected candidate must be explainable by
+become `O(total_components)`. Before any code runs, this same search is what
+the generated capability catalog makes concrete: grep it by domain, family,
+tag, or keyword (2-RULES.md "The Registry contract") instead of reading
+every contract in the ecosystem to construct the discovery key by hand.
+Every selected candidate must be explainable by
 identity, contract, version, compatibility, lifecycle, lineage, and discovery
 scope. If a required capability cannot be resolved and no valid creation path
 exists, fail closed and report the unresolved requirement.

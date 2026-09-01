@@ -1,11 +1,13 @@
 """Single request-construction point for this sample app (Phase 6, R6).
 
 Exactly one module builds the Bridge and hands out access to it: build a
-registry; assemble every manifest found under capabilities/ into it (Phase 8
-mechanics, step 5); construct the Bridge from that registry plus the policy
-and selector resolved from bridge/MANIFEST.yaml. It then exposes one
-`resolve` operation. Nothing else in this sample imports the Bridge,
-constructs a request, or calls `bridge.handle` directly.
+registry; register every implementation from the generated capability
+catalog into it (build_catalog.py, Phase 8 mechanics, step 5) — never by
+walking and re-parsing capabilities/ itself, which doesn't scale; construct
+the Bridge from that registry plus the policy and selector resolved from
+bridge/MANIFEST.yaml. It then exposes one `resolve` operation. Nothing else
+in this sample imports the Bridge, constructs a request, or calls
+`bridge.handle` directly.
 
 `resolve` is a thin pass-through to `Bridge.resolve` (bridge/bridge.py):
 callers resolve a capability+operation once and get back a handle whose
@@ -22,20 +24,16 @@ only place in the app that reaches the Bridge at all.
 
 from pathlib import Path
 
-import yaml
-
-from bridge.assembler import assemble
+from bridge.assembler import assemble_from_catalog
 from bridge.bridge import Bridge
 from bridge.policy import StaticPolicyEngine
 from bridge.registry import CapabilityRegistry
 from bridge.selector import DeterministicSelector
 
 _APP_ROOT = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _APP_ROOT.parent.parent.parent
 
 _registry = CapabilityRegistry()
-for _manifest_path in sorted((_APP_ROOT / "capabilities").rglob("manifest.yaml")):
-    assemble(yaml.safe_load(_manifest_path.read_text(encoding="utf-8")), _registry, root=_REPO_ROOT)
+assemble_from_catalog(_APP_ROOT / "capability-catalog.jsonl", _registry)
 
 _bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector())
 

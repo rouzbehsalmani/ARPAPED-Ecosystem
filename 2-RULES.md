@@ -329,6 +329,17 @@ existing Registry cannot satisfy the Blueprint's scale requirements, that is
 an ecosystem implementation gap to report and address — not a reason to
 create a local Registry.
 
+Authoring-time discovery has the same scaling problem the cascade below
+solves for live lookups: an agent deciding whether to reuse, compose, or
+create (Phase 3, `1-CYCLE.md`) cannot read every contract in the ecosystem
+any more than the running Bridge can scan every registration. The ecosystem
+must provide a searchable, incrementally-maintained capability catalog for
+this — incrementally maintained meaning publishing one new capability
+appends to it, never requires rescanning everything already published. No
+particular format is mandated; the reference implementation's
+`bridge/assembler.py` and `schemas/capability-catalog.schema.json` are one
+worked example.
+
 **The discovery cascade.** At scale, one selective key is not enough — the
 Registry MUST support searching narrowest-to-widest and stopping at the
 first level that returns a bounded, non-empty set, never merging across

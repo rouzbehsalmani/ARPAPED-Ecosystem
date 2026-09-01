@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Capability Catalog Record",
+  "description": "One line of a generated capability-catalog.jsonl (bridge/assembler.py's append_to_catalog/rebuild_catalog): one implementation, flattened from its manifest and contract. Read by both an agent doing Phase 3 -- Discover (grepped, before any code runs) and the runtime bootstrap (assemble_from_catalog), instead of either walking and re-parsing capabilities/ directly -- see 2-RULES.md 'The Registry contract' and 1-CYCLE.md Phase 3.",
+  "type": "object",
+  "required": [
+    "implementation_id",
+    "capability_id",
+    "package_version",
+    "contract_version",
+    "operations",
+    "executor_path"
+  ],
+  "properties": {
+    "implementation_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Globally unique id of this implementation."
+    },
+    "capability_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "domain.operation identity (R1) this implementation satisfies."
+    },
+    "package_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    },
+    "executor_path": {
+      "type": "string",
+      "pattern": "^[^:]+:[^:]+$",
+      "description": "module:attr reference, imported lazily by the runtime loader — never eagerly by the catalog itself."
+    },
+    "priority": {
+      "type": "integer",
+      "default": 100
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "healthy": {
+      "type": "boolean",
+      "default": true
+    },
+    "metadata": {
+      "type": ["object", "null"]
+    },
+    "domain": {
+      "type": "string",
+      "description": "The contract's identity.domain — empty when the implementation was registered without a root to resolve the contract against; still fully discoverable at Exact/Scoped, invisible to Family/Domain/Cross-domain."
+    },
+    "family": {
+      "type": "string",
+      "description": "The contract's identity.family — only meaningful together with domain."
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The contract's discoverability.tags — the Cross-domain cascade level."
+    },
+    "description": {
+      "type": "string",
+      "description": "The contract's responsibility.description, carried here purely for agent keyword search (Phase 3 -- Discover). Never consumed by the runtime loader."
+    },
+    "manifest_path": {
+      "type": "string",
+      "description": "Repo-relative path to the source manifest, for provenance/debugging only — not consumed at load time."
+    },
+    "contract_path": {
+      "type": "string",
+      "description": "As declared in the manifest, for provenance/debugging only."
+    }
+  },
+  "additionalProperties": false
+}

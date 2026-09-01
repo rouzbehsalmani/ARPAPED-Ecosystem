@@ -19,6 +19,8 @@ capabilities/
   console/write/
     manifest.yaml                 binds the contract to the executor below
     executor.py                   registration-unaware: given text, writes it to the console
+build_catalog.py                  generates capability-catalog.jsonl (Phase 8, Publish)
+capability-catalog.jsonl          generated — see "Capability catalog" below
 app/
   requests.py                     the single request-construction point (R6) — exposes resolve()
   main.py                         the entry point — decides nothing, resolves once, calls twice
@@ -36,6 +38,27 @@ stale result. `Bridge.resolve`/`BoundCapability` (bridge/bridge.py) are what
 actually build the request; `app/requests.py` stays the only application
 module that reaches the Bridge at all.
 
+## Capability catalog
+
+`app/requests.py` registers capabilities from `capability-catalog.jsonl`
+instead of walking and re-parsing `capabilities/` at startup — that doesn't
+scale once an ecosystem has more than a handful of capabilities (see
+2-RULES.md "The Registry contract" and `bridge/assembler.py`). The catalog
+is a generated build artifact, committed so the sample runs out of the box.
+
+Regenerate it after editing anything under `capabilities/` or a contract it
+references:
+
+```
+python -m bridge.samples.hello_world.build_catalog
+```
+
+This calls `rebuild_catalog`, which walks the whole tree once — appropriate
+here since this sample's tree predates the catalog. A growing ecosystem
+publishing capabilities one at a time should call `append_to_catalog`
+per newly published manifest instead: O(1) per publish, never re-walking
+what's already in the catalog.
+
 ## Run
 
 From the repository root:
@@ -44,4 +67,10 @@ From the repository root:
 python -m bridge.samples.hello_world.app.main
 ```
 
-Expected output: `Hello, world!` — printed by the executor, not by `app/main.py`.
+Expected output — two lines, both printed by the executor, never by
+`app/main.py`:
+
+```
+This is a test of the Bridge's console.write capability.
+Hello, world!
+```

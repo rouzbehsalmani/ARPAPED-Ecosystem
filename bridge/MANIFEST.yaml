@@ -37,7 +37,12 @@ bridge:
     role: >
       Generic Publish-phase helper: reads capability manifests, imports each
       executor, builds implementation records, and registers them into the
-      canonical Registry.
+      canonical Registry. Also builds and consumes the generated capability
+      catalog (append_to_catalog, rebuild_catalog, assemble_from_catalog;
+      see schemas/capability-catalog.schema.json and 2-RULES.md "The
+      Registry contract") so neither an agent doing discovery nor the
+      runtime bootstrap has to walk and re-parse every manifest and
+      contract in the ecosystem.
 
 samples:
   location: bridge/samples/
