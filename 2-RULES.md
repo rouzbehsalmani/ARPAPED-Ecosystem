@@ -160,6 +160,16 @@ assembler and Bridge (`bridge/MANIFEST.yaml`) implement this via an
 `executor_kind: factory` manifest entry, given resolved access to its
 declared dependencies at assembly time.
 
+A declared dependency MAY pin the version constraint it was actually built
+against, not just the capability id — a bare id means any registered
+version, same as leaving it unpinned. When pinned, resolution always uses
+exactly that declared constraint; it is never a value the dependent's own
+code can choose or drift from. This is what protects a dependent when a
+dependency's interface changes incompatibly: a pinned dependent keeps
+resolving to whatever still satisfies the version it was built against, or
+fails loudly if nothing does — never silently starting to call a newer,
+incompatible shape it was never verified against.
+
 ## R5 — Verification hard-fails
 
 A Verify pass (Phase 7) MUST fail when:

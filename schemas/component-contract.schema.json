@@ -141,9 +141,28 @@
             "capabilities": {
               "type": "array",
               "items": {
-                "type": "string"
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Shorthand for {capability_id: <this string>, contract_version: \"*\"} -- any registered version."
+                  },
+                  {
+                    "type": "object",
+                    "required": ["capability_id", "contract_version"],
+                    "properties": {
+                      "capability_id": {
+                        "type": "string"
+                      },
+                      "contract_version": {
+                        "type": "string",
+                        "description": "The version constraint this contract was actually built and tested against (exact, range, or \"*\") -- what this dependency is resolved at is never something the depending capability's own code can drift from."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
               },
-              "description": "Required capability contracts (R5), all more generic than this contract."
+              "description": "Required capability contracts (R4), all more generic than this contract. A bare string means any version; {capability_id, contract_version} pins the version this contract depends on."
             },
             "components": {
               "type": "array",

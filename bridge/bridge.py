@@ -151,20 +151,29 @@ class Dependencies:
     everywhere else in this reference Bridge. Every resulting call is a
     real, fully-traced Bridge request (R6/R8) — never a raw executor-to-
     executor call.
+
+    `declared` maps each allowed capability_id to the version constraint
+    this contract actually declared for it (bare-string dependencies mean
+    `"*"`, any version — see `bridge/assembler.py`). `resolve` always uses
+    that declared constraint; it is not a parameter the factory can choose,
+    so a dependency's interface changing out from under a dependent can
+    never silently reach it — the dependent keeps resolving to whatever
+    still satisfies the version it was actually built against, or fails
+    loudly (`BRIDGE_NO_IMPLEMENTATION`) if nothing does.
     """
 
-    def __init__(self, bridge: "Bridge", declared_capability_ids: frozenset[str]) -> None:
+    def __init__(self, bridge: "Bridge", declared: dict[str, str]) -> None:
         self._bridge = bridge
-        self._declared = declared_capability_ids
+        self._declared = declared
 
-    def resolve(self, capability_id: str, operation: str, contract_version: str = "*", **kwargs: Any) -> BoundCapability:
+    def resolve(self, capability_id: str, operation: str, **kwargs: Any) -> BoundCapability:
         if capability_id not in self._declared:
             raise BridgeError(
                 "BRIDGE_UNDECLARED_DEPENDENCY", "validation",
                 f"{capability_id!r} is not declared in this capability's contract "
                 "dependencies.capabilities — add it there before depending on it (R4)",
             )
-        return self._bridge.resolve(capability_id, operation, contract_version, **kwargs)
+        return self._bridge.resolve(capability_id, operation, self._declared[capability_id], **kwargs)
 
 
 class Bridge:

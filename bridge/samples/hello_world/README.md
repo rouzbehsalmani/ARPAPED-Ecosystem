@@ -66,6 +66,15 @@ contract didn't declare would raise `BRIDGE_UNDECLARED_DEPENDENCY`; the
 declared dependency graph is also verified acyclic before anything is
 registered (R5).
 
+The dependency is pinned, not left open: `console.write` is declared as
+`{capability_id: console.write, contract_version: ">=1.0.0,<2.0.0"}`, not a
+bare id. `Dependencies.resolve` always resolves at exactly that declared
+constraint — never `"*"`, never a value the factory chooses — so if
+`console.write`'s contract ever changed incompatibly under a new major
+version, `greeting.compose` would keep resolving to whatever still
+satisfies `<2.0.0`, or fail loudly if nothing does, instead of silently
+starting to call a shape it was never built against.
+
 ## Capability catalog
 
 `app/requests.py` registers capabilities from `capability-catalog.jsonl`

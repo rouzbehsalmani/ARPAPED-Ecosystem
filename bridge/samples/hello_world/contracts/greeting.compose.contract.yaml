@@ -3,10 +3,13 @@
 #
 # The second capability in this sample, added specifically to prove
 # capability-to-capability calls end to end: this capability declares
-# console.write as a dependency (dependencies.capabilities below) and its
-# manifest (../capabilities/greeting/compose/manifest.yaml) sets
-# executor_kind: factory so it gets live, Bridge-routed access to it — see
-# 2-RULES.md R4. Scaffolding — copy the shape, not the domain content.
+# console.write as a dependency, pinned to the version this contract was
+# actually built against (dependencies.capabilities below, object form --
+# see schemas/component-contract.schema.json), and its manifest
+# (../capabilities/greeting/compose/manifest.yaml) sets executor_kind:
+# factory so it gets live, Bridge-routed access to it, always resolved at
+# exactly this pinned constraint — see 2-RULES.md R4. Scaffolding — copy
+# the shape, not the domain content.
 contract:
   identity:
     id: greeting.compose
@@ -33,7 +36,9 @@ contract:
           description: Empty object on success.
         errors: []
   dependencies:
-    capabilities: [console.write]
+    capabilities:
+      - capability_id: console.write
+        contract_version: ">=1.0.0,<2.0.0"
     components: []
     resources: []
   discoverability:

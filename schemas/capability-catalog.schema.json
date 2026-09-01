@@ -69,9 +69,9 @@
       "description": "The contract's discoverability.tags — the Cross-domain cascade level."
     },
     "dependencies": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "The contract's dependencies.capabilities (R4) — capability ids this implementation may call, live, through the Bridge, when executor_kind is 'factory'. Enforced at runtime by Dependencies (bridge/bridge.py): resolving anything outside this list raises."
+      "type": "object",
+      "additionalProperties": {"type": "string"},
+      "description": "The contract's dependencies.capabilities (R4), flattened to {capability_id: contract_version}: capability ids this implementation may call, live, through the Bridge, when executor_kind is 'factory', each pinned to the version constraint the contract actually declared (bare-string dependencies become \"*\"). Enforced at runtime by Dependencies (bridge/bridge.py): resolving an undeclared capability_id raises, and the declared constraint is always what gets resolved — never a value the factory can choose."
     },
     "executor_kind": {
       "type": "string",

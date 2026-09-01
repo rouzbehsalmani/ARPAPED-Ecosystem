@@ -71,7 +71,7 @@ from __future__ import annotations
 
 import importlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence
 
@@ -108,7 +108,7 @@ class ManifestEntry:
     family: str = ""
     tags: tuple[str, ...] = ()
     executor_kind: str = "direct"
-    dependencies: tuple[str, ...] = ()
+    dependencies: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(
@@ -120,7 +120,7 @@ class ManifestEntry:
         domain: str = "",
         family: str = "",
         tags: tuple[str, ...] = (),
-        dependencies: tuple[str, ...] = (),
+        dependencies: Optional[dict[str, str]] = None,
     ) -> "ManifestEntry":
         """Builds a typed entry from a raw capability-manifest ``implementations`` item.
 
@@ -178,7 +178,7 @@ class ManifestEntry:
             family=family,
             tags=tags,
             executor_kind=executor_kind,
-            dependencies=dependencies,
+            dependencies=dependencies or {},
         )
 
 
@@ -194,9 +194,28 @@ class ContractMetadata:
     domain: str = ""
     family: str = ""
     tags: tuple[str, ...] = ()
-    dependencies: tuple[str, ...] = ()
+    dependencies: dict[str, str] = field(default_factory=dict)
     version: str = ""
     compatibility: str = ""
+
+
+def _parse_dependencies(raw: Any) -> dict[str, str]:
+    """Decodes a contract's ``dependencies.capabilities`` list into
+    ``{capability_id: contract_version}``. A bare string is shorthand for
+    ``"*"`` (any registered version, today's only form); an object pins the
+    version constraint this contract actually depends on (see
+    ``schemas/component-contract.schema.json``). Malformed entries are
+    skipped rather than raising — schema validation is what enforces shape;
+    this is a best-effort read, same posture as the rest of this function.
+    """
+
+    dependencies: dict[str, str] = {}
+    for item in raw or ():
+        if isinstance(item, str) and item.strip():
+            dependencies[item] = "*"
+        elif isinstance(item, dict) and isinstance(item.get("capability_id"), str):
+            dependencies[item["capability_id"]] = item.get("contract_version", "*") or "*"
+    return dependencies
 
 
 def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> ContractMetadata:
@@ -231,7 +250,7 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
         domain=identity.get("domain", "") or "",
         family=identity.get("family", "") or "",
         tags=tuple(discoverability.get("tags", []) or ()),
-        dependencies=tuple(dependencies_block.get("capabilities", []) or ()),
+        dependencies=_parse_dependencies(dependencies_block.get("capabilities")),
         version=identity.get("version", "") or "",
         compatibility=versioning.get("compatibility", "") or "",
     )
@@ -342,7 +361,7 @@ def _build_implementation(
     domain: str,
     family: str,
     tags: tuple[str, ...],
-    dependencies: tuple[str, ...],
+    dependencies: dict[str, str],
     executor_kind: str,
     bridge: Optional["Bridge"],
 ) -> CapabilityImplementation:
@@ -369,7 +388,7 @@ def _build_implementation(
             )
         from .bridge import Dependencies
 
-        executor = raw(Dependencies(bridge, frozenset(dependencies)))
+        executor = raw(Dependencies(bridge, dict(dependencies)))
         if not callable(executor):
             raise AssemblerError(
                 f"executor factory {executor_path!r} must return a callable executor, "
@@ -418,13 +437,17 @@ def _to_implementation(entry: ManifestEntry, *, bridge: Optional["Bridge"] = Non
     )
 
 
-def _check_no_dependency_cycles(graph: dict[str, tuple[str, ...]]) -> None:
+def _check_no_dependency_cycles(graph: dict[str, Iterable[str]]) -> None:
     """Raises ``AssemblerError`` naming the cycle if the declared
     ``capability_id -> dependencies`` graph is not acyclic (R4/R5). Only
     capability ids present as keys are graph nodes; a dependency on a
     capability_id outside this assembly batch is a leaf (nothing further to
     walk) — cross-batch cycles are still caught eventually, since
     ``assemble_from_catalog`` builds this graph from the WHOLE catalog.
+
+    Each graph value just needs to iterate to dependency capability ids —
+    a ``dict[str, str]`` (capability_id -> pinned version) works exactly
+    like a plain iterable of ids, since iterating a dict yields its keys.
     """
 
     WHITE, GRAY, BLACK = 0, 1, 2
@@ -563,7 +586,7 @@ def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str
             "domain": entry.domain,
             "family": entry.family,
             "tags": list(entry.tags),
-            "dependencies": list(entry.dependencies),
+            "dependencies": dict(entry.dependencies),
             "executor_kind": entry.executor_kind,
             "description": description,
             "manifest_path": manifest_rel,
@@ -646,7 +669,7 @@ def assemble_from_catalog(
                 records.append(json.loads(line))
 
     _check_no_dependency_cycles(
-        {record["capability_id"]: tuple(record.get("dependencies", ())) for record in records}
+        {record["capability_id"]: tuple(record.get("dependencies", {})) for record in records}
     )
 
     registered: list[str] = []
@@ -665,7 +688,7 @@ def assemble_from_catalog(
             domain=record.get("domain", ""),
             family=record.get("family", ""),
             tags=tuple(record.get("tags", ())),
-            dependencies=tuple(record.get("dependencies", ())),
+            dependencies=record.get("dependencies", {}),
             executor_kind=record.get("executor_kind", "direct"),
             bridge=bridge,
         )
