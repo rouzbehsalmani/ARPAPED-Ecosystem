@@ -236,7 +236,26 @@
             "history": {
               "type": "array",
               "items": {
-                "type": "object"
+                "type": "object",
+                "required": ["version", "changed_by", "summary"],
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "description": "The version this entry records as superseded by the contract's current identity.version."
+                  },
+                  "changed_by": {
+                    "type": "string"
+                  },
+                  "changed_at": {
+                    "type": "string",
+                    "description": "ISO 8601 date/time. Optional."
+                  },
+                  "summary": {
+                    "type": "string",
+                    "description": "What changed and why, in plain language. This is metadata for tracing the contract's evolution, not a full snapshot of the superseded version — version control remains the source of truth for exact historical diffs."
+                  }
+                },
+                "additionalProperties": false
               }
             }
           },

@@ -54,6 +54,17 @@ routes every call through the same canonical Bridge (R6/R8) — never a raw
 executor-to-executor call. ``assemble``/``assemble_from_catalog`` verify the
 declared dependency graph is acyclic before registering or invoking any
 factory (R5).
+
+A manifest's declared ``contract_version`` is never re-derived, only
+cross-checked (R2): whenever a manifest is actually parsed from its source
+files (every ``assemble`` call; every ``rebuild_catalog``/
+``append_to_catalog``), ``from_manifest`` verifies it against the
+contract's own current ``identity.version`` and ``versioning.compatibility``
+policy — an implementation can never satisfy a contract version that
+doesn't exist yet, and a version older than the contract's current one is
+tolerated only as far as that policy allows. This is NOT re-checked from
+the catalog's snapshotted data at runtime bootstrap (``assemble_from_catalog``
+trusts the catalog as-is, same as domain/family/tags/dependencies).
 """
 
 from __future__ import annotations
@@ -66,7 +77,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence
 
 import yaml
 
-from .registry import CapabilityImplementation, CapabilityRegistry
+from .registry import CapabilityImplementation, CapabilityRegistry, _version_tuple
 
 if TYPE_CHECKING:
     from .bridge import Bridge
@@ -171,23 +182,39 @@ class ManifestEntry:
         )
 
 
-def _read_contract_metadata(
-    manifest: dict[str, Any], root: Optional[Path]
-) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
-    """Resolves a manifest's ``contract`` path against ``root`` and reads its
-    identity/discoverability/dependencies.
+@dataclass(frozen=True)
+class ContractMetadata:
+    """Everything the assembler reads from a manifest's referenced contract,
+    never duplicated into the manifest itself (R2/R3). All fields default to
+    empty/unset — the shape returned when ``root`` is omitted, in which case
+    only Exact/Scoped discovery, a "direct" executor, and no version
+    cross-check are available.
+    """
 
-    Returns ``("", "", (), ())`` when ``root`` is omitted or the manifest has
-    no ``contract`` path — Exact/Scoped discovery, and a "direct" executor,
-    still work without this; only Family/Domain/Cross-domain discovery and a
-    "factory" executor's declared dependencies need it.
+    domain: str = ""
+    family: str = ""
+    tags: tuple[str, ...] = ()
+    dependencies: tuple[str, ...] = ()
+    version: str = ""
+    compatibility: str = ""
+
+
+def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> ContractMetadata:
+    """Resolves a manifest's ``contract`` path against ``root`` and reads its
+    identity/discoverability/dependencies/versioning.
+
+    Returns an empty ``ContractMetadata`` when ``root`` is omitted or the
+    manifest has no ``contract`` path — Exact/Scoped discovery, and a
+    "direct" executor, still work without this; only Family/Domain/
+    Cross-domain discovery, a "factory" executor's declared dependencies,
+    and the contract-version cross-check need it.
     """
 
     if root is None:
-        return "", "", (), ()
+        return ContractMetadata()
     contract_path = manifest.get("contract")
     if not isinstance(contract_path, str) or not contract_path.strip():
-        return "", "", (), ()
+        return ContractMetadata()
 
     resolved = root / contract_path
     try:
@@ -199,11 +226,49 @@ def _read_contract_metadata(
     identity = contract.get("identity", {})
     discoverability = contract.get("discoverability", {})
     dependencies_block = contract.get("dependencies", {})
-    domain = identity.get("domain", "") or ""
-    family = identity.get("family", "") or ""
-    tags = tuple(discoverability.get("tags", []) or ())
-    dependencies = tuple(dependencies_block.get("capabilities", []) or ())
-    return domain, family, tags, dependencies
+    versioning = contract.get("versioning", {}) or {}
+    return ContractMetadata(
+        domain=identity.get("domain", "") or "",
+        family=identity.get("family", "") or "",
+        tags=tuple(discoverability.get("tags", []) or ()),
+        dependencies=tuple(dependencies_block.get("capabilities", []) or ()),
+        version=identity.get("version", "") or "",
+        compatibility=versioning.get("compatibility", "") or "",
+    )
+
+
+def _check_version_compatible(
+    capability_id: str, contract_version: str, current_identity_version: str, compatibility: str
+) -> None:
+    """Raises ``AssemblerError`` if a manifest's declared ``contract_version``
+    is not compatible with what the contract currently declares as its
+    ``identity.version`` (R2): an implementation can never satisfy a
+    contract version that doesn't exist yet, and a version older than the
+    contract's current one is only tolerated when the contract's own
+    ``versioning.compatibility`` policy allows it. Missing/unset
+    compatibility defaults to ``"strict"`` — fail closed.
+
+    Skipped entirely when ``current_identity_version`` is empty (no ``root``
+    was given, or the contract declares no ``identity.version``) — the same
+    escape hatch every other contract-dependent check in this module uses.
+    """
+
+    if not current_identity_version:
+        return
+
+    declared = _version_tuple(contract_version)
+    current = _version_tuple(current_identity_version)
+    if declared > current:
+        raise AssemblerError(
+            f"{capability_id!r} manifest declares contract_version {contract_version!r}, "
+            f"newer than the contract's current identity.version {current_identity_version!r}"
+        )
+    if declared < current and (compatibility or "strict") == "strict":
+        raise AssemblerError(
+            f"{capability_id!r} manifest declares contract_version {contract_version!r}, but "
+            f"the contract has moved to {current_identity_version!r} under a 'strict' "
+            "versioning.compatibility policy — update the manifest"
+        )
 
 
 def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> list[ManifestEntry]:
@@ -223,12 +288,18 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
     if not isinstance(implementations, list) or not implementations:
         raise AssemblerError("capability manifest must declare a non-empty 'implementations' list")
 
-    domain, family, tags, dependencies = _read_contract_metadata(manifest, root)
+    metadata = _read_contract_metadata(manifest, root)
+    if isinstance(contract_version, str) and contract_version.strip():
+        # A missing/malformed contract_version is reported by
+        # ManifestEntry.from_dict below, with its own clear message — this
+        # check only runs once there is something meaningful to compare.
+        _check_version_compatible(capability_id, contract_version, metadata.version, metadata.compatibility)
 
     return [
         ManifestEntry.from_dict(
             capability_id, contract_version, item,
-            domain=domain, family=family, tags=tags, dependencies=dependencies,
+            domain=metadata.domain, family=metadata.family,
+            tags=metadata.tags, dependencies=metadata.dependencies,
         )
         for item in implementations
         if isinstance(item, dict)

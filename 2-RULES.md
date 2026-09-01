@@ -106,6 +106,20 @@ contract; every operation belongs to exactly one contract. No bundled
 catch-all capability, one-file "all capabilities" contract, or
 one-component-does-everything.
 
+A new version is a change to this one file (`identity.version` bumped in
+place), never a second file — multiple implementations of the same
+capability, each declaring whichever `contract_version` they were built
+against, may still be registered and discoverable at the same time, so
+neither old nor new consumers need to move in lockstep. A manifest's
+declared `contract_version` MUST be compatible with the contract's current
+`identity.version`: never newer than it, and never older than it either
+unless the contract's own `versioning.compatibility` policy allows the
+drift — an ecosystem's assembler verifies this whenever a manifest is
+parsed from its source files, not left as an unenforced declaration.
+Bumping a version SHOULD append an entry to `lineage.history` recording
+what changed and why; version control remains the source of truth for the
+superseded version's exact text.
+
 ## R3 — One contract, many manifests
 
 A contract is not a manifest. One contract artifact → one capability
