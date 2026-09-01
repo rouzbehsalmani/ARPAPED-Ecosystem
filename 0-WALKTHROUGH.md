@@ -136,26 +136,15 @@ canonical Bridge per `bridge/MANIFEST.yaml`. It may only call what its own
 contract declared under `dependencies.capabilities` (R4) — never invent a
 different wiring locally, and never reach the Bridge any other way.
 
-### Worked sample: hello world
-
-The simplest possible complete, **runnable** example: a console "hello
-world," where even writing to the console is a capability, not entry-point
-plumbing. See `bridge/samples/hello_world/` — a real contract, manifest,
-executor, request-construction point, and entry point, built in the exact
-order above (its own `README.md` explains how to run it). This is
-scaffolding to prove the wiring, not a feature — copy the shape (the file
-order, the fields, the request-construction pattern), never the domain
-content, into a real capability.
-
-Its executor's behavior: given operation `write` and `input.text`, write
-that text to the console and return an empty object. The entry point is
-exactly one call: resolve the Bridge per `bridge/MANIFEST.yaml` and call
-`console.write`'s `write` operation with `{ text: "Hello, world!" }`. That
-call's response trace reaches every stage in order — `validated →
-discovered → policy_evaluated → selected → executed` — for a capability
-that only exists as a contract + manifest + registration-unaware executor;
-nothing calls `execute` directly, and nothing in the entry point prints
-anything itself.
+A minimal, runnable sample of this exact shape (contract → manifest →
+executor → request-construction point → entry point) lives at
+`bridge/samples/hello_world/` — its own `README.md` explains how to run it
+and what it does. It happens to print to a console purely because that is
+the smallest possible interface to demonstrate the wiring with; this
+Blueprint never constrains what interface an application presents (console,
+web, GUI, or otherwise — see step 6 for how any of them stays verifiable).
+It is one sample, not the shape every application must take: copy the
+wiring pattern, never its console-specific content, into a real capability.
 
 ## 4. The single request-construction point (Phase 6, R6)
 
