@@ -30,17 +30,26 @@ capabilities/
 build_catalog.py                  generates capability-catalog.jsonl (Phase 8, Publish)
 capability-catalog.jsonl          generated — see "Capability catalog" below
 app/
-  requests.py                     the single request-construction point (R6) — exposes resolve()
+  dependencies.yaml              this app's own declared dependencies — same shape as a contract's
+  requests.py                     the single request-construction point (R6) — exposes resolve()/resolve_pinned()
   main.py                         the entry point — decides nothing, resolves once per capability
 ```
 
-`app/main.py` calls `requests.resolve("console.write", "write",
-contract_version=">=2.0.0,<3.0.0")` once and gets back a handle, then calls
-`.call(...)` on that handle for each request (discover once, call many
-times) instead of re-running discovery every time. `contract_version` has
-no default anywhere in this chain (`app/requests.py`, `Bridge.resolve`) —
-a caller must always decide what it needs, never silently inherit whatever
-tie-breaking among registered versions happens to produce. Only the
+`app/main.py` calls `requests.resolve("console.write", "write")` once and
+gets back a handle, then calls `.call(...)` on that handle for each request
+(discover once, call many times) instead of re-running discovery every
+time. No `contract_version` is passed at the call site — `resolve` reads it
+from `app/dependencies.yaml`, this app's own declared dependencies, the
+same shape a capability contract's `dependencies.capabilities` uses and
+resolved through the same `Dependencies` mechanism (bridge/bridge.py) a
+capability's own executor factory relies on. A capability id that isn't
+declared there raises `BRIDGE_UNDECLARED_DEPENDENCY`; there is no silent
+default anywhere in this chain (`app/dependencies.yaml`, `app/requests.py`,
+`Bridge.resolve`) — a caller must always have stated what it needs
+somewhere, never silently inherit whatever tie-breaking among registered
+versions happens to produce. A genuine one-off need outside the app's
+normal declared dependencies still states its version explicitly, through
+`requests.resolve_pinned(...)` (see the fourth call, below). Only the
 discovery stage is cached — policy is still evaluated and a
 candidate is still selected and executed fresh on every `call`, through the
 same `bridge.handle` every request goes through — and the handle re-checks
@@ -106,11 +115,13 @@ pins it explicitly.
 
 Priority only breaks ties among candidates that already satisfy a given
 version constraint — it is never a substitute for stating that constraint.
-`app/main.py`'s calls all pass an explicit `contract_version`: the first
-two pin `>=2.0.0,<3.0.0` and land on `console.write.v2` (`message`);
-`greeting.compose`'s dependency pin (`<2.0.0`) lands on
-`console.write.default`; a fourth call explicitly pins `<2.0.0` directly
-and asserts the same. 1.0.0's exact interface is right there in
+`app/main.py`'s calls all resolve at a stated version, even where it isn't
+typed at the call site: the first two resolve through the app's declared
+dependency (`app/dependencies.yaml` pins `>=2.0.0,<3.0.0`) and land on
+`console.write.v2` (`message`); `greeting.compose`'s own dependency pin
+(`<2.0.0`) lands on `console.write.default`; a fourth call, a deliberate
+proof rather than a normal dependency, explicitly pins `<2.0.0` through
+`resolve_pinned` and asserts the same. 1.0.0's exact interface is right there in
 `versions["1.0.0"]`, a full peer of 2.0.0's, and the assembler checks every
 manifest's declared operations against whichever version it actually
 claims, not merely a version number (2-RULES.md R2).

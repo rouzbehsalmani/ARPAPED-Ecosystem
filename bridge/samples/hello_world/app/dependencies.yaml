@@ -1,0 +1,16 @@
+# This application's own declared dependencies, in the single
+# request-construction point (../requests.py) — same shape as a capability
+# contract's dependencies.capabilities (schemas/component-contract.schema.json):
+# a bare string would mean "*", any registered version; here both entries
+# pin the exact constraint the app actually depends on. Parsed once, at
+# load time, by bridge/assembler.py's parse_dependencies, into the same
+# Dependencies (bridge/bridge.py) mechanism a capability's own executor
+# factory uses — so resolve() never has to restate a version at the call
+# site; only a genuine one-off pin outside these declared dependencies
+# (app/main.py's proof that console.write 1.0.0 is still independently
+# reachable) uses the lower-level resolve_pinned instead.
+capabilities:
+  - capability_id: console.write
+    contract_version: ">=2.0.0,<3.0.0"
+  - capability_id: greeting.compose
+    contract_version: "1.0.0"

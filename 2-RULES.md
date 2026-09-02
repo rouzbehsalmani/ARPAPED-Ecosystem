@@ -435,6 +435,17 @@ that isn't stated is not "any version" by accident; a precedence that isn't
 stated is not "average" by accident. Silently guessing here is exactly how
 a consumer ends up resolved against a candidate nobody actually chose.
 
+"Stated" does not mean "restated at every call site." The single
+request-construction point (R6) may declare its own dependencies the same
+way a capability contract does (R4), and resolve through the identical
+mechanism — reading the version it needs from that one declared place
+instead of a caller passing it in fresh on every call. This still fails
+loudly: resolving a capability the declared dependencies don't name is an
+immediate error, not a silent "any version." A genuine one-off need outside
+the declared set still requires an explicit, stated version at the point
+it's resolved — declaring dependencies once is a convenience over restating
+them, never a way to make an unstated version implicit again.
+
 ## Capability reference discipline
 
 This makes MANDATORY the separation between a capability contract and the

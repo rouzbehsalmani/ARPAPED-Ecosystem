@@ -210,14 +210,20 @@ class ContractMetadata:
     dead_versions: frozenset[str] = frozenset()
 
 
-def _parse_dependencies(raw: Any) -> dict[str, str]:
-    """Decodes a contract's ``dependencies.capabilities`` list into
+def parse_dependencies(raw: Any) -> dict[str, str]:
+    """Decodes a ``dependencies.capabilities``-shaped list into
     ``{capability_id: contract_version}``. A bare string is shorthand for
     ``"*"`` (any registered version, today's only form); an object pins the
-    version constraint this contract actually depends on (see
+    version constraint the declaring side actually depends on (see
     ``schemas/component-contract.schema.json``). Malformed entries are
     skipped rather than raising — schema validation is what enforces shape;
     this is a best-effort read, same posture as the rest of this function.
+
+    Shared by two callers: a capability contract's own
+    ``dependencies.capabilities`` (read here, by ``_read_contract_metadata``)
+    and an application's own declared-dependencies file for its single
+    request-construction point (see ``bridge/bridge.py``'s ``Dependencies``)
+    — both use the identical shape, so this decoding logic lives once.
     """
 
     dependencies: dict[str, str] = {}
@@ -280,7 +286,7 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
         domain=identity.get("domain", "") or "",
         family=identity.get("family", "") or "",
         tags=tuple(discoverability.get("tags", []) or ()),
-        dependencies=_parse_dependencies(dependencies_block.get("capabilities")),
+        dependencies=parse_dependencies(dependencies_block.get("capabilities")),
         version=current_version,
         versions_operations=versions_operations,
         dead_versions=dead_versions,

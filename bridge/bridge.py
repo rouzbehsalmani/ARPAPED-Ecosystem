@@ -135,31 +135,36 @@ class BoundCapability:
 
 
 class Dependencies:
-    """Given to a capability's executor FACTORY once, at assembly time —
-    never to the executor itself (see the manifest's optional
-    `executor_kind: factory`, bridge/assembler.py). Mirrors `Bridge.resolve`
-    exactly, but scoped to exactly the capability ids this capability's own
-    contract declared under `dependencies.capabilities` (R4): resolving
-    anything else raises `BRIDGE_UNDECLARED_DEPENDENCY`, which is what makes
-    a contract's declared dependency list an enforced runtime boundary, not
-    just documentation.
+    """Given once, at startup or assembly time, to whatever needs a
+    declared, version-pinned view of other capabilities — never to a
+    component's ordinary executor. Two callers use it: a capability's
+    executor FACTORY (see the manifest's optional `executor_kind: factory`,
+    bridge/assembler.py), scoped to what its own contract declared under
+    `dependencies.capabilities` (R4); and an application's single
+    request-construction point (R6), scoped to its own declared-dependencies
+    file, so it can resolve without restating a version at every call site
+    — the same mechanism, the same enforcement, just declared in a
+    different place. Mirrors `Bridge.resolve` exactly, but scoped to
+    exactly the capability ids `declared` names: resolving anything else
+    raises `BRIDGE_UNDECLARED_DEPENDENCY`, which is what makes the declared
+    list an enforced runtime boundary, not just documentation.
 
-    A factory calls `resolve(...)` once per operation it needs and closes
-    over the returned `BoundCapability`; the executor closure it returns
-    calls `.call(...)` (or `.call_with_timeout(...)`) on that handle per
-    invocation — the same "discover once, call many times" shape used
+    A caller resolves `(...)` once per operation it needs and closes over
+    the returned `BoundCapability`; the executor closure (or application
+    code) calls `.call(...)` (or `.call_with_timeout(...)`) on that handle
+    per invocation — the same "discover once, call many times" shape used
     everywhere else in this reference Bridge. Every resulting call is a
     real, fully-traced Bridge request (R6/R8) — never a raw executor-to-
     executor call.
 
     `declared` maps each allowed capability_id to the version constraint
-    this contract actually declared for it (bare-string dependencies mean
-    `"*"`, any version — see `bridge/assembler.py`). `resolve` always uses
-    that declared constraint; it is not a parameter the factory can choose,
-    so a dependency's interface changing out from under a dependent can
-    never silently reach it — the dependent keeps resolving to whatever
-    still satisfies the version it was actually built against, or fails
-    loudly (`BRIDGE_NO_IMPLEMENTATION`) if nothing does.
+    actually declared for it (bare-string dependencies mean `"*"`, any
+    version — see `bridge/assembler.py`'s `parse_dependencies`). `resolve`
+    always uses that declared constraint; it is not a parameter the caller
+    can choose, so a dependency's interface changing out from under a
+    dependent can never silently reach it — the dependent keeps resolving
+    to whatever still satisfies the version it was actually built against,
+    or fails loudly (`BRIDGE_NO_IMPLEMENTATION`) if nothing does.
     """
 
     def __init__(self, bridge: "Bridge", declared: dict[str, str]) -> None:
@@ -170,8 +175,8 @@ class Dependencies:
         if capability_id not in self._declared:
             raise BridgeError(
                 "BRIDGE_UNDECLARED_DEPENDENCY", "validation",
-                f"{capability_id!r} is not declared in this capability's contract "
-                "dependencies.capabilities — add it there before depending on it (R4)",
+                f"{capability_id!r} is not declared in this Dependencies' declared "
+                "capabilities — add it there before depending on it",
             )
         return self._bridge.resolve(capability_id, operation, self._declared[capability_id], **kwargs)
 

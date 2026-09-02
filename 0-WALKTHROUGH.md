@@ -167,6 +167,16 @@ calls through that one operation. Nothing else constructs a request or calls
 the Bridge's handle operation directly (the verification harness in step 6
 is the one exception, per R6).
 
+This module may also hold its own small declared-dependencies list — the
+same shape a capability contract uses for `dependencies.capabilities` — and
+resolve through it, so callers get a capability+operation handle without
+restating a version constraint at every call site; only genuinely stated
+once, in that list, upgrading it is a single edit instead of a hunt across
+every call site. A one-off need outside that declared list still states its
+version explicitly, right where it's resolved — this is a convenience over
+restating, never a way to make an unstated version implicit (2-RULES.md
+"No silent defaults on what resolution depends on").
+
 This module is the only structural exception (R6). The process entry point
 that calls it is ordinary consumer code, not a second exemption (R9) — its
 top-level loop should do little more than call capabilities in sequence
