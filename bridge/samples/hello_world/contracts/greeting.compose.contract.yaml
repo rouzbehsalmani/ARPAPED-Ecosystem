@@ -22,19 +22,20 @@ contract:
     description: Composes a greeting message for a name and writes it via console.write.
     invariants:
       - does not modify its input
-  interface:
-    operations:
-      - name: compose
-        description: Builds a greeting for the given name and writes it to the console.
-        input:
-          - name: name
-            type: string
-            required: true
-            description: Name to greet.
-        output:
-          type: object
-          description: Empty object on success.
-        errors: []
+  versions:
+    "1.0.0":
+      operations:
+        - name: compose
+          description: Builds a greeting for the given name and writes it to the console.
+          input:
+            - name: name
+              type: string
+              required: true
+              description: Name to greet.
+          output:
+            type: object
+            description: Empty object on success.
+          errors: []
   dependencies:
     capabilities:
       - capability_id: console.write

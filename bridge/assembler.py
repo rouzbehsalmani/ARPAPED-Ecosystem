@@ -26,8 +26,8 @@ each manifest's ``contract`` path against it and reads that contract's
 ``identity.domain``, ``identity.family``, and ``discoverability.tags`` — the
 source of truth for those fields is always the contract (R2/R3), never the
 manifest. This is what makes Family/Domain/Cross-domain discovery possible
-(2-RULES.md "Registry contract"); omitting ``root`` keeps prior behavior
-unchanged (Exact/Scoped discovery only).
+(2-RULES.md "Registry contract"); omitting ``root`` limits discovery to
+Exact/Scoped only.
 
 At scale, neither an agent deciding whether to reuse/compose/create (Phase 3
 — Discover) nor the runtime bootstrap should have to walk and re-parse every
@@ -58,13 +58,17 @@ factory (R5).
 A manifest's declared ``contract_version`` is never re-derived, only
 cross-checked (R2): whenever a manifest is actually parsed from its source
 files (every ``assemble`` call; every ``rebuild_catalog``/
-``append_to_catalog``), ``from_manifest`` verifies it against the
-contract's own current ``identity.version`` and ``versioning.compatibility``
-policy — an implementation can never satisfy a contract version that
-doesn't exist yet, and a version older than the contract's current one is
-tolerated only as far as that policy allows. This is NOT re-checked from
-the catalog's snapshotted data at runtime bootstrap (``assemble_from_catalog``
-trusts the catalog as-is, same as domain/family/tags/dependencies).
+``append_to_catalog``), ``from_manifest`` verifies it names a currently
+supported (alive) version in the contract's ``versions`` — a peer-keyed map
+where every alive version is a full, independent entry, never a numeric
+"newer/older than current" comparison. A version recorded in the
+contract's ``lineage.history`` is dead: no implementation may declare it.
+Each implementation entry's declared ``operations`` are also checked
+against what that specific alive version actually records, catching a
+manifest that claims an operation which was never part of the version it
+declares. This is NOT re-checked from the catalog's snapshotted data at
+runtime bootstrap (``assemble_from_catalog`` trusts the catalog as-is, same
+as domain/family/tags/dependencies).
 """
 
 from __future__ import annotations
@@ -77,7 +81,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence
 
 import yaml
 
-from .registry import CapabilityImplementation, CapabilityRegistry, _version_tuple
+from .registry import CapabilityImplementation, CapabilityRegistry
 
 if TYPE_CHECKING:
     from .bridge import Bridge
@@ -100,7 +104,7 @@ class ManifestEntry:
     contract_version: str
     operations: tuple[str, ...]
     executor_path: str
-    priority: int = 100
+    priority: int
     enabled: bool = True
     healthy: bool = True
     metadata: Optional[dict[str, Any]] = None
@@ -162,6 +166,12 @@ class ManifestEntry:
             raise AssemblerError("'enabled' must be a boolean")
         if "healthy" in entry and not isinstance(entry["healthy"], bool):
             raise AssemblerError("'healthy' must be a boolean")
+        priority = entry.get("priority")
+        if not isinstance(priority, int) or isinstance(priority, bool):
+            raise AssemblerError(
+                "an implementation entry must declare an integer 'priority' — no default; "
+                "higher number = higher precedence (schemas/capability-manifest.schema.json)"
+            )
 
         return cls(
             capability_id=capability_id.strip(),
@@ -170,7 +180,7 @@ class ManifestEntry:
             contract_version=contract_version.strip(),
             operations=tuple(op.strip() for op in operations),
             executor_path=executor_path.strip(),
-            priority=int(entry.get("priority", 100)),
+            priority=priority,
             enabled=bool(entry.get("enabled", True)),
             healthy=bool(entry.get("healthy", True)),
             metadata=entry.get("metadata"),
@@ -196,7 +206,8 @@ class ContractMetadata:
     tags: tuple[str, ...] = ()
     dependencies: dict[str, str] = field(default_factory=dict)
     version: str = ""
-    compatibility: str = ""
+    versions_operations: dict[str, frozenset[str]] = field(default_factory=dict)
+    dead_versions: frozenset[str] = frozenset()
 
 
 def _parse_dependencies(raw: Any) -> dict[str, str]:
@@ -245,48 +256,76 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
     identity = contract.get("identity", {})
     discoverability = contract.get("discoverability", {})
     dependencies_block = contract.get("dependencies", {})
-    versioning = contract.get("versioning", {}) or {}
+    versions_block = contract.get("versions", {}) or {}
+    history_block = contract.get("lineage", {}).get("history", []) or []
+
+    versions_operations: dict[str, frozenset[str]] = {}
+    for version, entry in versions_block.items():
+        operations = (entry or {}).get("operations", []) or []
+        versions_operations[version] = frozenset(
+            op["name"] for op in operations if isinstance(op, dict) and isinstance(op.get("name"), str)
+        )
+    dead_versions = frozenset(
+        item["version"] for item in history_block if isinstance(item, dict) and isinstance(item.get("version"), str)
+    )
+
+    current_version = identity.get("version", "") or ""
+    if current_version and versions_operations and current_version not in versions_operations:
+        raise AssemblerError(
+            f"contract identity.version {current_version!r} is not itself a key in this "
+            "contract's 'versions' — the default version must structurally exist"
+        )
+
     return ContractMetadata(
         domain=identity.get("domain", "") or "",
         family=identity.get("family", "") or "",
         tags=tuple(discoverability.get("tags", []) or ()),
         dependencies=_parse_dependencies(dependencies_block.get("capabilities")),
-        version=identity.get("version", "") or "",
-        compatibility=versioning.get("compatibility", "") or "",
+        version=current_version,
+        versions_operations=versions_operations,
+        dead_versions=dead_versions,
     )
 
 
-def _check_version_compatible(
-    capability_id: str, contract_version: str, current_identity_version: str, compatibility: str
+def _check_declared_version_alive(
+    capability_id: str, contract_version: str, versions_operations: dict[str, frozenset[str]], dead_versions: frozenset[str]
 ) -> None:
     """Raises ``AssemblerError`` if a manifest's declared ``contract_version``
-    is not compatible with what the contract currently declares as its
-    ``identity.version`` (R2): an implementation can never satisfy a
-    contract version that doesn't exist yet, and a version older than the
-    contract's current one is only tolerated when the contract's own
-    ``versioning.compatibility`` policy allows it. Missing/unset
-    compatibility defaults to ``"strict"`` — fail closed.
-
-    Skipped entirely when ``current_identity_version`` is empty (no ``root``
-    was given, or the contract declares no ``identity.version``) — the same
-    escape hatch every other contract-dependent check in this module uses.
+    is not a currently supported (alive) version of its contract (R2): it
+    must be a key in the contract's ``versions`` — never merely "older" or
+    "newer" than some current one, since every alive version is a peer, not
+    a numeric comparison. A version recorded in ``lineage.history`` is dead:
+    no implementation may declare it, and the error says so explicitly,
+    distinct from a version that was never recognized at all.
     """
 
-    if not current_identity_version:
+    if contract_version in versions_operations:
         return
-
-    declared = _version_tuple(contract_version)
-    current = _version_tuple(current_identity_version)
-    if declared > current:
+    if contract_version in dead_versions:
         raise AssemblerError(
-            f"{capability_id!r} manifest declares contract_version {contract_version!r}, "
-            f"newer than the contract's current identity.version {current_identity_version!r}"
+            f"{capability_id!r} manifest declares contract_version {contract_version!r}, which "
+            "this contract's lineage.history records as retired (dead) — no implementation may use it"
         )
-    if declared < current and (compatibility or "strict") == "strict":
+    raise AssemblerError(
+        f"{capability_id!r} manifest declares contract_version {contract_version!r}, which is not "
+        "a currently supported version of this contract (see its 'versions')"
+    )
+
+
+def _check_operations_declared(
+    capability_id: str, contract_version: str, operations: tuple[str, ...], valid_operations: frozenset[str]
+) -> None:
+    """Raises ``AssemblerError`` if an implementation entry declares an
+    operation that was never actually recorded for the contract_version it
+    claims — catches a manifest whose declared operations don't match what
+    that specific, alive version's interface really contains.
+    """
+
+    unknown = [op for op in operations if op not in valid_operations]
+    if unknown:
         raise AssemblerError(
-            f"{capability_id!r} manifest declares contract_version {contract_version!r}, but "
-            f"the contract has moved to {current_identity_version!r} under a 'strict' "
-            "versioning.compatibility policy — update the manifest"
+            f"{capability_id!r} manifest declares operation(s) {unknown!r} not present in "
+            f"contract_version {contract_version!r}'s recorded interface"
         )
 
 
@@ -308,13 +347,8 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
         raise AssemblerError("capability manifest must declare a non-empty 'implementations' list")
 
     metadata = _read_contract_metadata(manifest, root)
-    if isinstance(contract_version, str) and contract_version.strip():
-        # A missing/malformed contract_version is reported by
-        # ManifestEntry.from_dict below, with its own clear message — this
-        # check only runs once there is something meaningful to compare.
-        _check_version_compatible(capability_id, contract_version, metadata.version, metadata.compatibility)
 
-    return [
+    entries = [
         ManifestEntry.from_dict(
             capability_id, contract_version, item,
             domain=metadata.domain, family=metadata.family,
@@ -323,6 +357,19 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
         for item in implementations
         if isinstance(item, dict)
     ]
+
+    # A missing/malformed contract_version is reported by ManifestEntry.from_dict
+    # above, with its own clear message — these checks only run once there is
+    # something meaningful to compare, and only when a root actually gave us
+    # contract data (metadata.version is the same empty-means-no-data signal
+    # used throughout this module).
+    if isinstance(contract_version, str) and contract_version.strip() and metadata.version:
+        _check_declared_version_alive(capability_id, contract_version, metadata.versions_operations, metadata.dead_versions)
+        valid_operations = metadata.versions_operations[contract_version]
+        for entry in entries:
+            _check_operations_declared(capability_id, contract_version, entry.operations, valid_operations)
+
+    return entries
 
 
 def _load_executor(executor_path: str):
@@ -370,8 +417,7 @@ def _build_implementation(
     constructs a ``CapabilityImplementation``.
 
     ``executor_kind: "direct"`` (default): the loaded callable IS the
-    executor, unchanged from every implementation before this existed.
-    ``executor_kind: "factory"``: the loaded callable is invoked ONCE, here,
+    executor. ``executor_kind: "factory"``: the loaded callable is invoked ONCE, here,
     with a ``Dependencies`` scoped to ``dependencies`` (R4) — its return
     value becomes the executor. Requires ``bridge`` (fail closed otherwise):
     a factory with no Bridge to resolve its dependencies through can't do
@@ -489,8 +535,9 @@ def assemble(
     path so the assembler can attach that contract's domain/family/tags/
     dependencies to the registered implementation, enabling Family/Domain/
     Cross-domain discovery (2-RULES.md "Registry contract") and
-    ``executor_kind: factory`` entries. Omitting it keeps prior behavior
-    unchanged. ``bridge`` is required only if any entry is factory-kind.
+    ``executor_kind: factory`` entries. Omitting it limits discovery to
+    Exact/Scoped only. ``bridge`` is required only if any entry is
+    factory-kind.
 
     Fail closed: if any implementation cannot be imported or registered, or
     the declared dependency graph has a cycle, an ``AssemblerError`` is
@@ -538,10 +585,20 @@ def _collect_entries(
     return entries
 
 
-def _read_contract_description(manifest: dict[str, Any], root: Path) -> str:
-    """Reads a manifest's contract's ``responsibility.description``, for the
-    catalog's ``description`` field only (agent keyword-search relevance) —
-    never consumed by ``from_manifest`` or registration itself.
+def _read_operation_descriptions(
+    manifest: dict[str, Any], root: Path, contract_version: str, operation_names: Iterable[str]
+) -> str:
+    """Reads the given operations' descriptions from the SPECIFIC
+    contract_version an implementation entry declares, for the catalog's
+    ``description`` field only (agent keyword-search relevance) — never
+    consumed by ``from_manifest``/registration itself.
+
+    Deliberately scoped to one version's own recorded operations, not the
+    contract-wide ``responsibility.description``: versions are peers, each
+    potentially describing different behavior (R2) — a 1.0.0
+    implementation's catalog description must keep describing 1.0.0's
+    actual behavior even after a 2.0.0 peer with different operations is
+    added, never silently pick up the newer version's wording.
     """
 
     contract_path = manifest.get("contract") if isinstance(manifest, dict) else None
@@ -552,6 +609,18 @@ def _read_contract_description(manifest: dict[str, Any], root: Path) -> str:
     except OSError:
         return ""
     contract = (contract_doc or {}).get("contract", {})
+    versions_block = contract.get("versions", {}) or {}
+    operations = (versions_block.get(contract_version) or {}).get("operations", []) or []
+    wanted = set(operation_names)
+    descriptions = [
+        op["description"]
+        for op in operations
+        if isinstance(op, dict) and op.get("name") in wanted and op.get("description")
+    ]
+    if descriptions:
+        return " ".join(descriptions)
+    # Nothing matched (e.g. malformed data) -- the contract-wide summary is
+    # a better fallback than an empty string, even though it isn't version-scoped.
     return contract.get("responsibility", {}).get("description", "") or ""
 
 
@@ -564,7 +633,6 @@ def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str
 
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     entries = from_manifest(manifest, root=repo_root)
-    description = _read_contract_description(manifest, repo_root)
     contract_path = manifest.get("contract", "") if isinstance(manifest, dict) else ""
     try:
         manifest_rel = manifest_path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -572,6 +640,7 @@ def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str
         manifest_rel = manifest_path.as_posix()
 
     for entry in entries:
+        description = _read_operation_descriptions(manifest, repo_root, entry.contract_version, entry.operations)
         yield {
             "implementation_id": entry.implementation_id,
             "capability_id": entry.capability_id,
@@ -681,7 +750,7 @@ def assemble_from_catalog(
             contract_version=record["contract_version"],
             operations=tuple(record["operations"]),
             executor_path=record["executor_path"],
-            priority=record.get("priority", 100),
+            priority=record["priority"],
             enabled=record.get("enabled", True),
             healthy=record.get("healthy", True),
             metadata=record.get("metadata"),

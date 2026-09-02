@@ -30,7 +30,8 @@
           "implementation_id",
           "version",
           "operations",
-          "executor"
+          "executor",
+          "priority"
         ],
         "properties": {
           "implementation_id": {
@@ -61,7 +62,7 @@
           },
           "priority": {
             "type": "integer",
-            "default": 100
+            "description": "Higher number = higher precedence = selected first among candidates that already match a request's other constraints (version, policy, health). No default: every implementation must state its own precedence explicitly rather than silently inheriting an implicit one (2-RULES.md 'The Registry contract')."
           },
           "enabled": {
             "type": "boolean",

@@ -7,7 +7,6 @@ application itself has no dependency on this package.
 
 from .assembler import AssemblerError, ManifestEntry, assemble, from_manifest
 from .bridge import Bridge, BridgeError, BridgeRequest, BridgeResponse
-from .shared_idempotency import SHARED_IDEMPOTENCY_CAPABILITY, SharedIdempotencyLedger, register_shared_idempotency
 from .policy import PolicyContext, PolicyDecision, StaticPolicyEngine
 from .registry import CapabilityImplementation, CapabilityRegistry
 from .selector import CircuitBreakingSelector, DeterministicSelector
@@ -28,7 +27,4 @@ __all__ = [
     "PolicyDecision",
     "StaticPolicyEngine",
     "CircuitBreakingSelector",
-    "SHARED_IDEMPOTENCY_CAPABILITY",
-    "SharedIdempotencyLedger",
-    "register_shared_idempotency",
 ]

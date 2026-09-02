@@ -95,7 +95,7 @@ class CapabilityImplementation:
     contract_version: str
     operations: tuple[str, ...]
     executor: Executor
-    priority: int = 100
+    priority: int
     enabled: bool = True
     healthy: bool = True
     metadata: Optional[dict[str, Any]] = None

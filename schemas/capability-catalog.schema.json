@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Capability Catalog Record",
-  "description": "One line of a generated capability-catalog.jsonl (bridge/assembler.py's append_to_catalog/rebuild_catalog): one implementation, flattened from its manifest and contract. Read by both an agent doing Phase 3 -- Discover (grepped, before any code runs) and the runtime bootstrap (assemble_from_catalog), instead of either walking and re-parsing capabilities/ directly -- see 2-RULES.md 'The Registry contract' and 1-CYCLE.md Phase 3.",
+  "description": "One line of a generated capability catalog: one implementation, flattened from its manifest and contract. Read by both an agent doing Phase 3 -- Discover (grepped, before any code runs) and the runtime bootstrap, instead of either walking and re-parsing capabilities/ directly. Built and consumed by the resolved assembler (bridge/MANIFEST.yaml) -- see 2-RULES.md 'The Registry contract' and 1-CYCLE.md Phase 3.",
   "type": "object",
   "required": [
     "implementation_id",
@@ -9,7 +9,8 @@
     "package_version",
     "contract_version",
     "operations",
-    "executor_path"
+    "executor_path",
+    "priority"
   ],
   "properties": {
     "implementation_id": {
@@ -42,7 +43,7 @@
     },
     "priority": {
       "type": "integer",
-      "default": 100
+      "description": "Higher number = higher precedence = selected first among candidates that already match a request's other constraints. No default — see schemas/capability-manifest.schema.json and 2-RULES.md 'The Registry contract'."
     },
     "enabled": {
       "type": "boolean",
@@ -71,7 +72,7 @@
     "dependencies": {
       "type": "object",
       "additionalProperties": {"type": "string"},
-      "description": "The contract's dependencies.capabilities (R4), flattened to {capability_id: contract_version}: capability ids this implementation may call, live, through the Bridge, when executor_kind is 'factory', each pinned to the version constraint the contract actually declared (bare-string dependencies become \"*\"). Enforced at runtime by Dependencies (bridge/bridge.py): resolving an undeclared capability_id raises, and the declared constraint is always what gets resolved — never a value the factory can choose."
+      "description": "The contract's dependencies.capabilities (R4), flattened to {capability_id: contract_version}: capability ids this implementation may call, live, through the Bridge, when executor_kind is 'factory', each pinned to the version constraint the contract actually declared (bare-string dependencies become \"*\"). Enforced at runtime by the resolved Bridge (bridge/MANIFEST.yaml): resolving an undeclared capability_id raises, and the declared constraint is always what gets resolved — never a value the factory can choose."
     },
     "executor_kind": {
       "type": "string",
@@ -81,7 +82,7 @@
     },
     "description": {
       "type": "string",
-      "description": "The contract's responsibility.description, carried here purely for agent keyword search (Phase 3 -- Discover). Never consumed by the runtime loader."
+      "description": "This implementation's own operations, as described under its specific contract_version in the contract's `versions` (falling back to the contract-wide responsibility.description if unavailable) -- carried here purely for agent keyword search (Phase 3 -- Discover). Never consumed by the runtime loader."
     },
     "manifest_path": {
       "type": "string",

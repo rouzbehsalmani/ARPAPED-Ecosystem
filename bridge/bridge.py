@@ -189,13 +189,20 @@ class Bridge:
         self.policy = policy
         self.selector = selector
 
-    def resolve(self, capability_id: str, operation: str, contract_version: str = "*", **kwargs: Any) -> BoundCapability:
+    def resolve(self, capability_id: str, operation: str, contract_version: str, **kwargs: Any) -> BoundCapability:
         """Discovers `capability_id`+`operation` once and returns a handle whose
         `call(...)` re-runs policy, selection, and execution on every use but
         reuses that discovery (see `BoundCapability`). `kwargs` forward to
         `CapabilityRegistry.resolve` (`exact_version`, `implementation_id`,
         `family`, `domain`, `tags`) for callers that need a cascade level
         other than Scoped.
+
+        `contract_version` has no default. A default would mean "whichever
+        version wins tie-breaking" — an implicit choice the caller never
+        actually made, and implicit choices are exactly what silently
+        resolve to the wrong candidate. Pass `"*"` explicitly if any
+        version genuinely will do; the point is that the caller decides,
+        never the Bridge.
         """
         resolved = self.registry.resolve(capability_id, operation, contract_version, **kwargs)
         return BoundCapability(self, resolved, capability_id, operation, contract_version)

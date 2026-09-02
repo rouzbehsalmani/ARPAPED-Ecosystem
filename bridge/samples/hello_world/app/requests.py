@@ -45,11 +45,13 @@ _bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector())
 assemble_from_catalog(_APP_ROOT / "capability-catalog.jsonl", _registry, bridge=_bridge)
 
 
-def resolve(capability_id, operation, contract_version="*"):
+def resolve(capability_id, operation, contract_version):
     """`contract_version` is a version-range constraint (see registry.py's
     `_matches_version`), owned by the caller's own compatibility expectations
     for this capability+operation — not something this module can invent on
-    a capability's behalf. It defaults to "*" (any registered version) since
-    this sample makes no version claim of its own.
+    a capability's behalf. No default: a caller must decide what it needs
+    (an exact pin, a range, or "*" if it genuinely doesn't care) rather than
+    silently inheriting whatever tie-breaking among registered versions
+    happens to produce.
     """
     return _bridge.resolve(capability_id, operation, contract_version)

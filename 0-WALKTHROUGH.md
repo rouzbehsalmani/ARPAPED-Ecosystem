@@ -106,10 +106,13 @@ For every capability from step 2:
    sets `additionalProperties: false` at every level, so only these keys
    exist: top-level `contract:` wrapping REQUIRED `identity` (`id, name,
    version, domain, family, type` — `type` is exactly `capability`,
-   `connector`, or `service`), `responsibility` (`description` required,
-   `invariants` optional), `interface.operations[]` (each operation's
-   `name`, `description`, and `errors[]` are REQUIRED — `errors` may be an
-   empty list but the key must exist; `input`/`output` are optional),
+   `connector`, or `service`; `version` must be a key present in
+   `versions`, below), `responsibility` (`description` required,
+   `invariants` optional), `versions` (keyed by version string, each entry
+   a full peer with its own `operations[]` — each operation's `name`,
+   `description`, and `errors[]` are REQUIRED — `errors` may be an empty
+   list but the key must exist; `input`/`output` are optional; a version
+   that's fully retired moves to `lineage.history` instead — see R2),
    `dependencies`, `discoverability`, `versioning`, `lineage` (`policy` and
    `runtime` are optional and may be omitted). Validate it before moving on.
 2. **Manifest second** — a capability manifest valid against
@@ -117,7 +120,9 @@ For every capability from step 2:
    `capability_id`, `contract_version`, `implementations[]` (each:
    `implementation_id`, `version`, `operations[]`, an `executor` locator
    whose exact notation depends on the language you resolved per
-   `bridge/MANIFEST.yaml`). Do this only after the contract validates.
+   `bridge/MANIFEST.yaml`, and `priority` — an integer with no default;
+   higher number means higher precedence). Do this only after the contract
+   validates.
 3. **Code third** — the executor: an operation `execute` taking (operation,
    input, policy) and returning output, in whatever shape your resolved
    Bridge's own implementation expects. It never imports the Registry and

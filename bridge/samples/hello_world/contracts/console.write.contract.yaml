@@ -7,31 +7,63 @@
 # contract -> manifest -> executor -> Bridge wiring end to end, including the
 # point that even writing to a console is a capability, not entry-point
 # plumbing. Scaffolding — copy the shape, not the domain content.
+#
+# Two versions, both alive, both peers under `versions` below: 1.0.0's
+# `text` field was renamed to `message` in 2.0.0 (a real breaking change).
+# Neither is demoted to lineage.history -- that's reserved for versions
+# that are actually dead (2-RULES.md R2). The original 1.0.0 implementation
+# (../capabilities/console/write/) stays registered alongside the new 2.0.0
+# one (../capabilities/console/write_v2/); greeting.compose pins <2.0.0 and
+# is demonstrably unaffected by 2.0.0 existing.
 contract:
   identity:
     id: console.write
     name: Console Write
-    version: "1.0.0"
+    version: "2.0.0"
     domain: console
     family: console
     type: capability
   responsibility:
-    description: Writes the given text to the console.
+    # Deliberately version-neutral: this describes the capability's purpose
+    # as a whole, never a specific version's field names (see `versions`
+    # below for what "write" actually takes at each version) -- it must
+    # stay equally true of 1.0.0 and 2.0.0 alike.
+    description: Writes a line of output to the console.
     invariants:
       - does not modify its input
-  interface:
-    operations:
-      - name: write
-        description: Writes text to the console.
-        input:
-          - name: text
-            type: string
-            required: true
-            description: Text to write.
-        output:
-          type: object
-          description: Empty object on success.
-        errors: []
+  versions:
+    "1.0.0":
+      operations:
+        - name: write
+          description: Writes text to the console.
+          input:
+            - name: text
+              type: string
+              required: true
+              description: Text to write.
+          output:
+            type: object
+            description: Empty object on success.
+          errors: []
+    "2.0.0":
+      operations:
+        - name: write
+          description: Writes a message to the console, optionally formatted.
+          input:
+            - name: message
+              type: string
+              required: true
+              description: Message to write.
+            - name: format
+              type: string
+              required: false
+              description: How to render the message before writing it -- "plain" (default), "uppercase", or "prefixed" (prefixed with "[console.write] "). Not available in 1.0.0.
+          output:
+            type: object
+            description: Empty object on success.
+          errors:
+            - code: INVALID_INPUT
+              description: format is not one of "plain", "uppercase", "prefixed".
   dependencies:
     capabilities: []
     components: []

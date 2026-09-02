@@ -15,12 +15,15 @@ pattern), never this domain content, into a real capability.
 
 ```
 contracts/
-  console.write.contract.yaml       console.write's contract artifact (schema-valid)
+  console.write.contract.yaml       console.write's contract — versions 1.0.0 and 2.0.0, both alive peers
   greeting.compose.contract.yaml    greeting.compose's — declares console.write as a dependency
 capabilities/
   console/write/
-    manifest.yaml                 binds the contract to the executor below
+    manifest.yaml                 binds contract_version 1.0.0 to the executor below
     executor.py                   registration-unaware: given text, writes it to the console
+  console/write_v2/
+    manifest.yaml                 a SECOND manifest for console.write, at contract_version 2.0.0
+    executor.py                   given message (renamed from text) and an optional format, writes it
   greeting/compose/
     manifest.yaml                 executor_kind: factory — see "Capability-to-capability calls"
     executor.py                   resolves console.write once, calls it through the Bridge
@@ -31,10 +34,14 @@ app/
   main.py                         the entry point — decides nothing, resolves once per capability
 ```
 
-`app/main.py` calls `requests.resolve("console.write", "write")` once and
-gets back a handle, then calls `.call(...)` on that handle for each request
-(discover once, call many times) instead of re-running discovery every time.
-Only the discovery stage is cached — policy is still evaluated and a
+`app/main.py` calls `requests.resolve("console.write", "write",
+contract_version=">=2.0.0,<3.0.0")` once and gets back a handle, then calls
+`.call(...)` on that handle for each request (discover once, call many
+times) instead of re-running discovery every time. `contract_version` has
+no default anywhere in this chain (`app/requests.py`, `Bridge.resolve`) —
+a caller must always decide what it needs, never silently inherit whatever
+tie-breaking among registered versions happens to produce. Only the
+discovery stage is cached — policy is still evaluated and a
 candidate is still selected and executed fresh on every `call`, through the
 same `bridge.handle` every request goes through — and the handle re-checks
 its cached candidates' live state on each use (self-healing by
@@ -69,11 +76,44 @@ registered (R5).
 The dependency is pinned, not left open: `console.write` is declared as
 `{capability_id: console.write, contract_version: ">=1.0.0,<2.0.0"}`, not a
 bare id. `Dependencies.resolve` always resolves at exactly that declared
-constraint — never `"*"`, never a value the factory chooses — so if
-`console.write`'s contract ever changed incompatibly under a new major
-version, `greeting.compose` would keep resolving to whatever still
-satisfies `<2.0.0`, or fail loudly if nothing does, instead of silently
-starting to call a shape it was never built against.
+constraint — never `"*"`, never a value the factory chooses.
+
+`console.write` genuinely has a 2.0.0 (`capabilities/console/write_v2/`,
+real and registered, see below), and `greeting.compose` is unaffected by
+it: its pin keeps it resolving `console.write.default` (1.0.0), never the
+newer version, and `app/main.py` asserts this directly rather than just
+trusting it.
+
+## console.write's two versions
+
+`contracts/console.write.contract.yaml`'s `versions` holds `"1.0.0"` and
+`"2.0.0"` as full, independent peers — neither is "current" with the other
+demoted to history; `identity.version` names 2.0.0 as the default for a
+consumer that doesn't pin anything (2-RULES.md R2). The 2.0.0 version
+renamed the operation's `text` input to `message` (a real breaking change)
+and adds an optional `format` input (`"plain"`, `"uppercase"`, or
+`"prefixed"`) that 1.0.0 has no equivalent for — a real capability
+difference between the two versions, recorded in the contract and actually
+exercised (see `app/main.py`'s second call), not just a cosmetic rename.
+Both versions have live, callable implementations: `console.write.v2` (2.0.0,
+`capabilities/console/write_v2/`, `priority: 200`) and `console.write.default`
+(1.0.0, `capabilities/console/write/`, `priority: 100`) — higher number,
+higher precedence (schemas/capability-manifest.schema.json). `priority` has
+no default: every implementation states its own explicitly (2-RULES.md "The
+Registry contract"), the same reasoning as `contract_version` having none
+on resolve, below. 1.0.0 stays fully alive and callable for anyone who
+pins it explicitly.
+
+Priority only breaks ties among candidates that already satisfy a given
+version constraint — it is never a substitute for stating that constraint.
+`app/main.py`'s calls all pass an explicit `contract_version`: the first
+two pin `>=2.0.0,<3.0.0` and land on `console.write.v2` (`message`);
+`greeting.compose`'s dependency pin (`<2.0.0`) lands on
+`console.write.default`; a fourth call explicitly pins `<2.0.0` directly
+and asserts the same. 1.0.0's exact interface is right there in
+`versions["1.0.0"]`, a full peer of 2.0.0's, and the assembler checks every
+manifest's declared operations against whichever version it actually
+claims, not merely a version number (2-RULES.md R2).
 
 ## Capability catalog
 
@@ -104,12 +144,17 @@ From the repository root:
 python -m bridge.samples.hello_world.app.main
 ```
 
-Expected output — three lines, all printed by console.write's executor
-(directly for the first two, and via the nested Bridge call from
-`greeting.compose` for the third), never by `app/main.py`:
+Expected output — four lines, all printed by a console.write executor
+(2.0.0 directly for the first two; 1.0.0 via the nested Bridge call for
+`greeting.compose`'s, and directly again for the fourth), never by
+`app/main.py`:
 
 ```
 This is a test of the Bridge's console.write capability.
-Hello, world!
+HELLO, WORLD!
 Greetings, ARPAPED!
+console.write 1.0.0 is real and independently callable.
 ```
+
+The second line is uppercase because that call passes `format: "uppercase"`
+— 2.0.0's optional feature 1.0.0 has no equivalent for.

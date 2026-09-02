@@ -16,17 +16,22 @@ from .registry import CapabilityImplementation
 
 
 class DeterministicSelector:
-    """Chooses the lowest numeric priority, then the id, for a reproducible result."""
+    """Chooses the highest numeric priority, then the lowest id, for a
+    reproducible result. Higher priority number = higher precedence = picked
+    first — a new, preferred implementation states a higher number; nothing
+    about any existing implementation that doesn't set one (default 100)
+    needs to change for it to lose that comparison.
+    """
 
     VERSION = "0.1"
 
     def select(self, options: tuple[CapabilityImplementation, ...]) -> CapabilityImplementation:
         if not options:
             raise ValueError("No candidate available for selection")
-        return sorted(options, key=lambda item: (item.priority, item.implementation_id))[0]
+        return sorted(options, key=lambda item: (-item.priority, item.implementation_id))[0]
 
     def rank(self, options: tuple[CapabilityImplementation, ...]) -> tuple[CapabilityImplementation, ...]:
-        """Preserves the legacy behaviour: only a single candidate is chosen for execution."""
+        """The base ranking strategy: only the single highest-precedence candidate is chosen for execution."""
 
         return (self.select(options),)
 
@@ -60,7 +65,7 @@ class CircuitBreakingSelector(DeterministicSelector):
         now = time.monotonic()
         available: list[CapabilityImplementation] = []
         with self._lock:
-            for option in sorted(options, key=lambda item: (item.priority, item.implementation_id)):
+            for option in sorted(options, key=lambda item: (-item.priority, item.implementation_id)):
                 state = self._states.setdefault(option.implementation_id, _CircuitState())
                 if state.opened_at is None:
                     available.append(option)

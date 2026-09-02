@@ -1,7 +1,77 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Component Contract",
-  "description": "Machine-readable contract artifact for a capability (R2). One materialized, versioned file per capability. Defines identity, responsibility, operations (input/output/errors), dependencies, policy, runtime, discoverability, versioning, and lineage. Inputs/outputs are generic contract-shaped data, never implementation types.",
+  "description": "Machine-readable contract artifact for a capability (R2). One materialized, versioned file per capability. Defines identity, responsibility, versions (each a peer, full operations with input/output/errors), dependencies, policy, runtime, discoverability, versioning, and lineage. Inputs/outputs are generic contract-shaped data, never implementation types.",
+  "$defs": {
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "errors"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "input": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "description"],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
   "type": "object",
   "required": ["contract"],
   "properties": {
@@ -10,7 +80,7 @@
       "required": [
         "identity",
         "responsibility",
-        "interface",
+        "versions",
         "dependencies",
         "discoverability",
         "versioning",
@@ -29,7 +99,8 @@
               "type": "string"
             },
             "version": {
-              "type": "string"
+              "type": "string",
+              "description": "The default version for a consumer that doesn't pin one -- MUST be a key present in `versions`."
             },
             "domain": {
               "type": "string"
@@ -60,80 +131,18 @@
           },
           "additionalProperties": false
         },
-        "interface": {
+        "versions": {
           "type": "object",
-          "required": ["operations"],
-          "properties": {
-            "operations": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "type": "object",
-                "required": ["name", "description", "errors"],
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "input": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": ["name", "type"],
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "type": {
-                          "type": "string"
-                        },
-                        "required": {
-                          "type": "boolean",
-                          "default": false
-                        },
-                        "description": {
-                          "type": "string"
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  },
-                  "output": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string"
-                      },
-                      "description": {
-                        "type": "string"
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  "errors": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": ["code", "description"],
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "additionalProperties": false
-              }
-            }
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["operations"],
+            "properties": {
+              "operations": {"$ref": "#/$defs/operations"}
+            },
+            "additionalProperties": false
           },
-          "additionalProperties": false
+          "description": "Every currently supported (alive) version of this contract's interface, keyed by version string. Each entry is a full, independent peer -- none is structurally privileged over another; `identity.version` only names which one is the default. A version that is fully retired (no implementation may declare it any more) is removed from here and recorded in `lineage.history` instead -- 'deprecated' means dead, not 'old but still usable'."
         },
         "dependencies": {
           "type": "object",
@@ -235,7 +244,8 @@
           "properties": {
             "compatibility": {
               "type": "string",
-              "enum": ["backward", "forward", "strict"]
+              "enum": ["backward", "forward", "strict"],
+              "description": "Policy documentation for how this contract's maintainers intend to evolve `versions` -- not itself checked mechanically; whether a specific version is currently valid is answered directly by membership in `versions` vs. `lineage.history`."
             },
             "deprecation_policy": {
               "type": "string"
@@ -260,7 +270,7 @@
                 "properties": {
                   "version": {
                     "type": "string",
-                    "description": "The version this entry records as superseded by the contract's current identity.version."
+                    "description": "A version that is now dead -- no implementation may declare this as its contract_version any more."
                   },
                   "changed_by": {
                     "type": "string"
@@ -271,11 +281,12 @@
                   },
                   "summary": {
                     "type": "string",
-                    "description": "What changed and why, in plain language. This is metadata for tracing the contract's evolution, not a full snapshot of the superseded version — version control remains the source of truth for exact historical diffs."
+                    "description": "What changed and why this version was retired, in plain language."
                   }
                 },
                 "additionalProperties": false
-              }
+              },
+              "description": "Fully retired (dead) versions only. A version that still has a live, supported implementation belongs in `versions`, not here."
             }
           },
           "additionalProperties": false

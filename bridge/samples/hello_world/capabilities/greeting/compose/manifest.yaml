@@ -14,3 +14,4 @@ implementations:
     operations: [compose]
     executor: bridge.samples.hello_world.capabilities.greeting.compose.executor:make_executor
     executor_kind: factory
+    priority: 100

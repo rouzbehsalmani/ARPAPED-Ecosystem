@@ -5,10 +5,17 @@ the single request-construction point (app/requests.py) and then calls the
 handle that comes back. Nothing here prints anything; that's console.write's
 job.
 
-Calling `resolve` once and reusing the handle for both calls below is the
-"discover once, call many times" pattern: `console.write`'s discovery only
-runs once, while each `call` still gets its own fresh policy_evaluated /
-selected / executed trace.
+Every `resolve` call below passes an explicit `contract_version` -- there is
+no default (see app/requests.py, bridge/bridge.py's `Bridge.resolve`). A
+default would mean "whichever version tie-breaking happens to pick" -- an
+implicit choice the caller never actually made. Requiring the caller to
+decide turns a missing choice into an immediate TypeError, never a quiet
+wrong answer.
+
+Calling `resolve` once and reusing the handle for both of the first two
+calls is the "discover once, call many times" pattern: `console.write`'s
+discovery only runs once, while each `call` still gets its own fresh
+policy_evaluated / selected / executed trace.
 
 The first call also passes `on_stage`, observing each trace stage live as
 the Bridge reaches it (bridge/bridge.py) instead of only seeing the trace
@@ -25,6 +32,20 @@ fully-traced request, never a shortcut. Its own trace reaching `executed`
 is only possible if that nested call itself completed the full
 validated/discovered/policy_evaluated/selected/executed path.
 
+Both console.write versions are genuinely alive, each with its own real,
+callable implementation, not just declared: contracts/console.write.contract.yaml's
+`versions` holds 1.0.0 and 2.0.0 as peers (2-RULES.md R2)
+(capabilities/console/write/ and capabilities/console/write_v2/). The first
+two calls explicitly pin >=2.0.0 (console.write.v2, the contract's default --
+identity.version) and use `message`; the fourth explicitly pins <2.0.0
+(console.write.default) and uses `text`. The pin alone determines which
+implementation each call reaches.
+
+2.0.0 is more than a renamed field: the second call also passes
+`format: "uppercase"`, an option 1.0.0 has no equivalent for
+(capabilities/console/write_v2/executor.py) -- a real, exercised
+capability difference between the two versions, not just a cosmetic one.
+
 Run from the repository root:
     python -m bridge.samples.hello_world.app.main
 """
@@ -33,22 +54,29 @@ from bridge.samples.hello_world.app.requests import resolve
 
 
 def main():
-    writer = resolve("console.write", "write")
+    writer = resolve("console.write", "write", contract_version=">=2.0.0,<3.0.0")
 
     stages_seen = []
     first = writer.call(
-        {"text": "This is a test of the Bridge's console.write capability."},
+        {"message": "This is a test of the Bridge's console.write capability."},
         on_stage=stages_seen.append,
     )
     assert first.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
     assert tuple(stages_seen) == first.trace
+    assert first.implementation_id == "console.write.v2"
 
-    second = writer.call({"text": "Hello, world!"})
+    second = writer.call({"message": "Hello, world!", "format": "uppercase"})
     assert second.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
+    assert second.implementation_id == "console.write.v2"
 
-    composer = resolve("greeting.compose", "compose")
+    composer = resolve("greeting.compose", "compose", contract_version="1.0.0")
     third = composer.call({"name": "ARPAPED"})
     assert third.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
+
+    writer_v1 = resolve("console.write", "write", contract_version="<2.0.0")
+    fourth = writer_v1.call({"text": "console.write 1.0.0 is real and independently callable."})
+    assert fourth.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
+    assert fourth.implementation_id == "console.write.default"
 
 
 if __name__ == "__main__":
