@@ -59,7 +59,9 @@ def main() -> None:
             print(completed.stderr, end="", file=sys.stderr)
         response = json.loads(completed.stdout.strip().splitlines()[-1])
         assert response["ok"] is True, response
+        assert response["implementation_id"] == "console.write.process"
         assert response["output"] == {}
+        assert response["trace"] == ["validated", "discovered", "policy_evaluated", "selected", "executed"]
         print("PASS: Rust Bridge -> Python capability")
     finally:
         catalog.unlink(missing_ok=True)
