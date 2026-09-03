@@ -58,7 +58,16 @@ bridge:
       executor_kind: process spawns the named program instead of
       importing anything (bridge/process_executor.py), verified to have
       actually started before registering it (R5) — how a capability can
-      be implemented in another language.
+      be implemented in another language. executor_kind: direct/factory
+      is NOT language-neutral this way — it is a literal in-process
+      call, coupled to whatever language this Bridge happens to be. If
+      this Bridge is ever reimplemented in a different language, an
+      existing direct/factory capability's own files must not be edited
+      or deleted to keep it reachable (2-RULES.md R4) — a generic,
+      per-language adapter (the same reference-client shape `samples/`
+      already uses for `process`, applied one level earlier) should
+      import it and serve it behind the same out-of-process protocol
+      instead, so the capability never has to know or care.
 
 samples:
   location: bridge/samples/

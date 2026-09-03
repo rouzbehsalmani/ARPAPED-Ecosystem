@@ -42,6 +42,7 @@ app/
 clients/
   rust/                          Cargo library crate, depended on via a path dependency — see "A capability in another language"
   python/bridge_client.py        the same role, for a Python process-kind executor
+  python/direct_adapter.py       prepared, not yet used — see "clients/python/direct_adapter.py — prepared, not yet needed"
 ```
 
 The two process-kind executors above don't hand-write their own
@@ -251,15 +252,23 @@ declared pin, the same posture `console_write_legacy` already has toward
 `src/main.rs` doesn't contain any of the connect/frame/dispatch code
 above — it depends on the `bridge_client` crate (`clients/rust/`, a
 Cargo path dependency in its own `Cargo.toml`) and reduces to just its
-own operation logic: validate, compose, call, reply. A second Rust
-capability reuses the same client instead of copying that machinery
+own operation logic: an `execute(operation, input, conn) ->
+Result<Value, CallError>` function, handed to the crate's `serve`, which
+owns connecting, reading, dispatching, and sending the reply. A second
+Rust capability reuses the same client instead of copying that machinery
 again, and can't quietly implement the framing or error handling
 differently. `clients/rust/` uses `serde_json` (a real JSON library, not
-hand-written field extraction) — precisely what lets `src/main.rs` write
-`invocation.input["name"].as_str().expect(...)` and actually trust it,
-the same way a Python executor trusts `input["name"]`: the Bridge's own
-guarantee (required fields present, declared types honored) is only
-worth something if the client parsing it is trustworthy too.
+hand-written field extraction) — precisely what lets `execute` write
+`input["name"].as_str().expect(...)` and actually trust it, the same way
+a Python executor trusts `input["name"]`: the Bridge's own guarantee
+(required fields present, declared types honored) is only worth
+something if the client parsing it is trustworthy too.
+
+Because `serve` owns the loop and `execute` is just a plain function,
+this capability's code would be identical if `greeting.compose` were
+ever reachable in-process instead — nothing about it depends on
+`executor_kind: process` specifically, only on being handed input and a
+way to make its one nested call.
 
 `clients/python/bridge_client.py` is the same idea for Python, and
 `capabilities/console/write_process/` is what makes it a genuine proof
@@ -267,9 +276,13 @@ rather than a hypothetical: a THIRD implementation of `console.write`
 2.0.0 that is Python, but runs as its own separate process instead of
 in-process, reaching the Bridge through the same protocol any other
 language uses — not the in-process `Dependencies` route just because it
-happens to share a language with the Bridge. Its `executor:` is an argv
-list, not a single command string, because an interpreted language
-needs an interpreter AND a script: `["python", "path/to/executor.py"]`
+happens to share a language with the Bridge. Its own code is
+`execute(operation, input, policy) -> output`, handed to
+`bridge_client.serve_direct` — the exact same shape and the exact same
+function signature `console/write_v2/executor.py` uses in-process; only
+the one-line wrapper at the bottom of the file differs. Its `executor:`
+is an argv list, not a single command string, because an interpreted
+language needs an interpreter AND a script: `["python", "path/to/executor.py"]`
 — `ProcessExecutorPool` (`bridge/process_executor.py`) accepts either
 shape. Build nothing for this one; it runs directly. Its `priority`
 (150) is below `console.write.v2`'s (200), reached only by its own
@@ -279,6 +292,29 @@ extra implementation here has.
 Both clients implement the same formally written-down protocol
 (`schemas/process-executor-protocol.schema.json`) — never hand-rolled
 per capability.
+
+### `clients/python/direct_adapter.py` — prepared, not yet needed
+
+`executor_kind: direct`/`factory` (`capabilities/console/write/`,
+`console/write_v2/`, `greeting/compose/`) is a literal in-process Python
+call — genuinely coupled to the Bridge's own language, unlike `process`.
+If this sample's Bridge is ever reimplemented in a different language,
+those three capabilities' own files must not be edited or deleted to
+keep them reachable (2-RULES.md R4) — `direct_adapter.py` is the fix:
+given a capability's `module:attr` executor path at runtime, it imports
+that exact callable and hands it straight to
+`bridge_client.serve_direct`/`serve_factory` — the identical functions
+`console/write_process/executor.py` calls itself, not a separate
+implementation of the same idea — so a non-Python assembler can spawn
+this adapter instead of importing the capability directly, invisibly to
+discovery, policy, and selection.
+
+Nothing in this sample calls it today — the Bridge is still Python, so
+every `direct`/`factory` capability still runs in-process, the fast
+path. It's written and tested ahead of that need on purpose: this
+coupling is easy to miss until a Bridge rewrite is already underway (it
+was), and by then editing or deleting a capability's own files looks
+like the only way out unless this already exists.
 
 ## Capability catalog
 

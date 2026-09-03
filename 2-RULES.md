@@ -191,6 +191,15 @@ worked example of one lives alongside the sample that uses it; this is
 scaffolding a real application copies the shape of, not shared
 infrastructure it depends on.
 
+The reference client owns the connect/read/dispatch/reply loop entirely
+— a capability hands it a pure `execute(operation, input, policy) ->
+output` (or, for a dependency-needing one, the same
+`make_executor(dependencies) -> execute` shape `executor_kind: factory`
+already has), never writing that loop itself. This is what keeps a
+capability's own code identical whether it runs in-process or as its
+own process: `executor_kind` is something assembly reads, not something
+the capability's code branches on or is shaped by.
+
 A capability implemented in another language is not limited to answering the Bridge's calls: it
 may declare `dependencies.capabilities` exactly like any other
 capability (R4) and call them through its language's client, the same
@@ -202,6 +211,25 @@ too, reaching the Bridge through that language's own client the same way
 any other language would, proving the protocol is genuinely
 language-neutral and not merely a workaround for languages that aren't
 the Bridge's own.
+
+`executor_kind: direct`/`factory`, unlike `process`, is NOT language-neutral
+— it is a literal in-process call, so it genuinely couples a capability to
+whatever language the Bridge happens to be. That coupling is real, and
+worth knowing before it is rediscovered the hard way: if the Bridge is
+ever reimplemented in a different language, an existing direct/factory
+capability's own files (contract, manifest, executor) MUST NOT be edited
+or deleted to keep it reachable — that is exactly the kind of change to a
+capability for a reason outside its own domain this Blueprint exists to
+prevent. The fix is the same generic-per-language-adapter shape the
+reference client already uses, applied one level earlier: a single,
+reusable adapter (not written per capability) that imports the target
+`module:attr` callable and serves it behind the same out-of-process
+protocol `executor_kind: process` already uses — the capability never
+knows or cares that this happened. A worked example lives alongside the
+sample that needed it, even before that sample's own Bridge has actually
+been reimplemented in another language — written and tested ahead of
+time, exactly because this coupling is easy to miss until a Bridge
+rewrite is already underway.
 
 A declared dependency MAY pin the version constraint it was actually built
 against, not just the capability id — a bare id means any registered

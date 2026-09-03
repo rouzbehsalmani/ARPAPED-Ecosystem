@@ -1,8 +1,10 @@
 // Reference client for the process executor protocol
 // (schemas/process-executor-protocol.schema.json) -- what a process-kind
-// executor (2-RULES.md R4/R5) exchanges with the Bridge. Any Rust
-// executor here depends on this crate instead of hand-writing
-// connect/frame/dispatch itself (see ../compose_process for the pattern).
+// executor (2-RULES.md R4/R5) exchanges with the Bridge. `serve` is the
+// intended entry point, not `Connection` directly: a capability hands it
+// a pure `execute(operation, input, conn) -> Result<Value, CallError>`
+// function, and never writes the connect/read/dispatch/reply loop
+// itself (see ../compose_process for the pattern).
 //
 // Lives inside this sample, not under bridge/ (not part of the Bridge
 // implementation) and not at the repo root (not shared, ecosystem-level
@@ -11,27 +13,18 @@
 // clients/python/bridge_client.py for the same role in Python.
 //
 // Uses a real JSON library (serde_json), not hand-written field
-// extraction -- required for `invocation.input["name"].as_str().expect(...)`
-// to actually mean something, the same way `input["name"]` does in Python.
+// extraction -- required for `input["name"].as_str().expect(...)` to
+// actually mean something, the same way it does in Python.
 
 use serde_json::{json, Value};
 use std::env;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
-/// One invocation from the Bridge: its operation name and already-parsed
-/// input. `input` is exactly what the Bridge sent -- required fields
-/// present, declared types honored, declared defaults already filled in
-/// (2-RULES.md "No silent defaults on what resolution depends on") --
-/// safe to index into directly for anything the contract declares.
-pub struct Invocation {
-    pub operation: String,
-    pub input: Value,
-}
-
 /// The outcome of a failed nested call: the Bridge's `code`/`message`.
-/// A capability generally just relays this straight through as its own
-/// reply (`Connection::reply_error`).
+/// Also what `execute` itself returns as its own `Err` -- `serve` relays
+/// it to the Bridge as the terminal reply, so a capability never calls
+/// `reply_error` directly.
 pub struct CallError {
     pub code: String,
     pub message: String,
@@ -95,20 +88,34 @@ impl Connection {
     pub fn reply_error(&mut self, code: &str, message: &str) {
         self.write_value(&json!({"error": {"code": code, "message": message}}));
     }
+}
 
-    /// Runs forever, reading one invocation per line and calling
-    /// `handler` with it. The handler must call exactly one of
-    /// `reply_output`/`reply_error` before returning. Returns when the
-    /// Bridge closes the connection.
-    pub fn serve<F: FnMut(&mut Connection, Invocation)>(&mut self, mut handler: F) {
-        loop {
-            let message = match self.read_value() {
-                Some(v) => v,
-                None => return,
-            };
-            let operation = message.get("operation").and_then(Value::as_str).unwrap_or_default().to_string();
-            let input = message.get("input").cloned().unwrap_or(Value::Null);
-            handler(self, Invocation { operation, input });
+/// Serves a pure `execute(operation, input, conn) -> Result<Value, CallError>`
+/// function over the process executor wire protocol: connects, reads one
+/// invocation per line, calls `execute`, sends the terminal reply.
+/// `execute` gets `conn` only to make its own nested calls through it
+/// (`conn.call(...)`, R4) -- a leaf capability that never calls another
+/// capability simply ignores that parameter. This is the ONLY thing that
+/// should ever depend on how this process is reached: a capability's own
+/// `execute` is exactly the same function whether it's compiled straight
+/// into a Bridge (hypothetically) or run as its own process, so changing
+/// how it's reached never touches it -- see bridge/samples/hello_world/README.md
+/// "clients/python/direct_adapter.py" for the same property in Python.
+pub fn serve<F>(mut execute: F)
+where
+    F: FnMut(&str, Value, &mut Connection) -> Result<Value, CallError>,
+{
+    let mut conn = Connection::connect();
+    loop {
+        let message = match conn.read_value() {
+            Some(v) => v,
+            None => return,
+        };
+        let operation = message.get("operation").and_then(Value::as_str).unwrap_or_default().to_string();
+        let input = message.get("input").cloned().unwrap_or(Value::Null);
+        match execute(&operation, input, &mut conn) {
+            Ok(output) => conn.reply_output(output),
+            Err(e) => conn.reply_error(&e.code, &e.message),
         }
     }
 }

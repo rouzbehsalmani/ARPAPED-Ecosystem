@@ -5,29 +5,34 @@
 // process, reached over loopback TCP.
 //
 // Connect/parse/dispatch/nested-call machinery lives in clients/rust/src/lib.rs
-// (the bridge_client crate, a path dependency); this file is just this
-// capability's own operation logic.
+// (the bridge_client crate, a path dependency) -- `execute` below is
+// this capability's ONLY code, a pure function taking `conn` solely to
+// make its own nested call through it. Nothing here writes the
+// connect/read/reply loop; that's bridge_client::serve's job, so this
+// file would be identical if greeting.compose were ever reachable
+// in-process (a Rust Bridge, hypothetically) instead of as its own
+// process -- see bridge/samples/hello_world/README.md
+// "clients/python/direct_adapter.py" for the same property in Python.
 
-use bridge_client::Connection;
-use serde_json::json;
+use bridge_client::{serve, CallError, Connection};
+use serde_json::{json, Value};
+
+fn execute(_operation: &str, input: Value, conn: &mut Connection) -> Result<Value, CallError> {
+    // `name` isn't checked here -- Bridge.handle already validated it
+    // (present, string, non-blank via `pattern: "\S"`), so this is a
+    // trusting lookup, not a defensive one.
+    let name = input["name"]
+        .as_str()
+        .expect("Bridge guarantees `name` is present, a string, and non-blank");
+
+    // A nested call, resolved through this implementation's own
+    // declared dependencies.capabilities (R4) -- console.write isn't
+    // imported or spawned by this process itself.
+    let text = format!("Greetings, {}!", name);
+    conn.call("console.write", "write", json!({"text": text}))?;
+    Ok(json!({}))
+}
 
 fn main() {
-    let mut conn = Connection::connect();
-    conn.serve(|conn, invocation| {
-        // `name` isn't checked here -- Bridge.handle already validated it
-        // (present, string, non-blank via `pattern: "\S"`), so this is a
-        // trusting lookup, not a defensive one.
-        let name = invocation.input["name"]
-            .as_str()
-            .expect("Bridge guarantees `name` is present, a string, and non-blank");
-
-        // A nested call, resolved through this implementation's own
-        // declared dependencies.capabilities (R4) -- console.write isn't
-        // imported or spawned by this process itself.
-        let text = format!("Greetings, {}!", name);
-        match conn.call("console.write", "write", json!({"text": text})) {
-            Ok(_) => conn.reply_output(json!({})),
-            Err(e) => conn.reply_error(&e.code, &e.message),
-        }
-    });
+    serve(execute);
 }
