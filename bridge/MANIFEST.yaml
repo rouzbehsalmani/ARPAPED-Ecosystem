@@ -15,6 +15,12 @@ bridge:
     role: >
       Routes a request through registry discovery -> policy -> selector ->
       executor and returns a trace. There is exactly one canonical Bridge.
+      Once a candidate is selected, validates the request's input against
+      that operation's contract-declared shape (2-RULES.md "No silent
+      defaults on what resolution depends on") before any executor runs,
+      in any language -- required fields present, declared types honored,
+      and any declared default filled in for a field the request left
+      out, so an executor never needs to hand-check any of that itself.
       Each trace stage is also observable live via handle's on_stage
       callback, and handle_with_timeout runs a request under a bounded
       per-stage timeout instead of an unbounded wait, raising
@@ -43,7 +49,11 @@ bridge:
     role: >
       Generic Publish-phase helper: reads capability manifests, imports each
       executor, builds implementation records, and registers them into the
-      canonical Registry. Also builds and consumes the generated capability
+      canonical Registry -- including each declared operation's
+      contract-recorded input shape (name, type, required, and any
+      declared default), later checked and applied by the Bridge above
+      before any executor runs. Also builds and
+      consumes the generated capability
       catalog (append_to_catalog, rebuild_catalog, assemble_from_catalog;
       see schemas/capability-catalog.schema.json and 2-RULES.md "The
       Registry contract") so neither an agent doing discovery nor the

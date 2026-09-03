@@ -17,6 +17,7 @@ Consumers may use the trace for debugging, auditing, and observability.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 import uuid
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from .policy import PolicyContext, StaticPolicyEngine
-from .registry import CapabilityRegistry, ResolvedCapability
+from .registry import INPUT_TYPE_CHECKS, CapabilityRegistry, InputField, ResolvedCapability
 from .selector import DeterministicSelector
 
 
@@ -64,6 +65,86 @@ class BridgeError(Exception):
 
     def __str__(self) -> str:
         return f"{self.code}@{self.stage}: {self.message}"
+
+
+def _apply_input_schema(
+    operation: str, input: dict[str, Any], input_schema: tuple[InputField, ...],
+) -> dict[str, Any]:
+    """Checks `input` against one operation's contract-declared shape
+    (2-RULES.md "No silent defaults on what resolution depends on") --
+    required fields present, and a present field's runtime value matching
+    its declared type (`INPUT_TYPE_CHECKS`, bridge/registry.py) -- and
+    returns the EFFECTIVE input an executor should actually receive: a
+    copy of `input` with every declared field that's absent and has a
+    declared default filled in. A field the contract doesn't declare is
+    never rejected: additive, not strict. `input_schema` empty (e.g.
+    registered without a `root`, see assembler.py) means nothing is
+    checked or filled in here -- the same "invisible until resolved"
+    posture domain/family/tags have.
+
+    This is deliberately everything a hand-written per-executor check
+    used to do for required-ness, type, default value, minimum/maximum
+    length, a regular expression, and a fixed set of allowed values
+    (`InputField.min_length`/`max_length`/`pattern`/`enum_values`,
+    bridge/registry.py) — every one of these is generic and structural,
+    checkable without any capability-specific understanding, so none of
+    it is an executor's job any more. `min_length` alone does not mean
+    "not blank" (a whitespace-only string has nonzero length) --
+    `pattern` is what actually expresses that kind of constraint. A
+    filled-in default is never re-checked against any of these here:
+    `bridge/assembler.py` already guarantees a declared default satisfies
+    its own field's other constraints, at assembly time, once — the same
+    value would just pass again on every request. The caller's own
+    `input` (on `BridgeRequest`, and in the trace/response) is never
+    touched by this -- only the copy handed to the executor gains the
+    filled-in defaults, so what the caller actually sent stays observable.
+    """
+
+    effective = dict(input)
+    for field_spec in input_schema:
+        if field_spec.name not in effective:
+            if field_spec.required:
+                raise BridgeError(
+                    "INVALID_INPUT", "execution",
+                    f"{field_spec.name!r} is required for operation {operation!r} but was not provided",
+                )
+            if field_spec.has_default:
+                effective[field_spec.name] = field_spec.default
+            continue
+        value = effective[field_spec.name]
+        check = INPUT_TYPE_CHECKS.get(field_spec.type)
+        if check is not None and not check(value):
+            raise BridgeError(
+                "INVALID_INPUT", "execution",
+                f"{field_spec.name!r} must be of type {field_spec.type!r} for operation {operation!r}, "
+                f"got {type(value).__name__}",
+            )
+        if field_spec.type == "string":
+            if field_spec.min_length is not None and len(value) < field_spec.min_length:
+                raise BridgeError(
+                    "INVALID_INPUT", "execution",
+                    f"{field_spec.name!r} must be at least {field_spec.min_length} character(s) long "
+                    f"for operation {operation!r}, got {len(value)}",
+                )
+            if field_spec.max_length is not None and len(value) > field_spec.max_length:
+                raise BridgeError(
+                    "INVALID_INPUT", "execution",
+                    f"{field_spec.name!r} must be at most {field_spec.max_length} character(s) long "
+                    f"for operation {operation!r}, got {len(value)}",
+                )
+            if field_spec.pattern is not None and not re.search(field_spec.pattern, value):
+                raise BridgeError(
+                    "INVALID_INPUT", "execution",
+                    f"{field_spec.name!r} must match pattern {field_spec.pattern!r} for operation "
+                    f"{operation!r}, got {value!r}",
+                )
+        if field_spec.enum_values is not None and value not in field_spec.enum_values:
+            raise BridgeError(
+                "INVALID_INPUT", "execution",
+                f"{field_spec.name!r} must be one of {list(field_spec.enum_values)!r} for operation "
+                f"{operation!r}, got {value!r}",
+            )
+    return effective
 
 
 class BoundCapability:
@@ -267,6 +348,18 @@ class Bridge:
         if not ranked:
             raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "All allowed candidates are temporarily unavailable")
         _reached("selected")
+        # Every candidate here shares the same capability_id+operation+contract_version,
+        # hence the same contract-declared input shape (R2) -- checked once,
+        # against any one of them, outside the retry loop below: a schema
+        # mismatch is invalid input, not a candidate-specific failure, so
+        # failing over to a different candidate could never fix it. The
+        # returned effective_input (declared defaults filled in) is what
+        # every executor below actually receives; request.input itself,
+        # used everywhere else (trace, response), stays exactly what the
+        # caller sent.
+        effective_input = _apply_input_schema(
+            request.operation, request.input, ranked[0].input_schema.get(request.operation, ()),
+        )
         failures: dict[str, dict[str, Any]] = {}
         for selected in ranked:
             try:
@@ -274,7 +367,7 @@ class Bridge:
             # request. Passing it to the implementation lets nested dependencies
             # honour the same constraints without making the implementation the
             # final policy arbiter.
-                output = selected.executor(request.operation, request.input, request.policy_context)
+                output = selected.executor(request.operation, effective_input, request.policy_context)
             except BridgeError as exc:
                 details = exc.details or {}
                 if len(ranked) == 1 or not details.get("failover_allowed", False):

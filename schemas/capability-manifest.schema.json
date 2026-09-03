@@ -51,8 +51,9 @@
             "description": "Contract operations this implementation provides."
           },
           "executor": {
-            "type": "string",
-            "description": "Reference to the executor. For executor_kind 'direct' or 'factory' (the default 'direct'), this is 'module:attr'. For executor_kind 'process', this instead names a program to run, spawned once at assembly time and reached over an out-of-process protocol that mirrors the same execute(operation, input, policy) -> output contract. The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', 'module:attr' names a factory — (dependencies) -> executor — called once at assembly time."
+            "type": ["string", "array"],
+            "items": {"type": "string"},
+            "description": "Reference to the executor. For executor_kind 'direct' or 'factory' (the default 'direct'), this is always a string, 'module:attr'. For executor_kind 'process', this instead names a program to run, spawned once at assembly time and reached over the process executor protocol (schemas/process-executor-protocol.schema.json) that mirrors the same execute(operation, input, policy) -> output contract -- a single command string (e.g. a compiled binary), or an argv list when an interpreter and a script are both needed (e.g. [\"python\", \"path/to/executor.py\"]). The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', 'module:attr' names a factory — (dependencies) -> executor — called once at assembly time."
           },
           "executor_kind": {
             "type": "string",

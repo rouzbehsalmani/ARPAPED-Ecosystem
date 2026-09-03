@@ -31,6 +31,7 @@ contract:
             - name: name
               type: string
               required: true
+              pattern: "\\S"
               description: Name to greet.
           output:
             type: object

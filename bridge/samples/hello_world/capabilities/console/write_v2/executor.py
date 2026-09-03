@@ -9,9 +9,17 @@ field was renamed 'text' -> 'message', and this version adds an optional
 equivalent for. Exposes only execute(operation, input, policy) -> output,
 exactly like every other executor; never imports the Registry, never calls
 register.
-"""
 
-from bridge.bridge import BridgeError
+Nothing about `message`/`format` is checked here at all any more --
+`Bridge.handle` already validated both against the contract's declared
+shape before this ever runs (2-RULES.md "No silent defaults on what
+resolution depends on"): `message` required and `type: string`;
+`format` absent-or-declared (`default: plain`, so `input["format"]` is
+always present), `type: string`, and one of exactly `enum: [plain,
+uppercase, prefixed]` (contracts/console.write.contract.yaml) -- so
+`_FORMATTERS[input["format"]]` below is a direct, trusting lookup, not a
+defensive one: the Bridge already guarantees the key exists.
+"""
 
 _FORMATTERS = {
     "plain": lambda message: message,
@@ -21,14 +29,6 @@ _FORMATTERS = {
 
 
 def execute(operation, input, policy):
-    if operation != "write":
-        raise BridgeError("UNSUPPORTED_OPERATION", "execution", f"no such operation: {operation}")
-    message = input.get("message")
-    if not isinstance(message, str):
-        raise BridgeError("INVALID_INPUT", "execution", "message must be a string")
-    format_ = input.get("format", "plain")
-    formatter = _FORMATTERS.get(format_)
-    if formatter is None:
-        raise BridgeError("INVALID_INPUT", "execution", f"format must be one of {sorted(_FORMATTERS)}, got {format_!r}")
-    print(formatter(message), flush=True)  # see capabilities/console/write/executor.py's comment on flush=True
+    formatter = _FORMATTERS[input["format"]]
+    print(formatter(input["message"]), flush=True)  # see capabilities/console/write/executor.py's comment on flush=True
     return {}

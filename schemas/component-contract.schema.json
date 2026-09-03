@@ -26,11 +26,35 @@
                   "type": "string"
                 },
                 "type": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": ["string", "number", "integer", "boolean", "object", "array"],
+                  "description": "Checked by the resolved Bridge before an executor ever runs (2-RULES.md \"No silent defaults on what resolution depends on\") -- a fixed, recognized vocabulary, not free-form prose, is what makes that check possible."
                 },
                 "required": {
                   "type": "boolean",
                   "default": false
+                },
+                "default": {
+                  "description": "The value the resolved Bridge fills in when this field is absent from a request's input, before any executor runs -- only meaningful when `required` is false (a required field has no absence to default from) and must itself match this field's own `type`, and its own `enum` if one is declared too; all checked at assembly time, not left to surface as a runtime surprise."
+                },
+                "minLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Checked by the resolved Bridge the same way `type`/`required` already are (2-RULES.md \"No silent defaults on what resolution depends on\") -- only meaningful for `type: string`. JSON Schema's own name for this, deliberately: `type`'s own values already borrow JSON Schema's vocabulary, so this continues that rather than inventing a repo-specific equivalent."
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Same as `minLength`, upper-bounded. Checked at assembly time that `minLength <= maxLength` when both are declared."
+                },
+                "enum": {
+                  "type": "array",
+                  "minItems": 1,
+                  "description": "The exact set of values this field may take, checked by the resolved Bridge before any executor runs -- every value here must itself match this field's own `type`, checked at assembly time. A fixed set of allowed values (e.g. one of a handful of named modes) is exactly as generic and structural as `type`/`required`; it needs no capability-specific understanding to check, so it belongs here, not in an executor."
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "A regular expression a string field's value must contain a match for (searched, not required to match the whole value), checked by the resolved Bridge -- only meaningful for `type: string`. `minLength: 1` alone does NOT mean \"not blank\": a whitespace-only string has nonzero length. `pattern: \"\\\\S\"` (at least one non-whitespace character) is the generic way to express that -- still no capability-specific understanding needed, so still not an executor's job. Checked at assembly time that this actually compiles as a regular expression, and that any declared `default` matches it."
                 },
                 "description": {
                   "type": "string"

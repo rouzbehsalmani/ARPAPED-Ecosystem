@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Process Executor Protocol",
+  "description": "Language-agnostic wire shape a process-kind executor (executor_kind: process, 2-RULES.md R4/R5) exchanges with the resolved Bridge, over its own connection -- one JSON object per line. Any client, in any language, reads and writes data matching these shapes; a worked example of a reference client per language lives in bridge/samples/hello_world/clients/. Distinct from schemas/bridge-protocol.schema.json, which shapes what a CONSUMER exchanges with the Bridge -- this shapes what a SPAWNED EXECUTOR exchanges with it.",
+  "$defs": {
+    "invocation": {
+      "type": "object",
+      "description": "Bridge -> process: starts one invocation. The same three inputs every executor receives, in-process or not.",
+      "required": ["operation", "input", "policy"],
+      "properties": {
+        "operation": {"type": "string"},
+        "input": {"type": "object"},
+        "policy": {"$ref": "bridge-protocol.schema.json#/$defs/policyContext"}
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "process -> Bridge: a terminal successful reply, to either the original invocation or one nested call request (callRequest, below) -- the same shape either way.",
+      "required": ["output"],
+      "properties": {
+        "output": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "description": "process -> Bridge: a terminal failed reply, to either the original invocation or one nested call request -- the same shape either way.",
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "details": {"type": ["object", "null"]}
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "callRequest": {
+      "type": "object",
+      "description": "process -> Bridge, while handling one invocation: a nested call to another capability, resolved through this implementation's own declared dependencies.capabilities (R4) -- never a capability_id it didn't declare. Sent and awaited synchronously: a worker connection is exclusively borrowed for one invocation's whole duration, and the process never has more than one outstanding call, so the reply (an `output` or `error` message, above) can never be confused with a fresh invocation on the same connection.",
+      "required": ["call"],
+      "properties": {
+        "call": {
+          "type": "object",
+          "required": ["capability_id", "operation", "input"],
+          "properties": {
+            "capability_id": {"type": "string"},
+            "operation": {"type": "string"},
+            "input": {"type": "object"}
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

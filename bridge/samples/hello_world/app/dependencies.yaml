@@ -5,9 +5,9 @@
 # which is keyed by capability_id, this is keyed by whatever the app calls
 # it, so the SAME capability can be declared more than once under
 # different names, each pinned differently for a different purpose (see
-# console_write vs console_write_legacy/console_write_rust below -- an app
-# often has more than one relationship with the same capability, which a
-# single capability's own dependency on another never needs).
+# console_write vs console_write_legacy below -- an app often has more
+# than one relationship with the same capability, which a single
+# capability's own dependency on another never needs).
 #
 # resolve(name, operation) (../requests.py) reads capability_id,
 # contract_version, and (if given) implementation_id from the named entry
@@ -24,11 +24,25 @@ capabilities:
     # independently alive and callable alongside the 2.0.0 pinned above.
     capability_id: console.write
     contract_version: "<2.0.0"
-  console_write_rust:
+  greeting_compose_process:
     # A deliberate proof, not an ongoing dependency: shows a capability
-    # can be implemented in another language (executor_kind: process).
-    # Same pin as console_write above, but a specific implementation_id
-    # so it's reached regardless of priority ordering between the two.
+    # can be implemented in another language (executor_kind: process)
+    # AND still call other capabilities through the Bridge -- it composes
+    # a greeting out-of-process (written in Rust for this worked
+    # example), then calls console.write (the Python implementation) to
+    # write it, through the same declared-dependency mechanism a Python
+    # factory implementation gets (R4). Named for what it proves --
+    # out-of-process vs. in-process -- not for the language it happens to
+    # be written in.
+    capability_id: greeting.compose
+    contract_version: "1.0.0"
+    implementation_id: greeting.compose.process
+  console_write_process:
+    # A deliberate proof, not an ongoing dependency: shows the process
+    # executor protocol is language-neutral, not just a non-Python
+    # workaround -- this implementation is Python too, but runs as its
+    # own separate process (clients/python/bridge_client.py) instead of
+    # in-process, exactly like greeting_compose_process does.
     capability_id: console.write
     contract_version: ">=2.0.0,<3.0.0"
-    implementation_id: console.write.rust
+    implementation_id: console.write.process

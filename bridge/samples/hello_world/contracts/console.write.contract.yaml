@@ -57,6 +57,8 @@ contract:
             - name: format
               type: string
               required: false
+              default: plain
+              enum: [plain, uppercase, prefixed]
               description: How to render the message before writing it -- "plain" (default), "uppercase", or "prefixed" (prefixed with "[console.write] "). Not available in 1.0.0.
           output:
             type: object

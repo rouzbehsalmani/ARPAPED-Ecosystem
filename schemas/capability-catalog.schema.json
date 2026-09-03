@@ -37,9 +37,11 @@
       "minItems": 1
     },
     "executor_path": {
-      "type": "string",
+      "type": ["string", "array"],
       "minLength": 1,
-      "description": "For executor_kind 'direct'/'factory': a module:attr reference, imported lazily by the runtime loader — never eagerly by the catalog itself. For executor_kind 'process': a program name, spawned lazily by the runtime loader instead of imported."
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "description": "For executor_kind 'direct'/'factory': a module:attr reference (always a string), imported lazily by the runtime loader — never eagerly by the catalog itself. For executor_kind 'process': a program name or argv list, spawned lazily by the runtime loader instead of imported."
     },
     "priority": {
       "type": "integer",
@@ -83,6 +85,30 @@
     "description": {
       "type": "string",
       "description": "This implementation's own operations, as described under its specific contract_version in the contract's `versions` (falling back to the contract-wide responsibility.description if unavailable) -- carried here purely for agent keyword search (Phase 3 -- Discover). Never consumed by the runtime loader."
+    },
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name", "type", "required"],
+          "properties": {
+            "name": {"type": "string"},
+            "type": {"type": "string", "enum": ["string", "number", "integer", "boolean", "object", "array"]},
+            "required": {"type": "boolean"},
+            "default": {
+              "description": "Present only when this field declares one (schemas/component-contract.schema.json) -- its key's presence, not its value, is what signals 'has a default'; a field defaulting to null still carries this key."
+            },
+            "minLength": {"type": "integer", "minimum": 0},
+            "maxLength": {"type": "integer", "minimum": 0},
+            "enum": {"type": "array", "minItems": 1},
+            "pattern": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "description": "Each declared operation's input field shape, from the contract's specific contract_version (schemas/component-contract.schema.json), keyed by operation name. Consumed by the resolved Bridge (bridge/MANIFEST.yaml) to validate a request's input before any executor runs, in any language -- required fields present, and a present field's runtime value matches its declared type. Fields not declared here are never rejected."
     },
     "manifest_path": {
       "type": "string",

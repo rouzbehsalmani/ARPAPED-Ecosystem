@@ -8,21 +8,23 @@ It resolves console.write once and returns the ordinary
 execute(operation, input, policy) closure every other executor exposes --
 every call on it is a real, fully-traced Bridge request (R6/R8), never a
 direct call into console.write's executor.
-"""
 
-from bridge.bridge import BridgeError
+Nothing about `name` is checked here at all any more -- `Bridge.handle`
+already validated it against the contract's declared shape before this
+ever runs (2-RULES.md "No silent defaults on what resolution depends
+on"): required, `type: string`, and (via `pattern: "\S"`, not
+`minLength`, since a whitespace-only string has nonzero length) actually
+non-blank. All three are generic, structural constraints, not business
+logic -- there's nothing left here that needed capability-specific
+understanding to check.
+"""
 
 
 def make_executor(dependencies):
     write = dependencies.resolve("console.write", "write")
 
     def execute(operation, input, policy):
-        if operation != "compose":
-            raise BridgeError("UNSUPPORTED_OPERATION", "execution", f"no such operation: {operation}")
-        name = input.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise BridgeError("INVALID_INPUT", "execution", "name must be a non-empty string")
-        write.call({"text": f"Greetings, {name}!"}, policy_context=policy)
+        write.call({"text": f"Greetings, {input['name']}!"}, policy_context=policy)
         return {}
 
     return execute

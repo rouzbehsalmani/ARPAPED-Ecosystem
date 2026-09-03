@@ -7,7 +7,7 @@ job.
 
 Every `resolve` call below takes just a declared name and an operation --
 no `contract_version`, no `implementation_id`. Each name (`console_write`,
-`greeting_compose`, `console_write_legacy`, `console_write_rust`) is
+`greeting_compose`, `console_write_legacy`, `greeting_compose_process`) is
 declared once, in app/dependencies.yaml, with exactly the capability_id,
 version, and (where it matters) implementation_id that name means -- the
 same "declared once, never restated" pattern a capability's own executor
@@ -43,20 +43,37 @@ determines which implementation each name reaches.
 (capabilities/console/write_v2/executor.py) -- a real, exercised
 capability difference between the two versions, not just a cosmetic one.
 
-`console_write_rust` shows a capability can be implemented in a language
-other than this Bridge's own (executor_kind: process,
-bridge/process_executor.py): `console.write.rust`
-(capabilities/console/write_rust/) is a second, real implementation of the
-SAME console.write 2.0.0 operation, written in Rust, spawned as a separate
-process and reached over loopback TCP -- never imported. Its priority
-(150) is below console.write.v2's (200), so it never becomes the default
-for `console_write`'s own pin; it's declared under its own name, with its
-own implementation_id, precisely so it's reached regardless of priority
-ordering -- the same posture `console_write_legacy` already has toward
-`console_write`.
+`greeting_compose_process` proves a capability can be implemented in a
+language other than this Bridge's own (executor_kind: process,
+bridge/process_executor.py) AND still compose other capabilities through
+it, instead of being cut off from every capability that isn't also in
+that language: `greeting.compose.process`
+(capabilities/greeting/compose_process/) is a second, real implementation
+of `greeting.compose`, written in Rust for this worked example, that
+calls `console.write` FROM that out-of-process program, through the
+Bridge, mid-request (the nested-call side of the wire protocol) -- the
+same declared-dependency mechanism and enforcement
+`capabilities/greeting/compose/executor.py`'s Python factory already gets
+(2-RULES.md R4), just reached from another language. Its name identifies
+what it proves (out-of-process vs. in-process), not which language it
+happens to be written in. It never prints anything itself; the nested
+call resolves to `console.write.default` (1.0.0, Python) -- the exact
+same implementation the Python composer already reaches, since both
+share the one contract-declared dependency pin (R2).
+
+`console_write_process` closes the loop: `console.write.process`
+(capabilities/console/write_process/) is a THIRD implementation of
+`console.write`, and it's Python too -- but it runs as its own separate
+process, using `clients/python/bridge_client.py`, the same way
+`greeting.compose.process` uses `clients/rust/`. It doesn't reach the
+Bridge in-process just because it happens to share a language with it;
+it reaches it the exact same protocol-based way any other language does.
+That's what makes "capabilities don't know what language the Bridge is
+implemented with" actually true, not just true for languages that aren't
+Python.
 
 Run from the repository root (build the Rust executor first -- see
-capabilities/console/write_rust/manifest.yaml):
+capabilities/greeting/compose_process/manifest.yaml):
     python -m bridge.samples.hello_world.app.main
 """
 
@@ -74,8 +91,11 @@ def main():
     writer_v1 = resolve("console_write_legacy", "write")
     writer_v1.call({"text": "console.write 1.0.0 is real and independently callable."})
 
-    writer_rust = resolve("console_write_rust", "write")
-    writer_rust.call({"message": "This line is printed by a Rust process, through the Bridge."})
+    composer_process = resolve("greeting_compose_process", "compose")
+    composer_process.call({"name": "ARPAPED (via Rust)"})
+
+    writer_process = resolve("console_write_process", "write")
+    writer_process.call({"message": "This line is printed by a second Python process, through the Bridge."})
 
 
 if __name__ == "__main__":

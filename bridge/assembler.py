@@ -86,13 +86,14 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence
 
 import yaml
 
-from .registry import CapabilityImplementation, CapabilityRegistry
+from .registry import INPUT_TYPE_CHECKS, CapabilityImplementation, CapabilityRegistry, InputField
 
 if TYPE_CHECKING:
     from .bridge import Bridge
@@ -114,7 +115,7 @@ class ManifestEntry:
     package_version: str
     contract_version: str
     operations: tuple[str, ...]
-    executor_path: str
+    executor_path: str | tuple[str, ...]
     priority: int
     enabled: bool = True
     healthy: bool = True
@@ -124,6 +125,7 @@ class ManifestEntry:
     tags: tuple[str, ...] = ()
     executor_kind: str = "direct"
     dependencies: dict[str, str] = field(default_factory=dict)
+    input_schema: dict[str, tuple[InputField, ...]] = field(default_factory=dict)
 
     @classmethod
     def from_dict(
@@ -136,14 +138,18 @@ class ManifestEntry:
         family: str = "",
         tags: tuple[str, ...] = (),
         dependencies: Optional[dict[str, str]] = None,
+        operation_input_fields: Optional[dict[str, tuple[InputField, ...]]] = None,
     ) -> "ManifestEntry":
         """Builds a typed entry from a raw capability-manifest ``implementations`` item.
 
         ``capability_id`` and ``contract_version`` come from the manifest level
         (per ``schemas/capability-manifest.schema.json``); ``entry`` is one item
         of its ``implementations`` list. ``domain``/``family``/``tags``/
-        ``dependencies`` come from the referenced contract, when a ``root`` was
-        given to ``assemble``.
+        ``dependencies``/``operation_input_fields`` come from the referenced
+        contract, when a ``root`` was given to ``assemble`` —
+        ``operation_input_fields`` is every operation this CONTRACT_VERSION
+        declares; this entry's own ``input_schema`` is sliced down to just
+        the operations it actually declares, below.
         """
 
         if not isinstance(capability_id, str) or not capability_id.strip():
@@ -160,10 +166,29 @@ class ManifestEntry:
             raise AssemblerError("an implementation entry must declare a non-empty 'implementation_id'")
         if executor_kind not in ("direct", "factory", "process"):
             raise AssemblerError(f"'executor_kind' must be 'direct', 'factory', or 'process', got {executor_kind!r}")
-        if not isinstance(executor_path, str) or not executor_path.strip():
-            raise AssemblerError(f"an implementation must declare a non-empty 'executor', got {executor_path!r}")
-        if executor_kind in ("direct", "factory") and _EXECUTOR_SPLIT not in executor_path:
-            raise AssemblerError(f"executor must be 'module:attr' for executor_kind {executor_kind!r}, got {executor_path!r}")
+        if executor_kind in ("direct", "factory"):
+            if not isinstance(executor_path, str) or not executor_path.strip():
+                raise AssemblerError(f"an implementation must declare a non-empty 'executor', got {executor_path!r}")
+            if _EXECUTOR_SPLIT not in executor_path:
+                raise AssemblerError(f"executor must be 'module:attr' for executor_kind {executor_kind!r}, got {executor_path!r}")
+            executor_path = executor_path.strip()
+        else:
+            # 'process': a single command string (e.g. a compiled binary),
+            # or an argv list when an interpreter and a script are both
+            # needed (e.g. an interpreted language) -- see
+            # bridge/process_executor.py.
+            if isinstance(executor_path, str) and executor_path.strip():
+                executor_path = executor_path.strip()
+            elif (
+                isinstance(executor_path, list) and executor_path
+                and all(isinstance(part, str) and part.strip() for part in executor_path)
+            ):
+                executor_path = tuple(part.strip() for part in executor_path)
+            else:
+                raise AssemblerError(
+                    "an implementation must declare a non-empty 'executor' string or list of "
+                    f"strings for executor_kind 'process', got {executor_path!r}"
+                )
         if not isinstance(operations, list) or not operations or not all(
             isinstance(op, str) and op.strip() for op in operations
         ):
@@ -184,13 +209,19 @@ class ManifestEntry:
                 "higher number = higher precedence (schemas/capability-manifest.schema.json)"
             )
 
+        stripped_operations = tuple(op.strip() for op in operations)
+        input_schema = {
+            op: (operation_input_fields or {}).get(op, ())
+            for op in stripped_operations
+        }
+
         return cls(
             capability_id=capability_id.strip(),
             implementation_id=implementation_id.strip(),
             package_version=package_version.strip(),
             contract_version=contract_version.strip(),
-            operations=tuple(op.strip() for op in operations),
-            executor_path=executor_path.strip(),
+            operations=stripped_operations,
+            executor_path=executor_path,
             priority=priority,
             enabled=bool(entry.get("enabled", True)),
             healthy=bool(entry.get("healthy", True)),
@@ -200,6 +231,7 @@ class ManifestEntry:
             tags=tags,
             executor_kind=executor_kind,
             dependencies=dependencies or {},
+            input_schema=input_schema,
         )
 
 
@@ -210,6 +242,14 @@ class ContractMetadata:
     empty/unset — the shape returned when ``root`` is omitted, in which case
     only Exact/Scoped discovery, a "direct" executor, and no version
     cross-check are available.
+
+    ``operation_input_fields``: ``{version: {operation: (InputField, ...)}}``
+    — every declared operation's input shape, across every version, so
+    ``from_manifest`` can slice out just the operations one implementation
+    entry actually declares. Consumed by the resolved Bridge
+    (``bridge/bridge.py``) to validate a request's input, and fill in any
+    declared default, before any executor runs, in any language — the
+    same duty a hand-written per-executor check used to carry alone.
     """
 
     domain: str = ""
@@ -219,6 +259,7 @@ class ContractMetadata:
     version: str = ""
     versions_operations: dict[str, frozenset[str]] = field(default_factory=dict)
     dead_versions: frozenset[str] = frozenset()
+    operation_input_fields: dict[str, dict[str, tuple[InputField, ...]]] = field(default_factory=dict)
 
 
 def parse_dependencies(raw: Any) -> dict[str, str]:
@@ -244,6 +285,86 @@ def parse_dependencies(raw: Any) -> dict[str, str]:
         elif isinstance(item, dict) and isinstance(item.get("capability_id"), str):
             dependencies[item["capability_id"]] = item.get("contract_version", "*") or "*"
     return dependencies
+
+
+def _build_input_field(capability_id: str, version: str, operation: str, raw: dict[str, Any]) -> InputField:
+    """Builds one `InputField` from a contract's raw `input[]` entry
+    (schemas/component-contract.schema.json), failing closed on a
+    declaration that could never be honored correctly at runtime rather
+    than letting it surface later as a confusing bug:
+
+    - `required: true` together with a `default` is contradictory -- a
+      required field's absence is already an error, so its default could
+      never actually be reached.
+    - A declared `default` whose own type doesn't match the field's
+      declared `type` (checked via the same `INPUT_TYPE_CHECKS` the
+      Bridge uses at request time) would fail Bridge-side validation the
+      instant some caller omitted the field -- caught here, at assembly
+      time, instead.
+    - `minLength`/`maxLength` only make sense for `type: "string"`, and
+      `minLength` may not exceed `maxLength`; a declared `default` string
+      shorter/longer than either is the same "would immediately fail the
+      Bridge's own check" contradiction.
+    - Every value in a declared `enum` must itself match the field's
+      `type` -- same reasoning as `default`'s type check. A declared
+      `default` that isn't itself one of the `enum` values is also
+      contradictory: the Bridge would fill it in and then immediately
+      fail its own enum check.
+    - `pattern` only makes sense for `type: "string"`, must itself
+      compile as a regular expression, and a declared `default` must
+      match it -- same "would immediately fail the Bridge's own check"
+      reasoning as the other constraints.
+    """
+
+    name = raw["name"]
+    type_ = raw["type"]
+    required = bool(raw.get("required", False))
+    has_default = "default" in raw
+    default = raw.get("default")
+    min_length = raw.get("minLength")
+    max_length = raw.get("maxLength")
+    enum_values = tuple(raw["enum"]) if "enum" in raw else None
+    pattern = raw.get("pattern")
+
+    where = f"{capability_id!r} contract_version {version!r} operation {operation!r} field {name!r}"
+    if has_default and required:
+        raise AssemblerError(f"{where} declares both 'required: true' and a 'default' -- the default could never be reached")
+    if has_default:
+        check = INPUT_TYPE_CHECKS.get(type_)
+        if check is not None and not check(default):
+            raise AssemblerError(f"{where} declares a 'default' that does not match its own 'type': {type_!r}, got {default!r}")
+    if (min_length is not None or max_length is not None) and type_ != "string":
+        raise AssemblerError(f"{where} declares 'minLength'/'maxLength', which only apply to 'type: string', got {type_!r}")
+    if min_length is not None and max_length is not None and min_length > max_length:
+        raise AssemblerError(f"{where} declares 'minLength' ({min_length}) greater than 'maxLength' ({max_length})")
+    if has_default and isinstance(default, str):
+        if min_length is not None and len(default) < min_length:
+            raise AssemblerError(f"{where} declares a 'default' shorter than its own 'minLength' ({min_length})")
+        if max_length is not None and len(default) > max_length:
+            raise AssemblerError(f"{where} declares a 'default' longer than its own 'maxLength' ({max_length})")
+    if enum_values is not None:
+        check = INPUT_TYPE_CHECKS.get(type_)
+        if check is not None:
+            mismatched = [v for v in enum_values if not check(v)]
+            if mismatched:
+                raise AssemblerError(f"{where} declares 'enum' value(s) {mismatched!r} that do not match its own 'type': {type_!r}")
+        if has_default and default not in enum_values:
+            raise AssemblerError(f"{where} declares a 'default' ({default!r}) that is not one of its own 'enum' values {list(enum_values)!r}")
+    compiled_pattern = None
+    if pattern is not None:
+        if type_ != "string":
+            raise AssemblerError(f"{where} declares 'pattern', which only applies to 'type: string', got {type_!r}")
+        try:
+            compiled_pattern = re.compile(pattern)
+        except re.error as exc:
+            raise AssemblerError(f"{where} declares 'pattern' {pattern!r} that does not compile as a regular expression: {exc}") from exc
+        if has_default and isinstance(default, str) and not compiled_pattern.search(default):
+            raise AssemblerError(f"{where} declares a 'default' ({default!r}) that does not match its own 'pattern' {pattern!r}")
+
+    return InputField(
+        name=name, type=type_, required=required, has_default=has_default, default=default,
+        min_length=min_length, max_length=max_length, enum_values=enum_values, pattern=pattern,
+    )
 
 
 def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> ContractMetadata:
@@ -276,12 +397,24 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
     versions_block = contract.get("versions", {}) or {}
     history_block = contract.get("lineage", {}).get("history", []) or []
 
+    identity_id = identity.get("id", "<unknown capability>")
     versions_operations: dict[str, frozenset[str]] = {}
+    operation_input_fields: dict[str, dict[str, tuple[InputField, ...]]] = {}
     for version, entry in versions_block.items():
         operations = (entry or {}).get("operations", []) or []
         versions_operations[version] = frozenset(
             op["name"] for op in operations if isinstance(op, dict) and isinstance(op.get("name"), str)
         )
+        fields_by_operation: dict[str, tuple[InputField, ...]] = {}
+        for op in operations:
+            if not isinstance(op, dict) or not isinstance(op.get("name"), str):
+                continue
+            fields_by_operation[op["name"]] = tuple(
+                _build_input_field(identity_id, version, op["name"], f)
+                for f in (op.get("input", []) or [])
+                if isinstance(f, dict) and isinstance(f.get("name"), str) and isinstance(f.get("type"), str)
+            )
+        operation_input_fields[version] = fields_by_operation
     dead_versions = frozenset(
         item["version"] for item in history_block if isinstance(item, dict) and isinstance(item.get("version"), str)
     )
@@ -301,6 +434,7 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
         version=current_version,
         versions_operations=versions_operations,
         dead_versions=dead_versions,
+        operation_input_fields=operation_input_fields,
     )
 
 
@@ -353,7 +487,8 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
     a ``capability_id`` and ``contract_version`` at the manifest level, plus an
     ``implementations`` list — each item one implementation of that one
     contract. When ``root`` is given, each entry's ``domain``/``family``/
-    ``tags``/``dependencies`` are read from the manifest's referenced contract.
+    ``tags``/``dependencies``/``input_schema`` are read from the manifest's
+    referenced contract.
     """
 
     capability_id = manifest.get("capability_id")
@@ -364,12 +499,14 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
         raise AssemblerError("capability manifest must declare a non-empty 'implementations' list")
 
     metadata = _read_contract_metadata(manifest, root)
+    operation_input_fields = metadata.operation_input_fields.get(contract_version, {})
 
     entries = [
         ManifestEntry.from_dict(
             capability_id, contract_version, item,
             domain=metadata.domain, family=metadata.family,
             tags=metadata.tags, dependencies=metadata.dependencies,
+            operation_input_fields=operation_input_fields,
         )
         for item in implementations
         if isinstance(item, dict)
@@ -417,7 +554,7 @@ def _build_implementation(
     capability_id: str,
     contract_version: str,
     operations: tuple[str, ...],
-    executor_path: str,
+    executor_path: str | Sequence[str],
     priority: int,
     enabled: bool,
     healthy: bool,
@@ -428,6 +565,7 @@ def _build_implementation(
     dependencies: dict[str, str],
     executor_kind: str,
     bridge: Optional["Bridge"],
+    input_schema: Optional[dict[str, tuple[InputField, ...]]] = None,
 ) -> CapabilityImplementation:
     """Builds one Registry implementation record. Shared by the ``assemble``
     and ``assemble_from_catalog`` entry points — the only place either one
@@ -441,14 +579,24 @@ def _build_implementation(
     its job. ``executor_kind: "process"``: ``executor`` names a program,
     spawned once, here, into a ``ProcessExecutorPool`` (bridge/process_executor.py)
     that becomes the executor — no import, no Python callable, for a
-    capability implemented in another language.
+    capability implemented in another language. Also requires ``bridge``,
+    for the same reason a factory does: a ``ProcessExecutorPool`` is given
+    a ``Dependencies`` scoped to ``dependencies`` too, so the spawned
+    process can call other capabilities through the Bridge, not just
+    answer the Bridge's own calls.
     """
 
     if executor_kind == "process":
+        if bridge is None:
+            raise AssemblerError(
+                f"{implementation_id!r} declares executor_kind='process' but no Bridge was "
+                "given to build its Dependencies — construct the Bridge before assembling "
+                "(see app/requests.py's ordering)"
+            )
         from .process_executor import ProcessExecutorError, ProcessExecutorPool
 
         try:
-            executor = ProcessExecutorPool(executor_path)
+            executor = ProcessExecutorPool(executor_path, bridge=bridge, declared=dict(dependencies))
         except ProcessExecutorError as exc:
             raise AssemblerError(f"{implementation_id!r}: {exc}") from exc
     else:
@@ -485,6 +633,7 @@ def _build_implementation(
         domain=domain,
         family=family,
         tags=tags,
+        input_schema=dict(input_schema or {}),
     )
 
 
@@ -508,6 +657,7 @@ def _to_implementation(entry: ManifestEntry, *, bridge: Optional["Bridge"] = Non
         dependencies=entry.dependencies,
         executor_kind=entry.executor_kind,
         bridge=bridge,
+        input_schema=entry.input_schema,
     )
 
 
@@ -652,6 +802,44 @@ def _read_operation_descriptions(
     return contract.get("responsibility", {}).get("description", "") or ""
 
 
+def _input_field_to_record(field_spec: InputField) -> dict[str, Any]:
+    """`InputField` -> one JSON-safe catalog dict. `default`/`minLength`/
+    `maxLength`/`enum` keys are included only when actually declared —
+    `default`'s PRESENCE (not its value) is what a reader
+    (`_input_field_from_record`) uses to tell "no default declared" apart
+    from "declared, and it's null"; the other three are simply absent
+    when not declared, `min_length`/`max_length`/`enum_values` on the
+    `InputField` side already being `None` in that case.
+    """
+
+    record: dict[str, Any] = {"name": field_spec.name, "type": field_spec.type, "required": field_spec.required}
+    if field_spec.has_default:
+        record["default"] = field_spec.default
+    if field_spec.min_length is not None:
+        record["minLength"] = field_spec.min_length
+    if field_spec.max_length is not None:
+        record["maxLength"] = field_spec.max_length
+    if field_spec.enum_values is not None:
+        record["enum"] = list(field_spec.enum_values)
+    if field_spec.pattern is not None:
+        record["pattern"] = field_spec.pattern
+    return record
+
+
+def _input_field_from_record(record: dict[str, Any]) -> InputField:
+    """The inverse of `_input_field_to_record` — reads a catalog dict back
+    into an `InputField`, consumed by `assemble_from_catalog`.
+    """
+
+    return InputField(
+        name=record["name"], type=record["type"], required=record["required"],
+        has_default="default" in record, default=record.get("default"),
+        min_length=record.get("minLength"), max_length=record.get("maxLength"),
+        enum_values=tuple(record["enum"]) if "enum" in record else None,
+        pattern=record.get("pattern"),
+    )
+
+
 def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str, Any]]:
     """Parses one manifest file (and the contract it references) into catalog
     records. The shared unit ``append_to_catalog`` and ``rebuild_catalog``
@@ -669,6 +857,10 @@ def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str
 
     for entry in entries:
         description = _read_operation_descriptions(manifest, repo_root, entry.contract_version, entry.operations)
+        input_schema = {
+            operation: [_input_field_to_record(f) for f in fields]
+            for operation, fields in entry.input_schema.items()
+        }
         yield {
             "implementation_id": entry.implementation_id,
             "capability_id": entry.capability_id,
@@ -686,6 +878,7 @@ def _manifest_records(manifest_path: Path, repo_root: Path) -> Iterator[dict[str
             "dependencies": dict(entry.dependencies),
             "executor_kind": entry.executor_kind,
             "description": description,
+            "input_schema": input_schema,
             "manifest_path": manifest_rel,
             "contract_path": contract_path,
         }
@@ -744,8 +937,9 @@ def assemble_from_catalog(
     """Registers every implementation from a generated catalog (see
     ``append_to_catalog``/``rebuild_catalog``) instead of walking and
     re-parsing ``capabilities/`` at every startup. Trusts the catalog as-is —
-    it does not re-derive domain/family/tags/dependencies from contracts
-    itself. ``bridge`` is required only if any record is factory-kind.
+    it does not re-derive domain/family/tags/dependencies/input_schema from
+    contracts itself. ``bridge`` is required only if any record is
+    factory-kind or process-kind.
 
     Fail closed: a missing catalog, a dependency cycle across the whole
     catalog, or a factory-kind record with no ``bridge`` all raise
@@ -771,6 +965,10 @@ def assemble_from_catalog(
 
     registered: list[str] = []
     for record in records:
+        input_schema = {
+            operation: tuple(_input_field_from_record(f) for f in fields)
+            for operation, fields in record.get("input_schema", {}).items()
+        }
         implementation = _build_implementation(
             implementation_id=record["implementation_id"],
             package_version=record["package_version"],
@@ -788,6 +986,7 @@ def assemble_from_catalog(
             dependencies=record.get("dependencies", {}),
             executor_kind=record.get("executor_kind", "direct"),
             bridge=bridge,
+            input_schema=input_schema,
         )
         registry.register(implementation)
         registered.append(implementation.implementation_id)

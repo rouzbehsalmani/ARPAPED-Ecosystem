@@ -21,7 +21,7 @@ defined in `schemas/` and demonstrated in `bridge/samples/hello_world/`.
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
 | **contract** | The machine-readable interface of a capability: identity, version, operations (name, input, output, errors), dependencies, policy, invariants, discoverability, lineage. One contract artifact per capability (R2). |
-| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `schemas/component-contract.schema.json`; worked example: `bridge/samples/hello_world/contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
+| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `schemas/component-contract.schema.json`; worked example: the sample's `contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
 | **generic component** | A small, single-task component that is reusable across cycles. "Generic" describes the component's nature (one task, reusable), never a location (R1, R4). |
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumer code. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
@@ -173,13 +173,35 @@ An executor's `execute(operation, input, policy) -> output` contract
 (Glossary) is honored either by a direct in-process call or by an
 out-of-process protocol that mirrors it exactly — the resolved assembler
 and Bridge implement the latter via an `executor_kind: process` manifest
-entry, whose `executor` names a program instead of an importable path.
-Neither the request path, discovery, policy, nor selection can tell the
-difference; only assembly, resolved from `bridge/MANIFEST.yaml`, knows how
-a given implementation is actually reached, never hard-coded to one
-language. Spawning that program is launching ongoing work: R5's condition
-6 applies exactly as it does to any other launched service — it must be
-verified to have actually started before being registered, never assumed.
+entry, whose `executor` names a program instead of an importable path (a
+single command, or an argv list when an interpreter and a script are
+both needed). Neither the request path, discovery, policy, nor selection
+can tell the difference; only assembly, resolved from `bridge/MANIFEST.yaml`,
+knows how a given implementation is actually reached, never hard-coded to
+one language. Spawning that program is launching ongoing work: R5's
+condition 6 applies exactly as it does to any other launched service —
+it must be verified to have actually started before being registered,
+never assumed.
+
+The out-of-process protocol itself is resolved the same way everything
+else in this Blueprint is: written down once, formally, in
+`schemas/process-executor-protocol.schema.json`, and implemented by a
+reference client per language — never hand-rolled per capability. A
+worked example of one lives alongside the sample that uses it; this is
+scaffolding a real application copies the shape of, not shared
+infrastructure it depends on.
+
+A capability implemented in another language is not limited to answering the Bridge's calls: it
+may declare `dependencies.capabilities` exactly like any other
+capability (R4) and call them through its language's client, the same
+enforcement a factory-kind executor gets, just reached over the wire.
+This holds even for a capability written in the same language as the
+Bridge itself — nothing requires it to run in-process just because it
+shares a language with the Bridge; it may run as `executor_kind: process`
+too, reaching the Bridge through that language's own client the same way
+any other language would, proving the protocol is genuinely
+language-neutral and not merely a workaround for languages that aren't
+the Bridge's own.
 
 A declared dependency MAY pin the version constraint it was actually built
 against, not just the capability id — a bare id means any registered
@@ -463,6 +485,50 @@ picks." Declaring dependencies once is a convenience over restating them,
 never a way to make an unstated version implicit again — every declared
 entry still states its own version explicitly; there is no default there
 either.
+
+**An operation's input shape is enforced once, from the contract, never
+per-executor.** A contract's declared operation input (name, `type`, and
+whether it's `required` — `schemas/component-contract.schema.json`) is
+not just documentation: the resolved Bridge checks a request's `input`
+against it — required fields present, a present field's runtime value
+matching its declared type — before any executor runs, for direct,
+factory, and process-kind implementations alike, in any language.
+Nothing an executor would otherwise hand-check for required-ness or
+basic type is left for it to check itself. The operation name itself
+needs no such check at all: discovery (Registry contract, above) only
+ever calls an executor with an operation it declared, so checking it
+against an expected value inside the executor is not a safeguard, it's
+dead code.
+
+An optional field (`required: false`) MAY also declare `default` — the
+value the Bridge fills in when it's absent, before any executor runs,
+the same way it already fills in nothing and just validates. This is
+still not business logic: a default is a static fact about the field,
+not a semantic judgment, so it belongs where `type`/`required` already
+do. Two things a contract MUST NOT do, both checked once, at assembly
+time rather than left to surface as a runtime bug: declare `default`
+together with `required: true` (a required field's default could never
+be reached, since its absence already fails loudly), or declare a
+`default` whose own value doesn't match the field's declared `type`.
+
+A string field may also declare `minLength`/`maxLength`/`pattern`, and a
+field of any type may declare `enum` — the resolved Bridge checks these
+too, the same way and at the same point as `type`/`required`. None of
+this is business logic either: a length bound, a regular expression, or
+a fixed set of allowed values is exactly as generic and structural as
+`type` itself — it needs no understanding of what the field means to
+check, only what shape it must have. `minLength` alone does not mean
+"not blank": a whitespace-only string has nonzero length; `pattern`
+(e.g. `"\S"`, at least one non-whitespace character) is what actually
+expresses that. A contract MUST NOT declare a value or type inconsistent
+with these — an `enum` value that doesn't match the field's own `type`,
+a `default` that isn't itself one of the `enum` values or doesn't
+satisfy `minLength`/`maxLength`/`pattern`, `minLength`/`maxLength`/`pattern`
+on a non-string field, `minLength` exceeding `maxLength`, or a `pattern`
+that doesn't itself compile as a regular expression — every one of these
+checked once, at assembly time, for the same reason: never let a
+contradiction the Bridge would immediately reject at request time surface
+instead as a confusing runtime bug nobody could have caught earlier.
 
 ## Capability reference discipline
 

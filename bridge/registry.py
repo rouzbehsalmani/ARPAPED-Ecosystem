@@ -16,13 +16,63 @@ bounded candidate set. Every level is still an indexed lookup, never a scan.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
     from .policy import PolicyContext
 
 Executor = Callable[[str, dict[str, Any], "PolicyContext"], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class InputField:
+    """One operation input field, exactly as a contract declares it
+    (schemas/component-contract.schema.json) — read by `bridge/assembler.py`,
+    checked and (when absent and defaulted) filled in by `bridge/bridge.py`
+    before any executor runs, in any language.
+
+    `has_default` is a separate flag rather than checking `default is not
+    None`: a field is allowed to declare `default: null`, which is a real,
+    meaningful default, not the same thing as "no default was declared."
+
+    `min_length`/`max_length`/`pattern` (only meaningful for `type:
+    "string"`) and `enum_values` (any type) are JSON Schema's own
+    constraint vocabulary, checked by `bridge/bridge.py` the same way
+    `type`/`required` already are — a length bound, a regular expression,
+    or a fixed set of allowed values needs no capability-specific
+    understanding to check, so all of it is exactly as generic as
+    `type`/`required`, not business logic. `min_length` alone does not
+    mean "not blank" (a whitespace-only string has nonzero length) --
+    `pattern: "\\S"` is what actually expresses that.
+    """
+
+    name: str
+    type: str
+    required: bool
+    has_default: bool = False
+    default: Any = None
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    enum_values: Optional[tuple[Any, ...]] = None
+    pattern: Optional[str] = None
+
+
+#: Runtime check per recognized contract input type
+#: (schemas/component-contract.schema.json's input[].type enum). `bool` is
+#: `int`'s subclass in Python, so number/integer explicitly exclude it --
+#: a contract declaring `type: integer` should reject `True`, not accept it
+#: as if it were `1`. Shared by `bridge/assembler.py` (checking a declared
+#: `default`'s own type at assembly time) and `bridge/bridge.py` (checking
+#: a request's input at runtime) — one vocabulary, not two.
+INPUT_TYPE_CHECKS: dict[str, Callable[[Any], bool]] = {
+    "string": lambda v: isinstance(v, str),
+    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "boolean": lambda v: isinstance(v, bool),
+    "object": lambda v: isinstance(v, dict),
+    "array": lambda v: isinstance(v, list),
+}
 
 
 def _version_tuple(version: str) -> tuple[int, int, int]:
@@ -87,6 +137,13 @@ class CapabilityImplementation:
     against (see assembler.py). They are optional: an implementation
     registered without them is still fully discoverable at the Exact/Scoped
     levels, just invisible to Family/Domain/Cross-domain discovery.
+
+    ``input_schema`` is likewise read from the contract: ``{operation:
+    (InputField, ...)}``, empty when registered without a ``root``.
+    `Bridge.handle` (bridge/bridge.py) validates a request's input against
+    it, and fills in any declared default, before any executor runs, for
+    whichever operation the request names -- no executor, in any language,
+    needs to hand-check required-ness, basic types, or a default value itself.
     """
 
     implementation_id: str
@@ -102,6 +159,7 @@ class CapabilityImplementation:
     domain: str = ""
     family: str = ""
     tags: tuple[str, ...] = ()
+    input_schema: dict[str, tuple[InputField, ...]] = field(default_factory=dict)
 
     def validate(self) -> None:
         required = (
@@ -178,6 +236,7 @@ class CapabilityRegistry:
             domain=current.domain,
             family=current.family,
             tags=current.tags,
+            input_schema=current.input_schema,
         )
 
     def set_healthy(self, implementation_id: str, healthy: bool) -> None:
@@ -198,6 +257,7 @@ class CapabilityRegistry:
             domain=current.domain,
             family=current.family,
             tags=current.tags,
+            input_schema=current.input_schema,
         )
 
     def _bounded(self, holder_ids: list[str], contract_version: str) -> tuple[CapabilityImplementation, ...]:
