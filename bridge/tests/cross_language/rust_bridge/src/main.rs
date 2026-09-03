@@ -14,6 +14,8 @@ struct CatalogEntry {
     executor_kind: String,
     executor_path: Vec<String>,
     implementation_id: String,
+    enabled: bool,
+    healthy: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,12 +30,27 @@ fn catalog_path() -> String {
     env::var("ARPAPED_TEST_CATALOG").expect("ARPAPED_TEST_CATALOG is required")
 }
 
-fn load_entry(request: &Request) -> Result<CatalogEntry, String> {
+fn validate_request(request: &Request) -> Result<(), String> {
+    if request.capability_id.trim().is_empty()
+        || request.contract_version.trim().is_empty()
+        || request.operation.trim().is_empty()
+    {
+        return Err("validation failed: required request field is empty".to_string());
+    }
+    if !request.input.is_object() {
+        return Err("validation failed: input must be an object".to_string());
+    }
+    Ok(())
+}
+
+fn discover(request: &Request) -> Result<CatalogEntry, String> {
     let content = fs::read_to_string(catalog_path()).map_err(|e| format!("catalog read failed: {e}"))?;
     for line in content.lines().filter(|line| !line.trim().is_empty()) {
         let entry: CatalogEntry = serde_json::from_str(line)
             .map_err(|e| format!("invalid catalog JSON: {e}"))?;
-        if entry.capability_id == request.capability_id
+        if entry.enabled
+            && entry.healthy
+            && entry.capability_id == request.capability_id
             && entry.contract_version == request.contract_version
             && entry.operation.iter().any(|op| op == &request.operation)
             && entry.executor_kind == "process"
@@ -42,9 +59,23 @@ fn load_entry(request: &Request) -> Result<CatalogEntry, String> {
         }
     }
     Err(format!(
-        "no process implementation for {} {} {}",
+        "no compatible implementation for {} {} {}",
         request.capability_id, request.contract_version, request.operation
     ))
+}
+
+fn policy_allows(_entry: &CatalogEntry) -> bool {
+    // The test policy is intentionally equivalent to the reference policy's
+    // default allow path. The important invariant here is that policy is a
+    // separate stage from discovery and execution.
+    true
+}
+
+fn select(entry: CatalogEntry) -> CatalogEntry {
+    // The temporary test catalog contains one eligible implementation. The
+    // selector therefore has one deterministic result and introduces no
+    // provider-specific decision into the Rust Bridge.
+    entry
 }
 
 fn serve_one(mut stream: TcpStream, request: &Request) -> Result<Value, String> {
@@ -74,7 +105,7 @@ fn serve_one(mut stream: TcpStream, request: &Request) -> Result<Value, String> 
 
 fn execute(request: &Request, entry: &CatalogEntry) -> Result<Value, String> {
     if entry.executor_path.is_empty() {
-        return Err("process implementation has an empty executor path".to_string());
+        return Err("execution failed: process implementation has an empty executor path".to_string());
     }
 
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -111,8 +142,31 @@ fn main() {
     stdin.read_line(&mut line).expect("failed to read request");
     let request: Request = serde_json::from_str(line.trim()).expect("invalid request JSON");
 
-    match load_entry(&request).and_then(|entry| execute(&request, &entry)) {
-        Ok(output) => println!("{}", json!({"ok": true, "output": output})),
-        Err(error) => println!("{}", json!({"ok": false, "error": error})),
+    let mut trace: Vec<&str> = Vec::new();
+    let result = (|| {
+        validate_request(&request)?;
+        trace.push("validated");
+        let discovered = discover(&request)?;
+        trace.push("discovered");
+        if !policy_allows(&discovered) {
+            return Err("policy denied the selected candidate".to_string());
+        }
+        trace.push("policy_evaluated");
+        let selected = select(discovered);
+        trace.push("selected");
+        let output = execute(&request, &selected)?;
+        trace.push("executed");
+        Ok((output, selected.implementation_id))
+    })();
+
+    match result {
+        Ok((output, implementation_id)) => println!(
+            "{}",
+            json!({"ok": true, "implementation_id": implementation_id, "output": output, "trace": trace})
+        ),
+        Err(error) => println!(
+            "{}",
+            json!({"ok": false, "error": error, "trace": trace})
+        ),
     }
 }
