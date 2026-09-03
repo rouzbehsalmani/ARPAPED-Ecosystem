@@ -1,15 +1,12 @@
 # Sample contract artifact, valid against schemas/component-contract.schema.json.
-# Part of the runnable hello-world sample app (see ../README.md).
+# Part of the hello-world sample (../README.md).
 #
-# The second capability in this sample, added specifically to prove
-# capability-to-capability calls end to end: this capability declares
-# console.write as a dependency, pinned to the version this contract was
-# actually built against (dependencies.capabilities below, object form --
-# see schemas/component-contract.schema.json), and its manifest
-# (../capabilities/greeting/compose/manifest.yaml) sets executor_kind:
-# factory so it gets live, Bridge-routed access to it, always resolved at
-# exactly this pinned constraint — see 2-RULES.md R4. Scaffolding — copy
-# the shape, not the domain content.
+# The second capability here, added to prove capability-to-capability
+# calls: declares console.write as a dependency, pinned to the version
+# it was built against (dependencies.capabilities below); its manifest
+# sets executor_kind: factory for live, Bridge-routed access, always
+# resolved at exactly this pin (2-RULES.md R4). Scaffolding — copy the
+# shape, not the domain content.
 contract:
   identity:
     id: greeting.compose

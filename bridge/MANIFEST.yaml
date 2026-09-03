@@ -16,16 +16,13 @@ bridge:
       Routes a request through registry discovery -> policy -> selector ->
       executor and returns a trace. There is exactly one canonical Bridge.
       Once a candidate is selected, validates the request's input against
-      that operation's contract-declared shape (2-RULES.md "No silent
-      defaults on what resolution depends on") before any executor runs,
-      in any language -- required fields present, declared types honored,
-      and any declared default filled in for a field the request left
-      out, so an executor never needs to hand-check any of that itself.
-      Each trace stage is also observable live via handle's on_stage
-      callback, and handle_with_timeout runs a request under a bounded
-      per-stage timeout instead of an unbounded wait, raising
-      BRIDGE_STAGE_TIMEOUT with whatever partial trace was genuinely
-      observed (2-RULES.md R5) -- required for verification in an
+      the operation's contract-declared shape (required fields, declared
+      types, declared defaults) before any executor runs, in any language
+      (2-RULES.md "No silent defaults on what resolution depends on").
+      Each trace stage is observable live via handle's on_stage callback;
+      handle_with_timeout runs under a bounded per-stage timeout instead
+      of an unbounded wait, raising BRIDGE_STAGE_TIMEOUT with whatever
+      partial trace was observed (2-RULES.md R5) — for verification in an
       unattended pipeline with nobody to notice or interrupt a hung call.
   registry:
     location: bridge/registry.py
@@ -47,27 +44,21 @@ bridge:
   assembler:
     location: bridge/assembler.py
     role: >
-      Generic Publish-phase helper: reads capability manifests, imports each
-      executor, builds implementation records, and registers them into the
-      canonical Registry -- including each declared operation's
-      contract-recorded input shape (name, type, required, and any
-      declared default), later checked and applied by the Bridge above
-      before any executor runs. Also builds and
-      consumes the generated capability
-      catalog (append_to_catalog, rebuild_catalog, assemble_from_catalog;
-      see schemas/capability-catalog.schema.json and 2-RULES.md "The
-      Registry contract") so neither an agent doing discovery nor the
-      runtime bootstrap has to walk and re-parse every manifest and
-      contract in the ecosystem. For an implementation entry with
-      executor_kind: factory, invokes it once with a Dependencies (see
-      bridge/bridge.py) scoped to that contract's declared
-      dependencies.capabilities (2-RULES.md R4), and verifies the whole
-      declared dependency graph is acyclic before registering or invoking
-      any factory (R5). For an implementation entry with executor_kind:
-      process, spawns the named program once instead of importing anything
-      (see bridge/process_executor.py), and verifies it actually started
-      before registering it (R5) — the mechanism that lets a capability be
-      implemented in a language other than this Bridge's own.
+      Generic Publish-phase helper: reads capability manifests, imports
+      each executor, builds implementation records (including each
+      operation's contract-recorded input shape, later enforced by the
+      Bridge above), and registers them into the canonical Registry.
+      Builds and consumes the generated capability catalog
+      (append_to_catalog, rebuild_catalog, assemble_from_catalog; see
+      schemas/capability-catalog.schema.json) so neither discovery nor
+      runtime bootstrap has to re-walk every manifest. executor_kind:
+      factory is invoked once with a Dependencies scoped to the
+      contract's declared dependencies.capabilities (2-RULES.md R4),
+      after verifying the dependency graph is acyclic (R5).
+      executor_kind: process spawns the named program instead of
+      importing anything (bridge/process_executor.py), verified to have
+      actually started before registering it (R5) — how a capability can
+      be implemented in another language.
 
 samples:
   location: bridge/samples/

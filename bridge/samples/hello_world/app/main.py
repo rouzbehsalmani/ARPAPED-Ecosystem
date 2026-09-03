@@ -1,76 +1,21 @@
-"""Process entry point (R1): ordinary consumer code, not a second exemption.
+"""Process entry point (R1): decides nothing, constructs no request --
+resolves through app/requests.py and calls the handle it returns.
 
-It decides nothing and constructs no request itself -- it resolves through
-the single request-construction point (app/requests.py) and then calls the
-handle that comes back. Nothing here prints anything; that's console.write's
-job.
-
-Every `resolve` call below takes just a declared name and an operation --
-no `contract_version`, no `implementation_id`. Each name (`console_write`,
-`greeting_compose`, `console_write_legacy`, `greeting_compose_process`) is
-declared once, in app/dependencies.yaml, with exactly the capability_id,
-version, and (where it matters) implementation_id that name means -- the
-same "declared once, never restated" pattern a capability's own executor
-factory uses for ITS dependencies (bridge/bridge.py's `Dependencies`),
-just keyed by name instead of capability_id so the same capability
-(console.write) can be declared more than once, pinned differently for
-different purposes. There is no default anywhere in this chain: a name
-that isn't declared fails loudly (see app/requests.py).
-
-Calling `resolve` once and reusing the handle for both of the first two
-calls is the "discover once, call many times" pattern: `console_write`'s
-discovery only runs once, while each `call` still gets its own fresh
-policy_evaluated / selected / executed trace.
-
-The third call, to `greeting_compose`, exercises capability-to-capability
-calls (2-RULES.md R4): that capability's executor factory resolved
-console.write once (see capabilities/greeting/compose/executor.py) and
-calls it through the Bridge, same as this module does -- a real, nested,
-fully-traced request, never a shortcut.
-
-Both console.write versions are genuinely alive, each with its own real,
-callable implementation, not just declared: contracts/console.write.contract.yaml's
-`versions` holds 1.0.0 and 2.0.0 as peers (2-RULES.md R2)
-(capabilities/console/write/ and capabilities/console/write_v2/). `console_write`
-resolves at this app's declared pin (>=2.0.0, console.write.v2, the
-contract's default -- identity.version) and uses `message`; `console_write_legacy`
-is a deliberate proof, not an ongoing dependency, declared separately at
-<2.0.0 (console.write.default) and uses `text`. The declared pin alone
-determines which implementation each name reaches.
-
-2.0.0 is more than a renamed field: the second call also passes
-`format: "uppercase"`, an option 1.0.0 has no equivalent for
-(capabilities/console/write_v2/executor.py) -- a real, exercised
-capability difference between the two versions, not just a cosmetic one.
-
-`greeting_compose_process` proves a capability can be implemented in a
-language other than this Bridge's own (executor_kind: process,
-bridge/process_executor.py) AND still compose other capabilities through
-it, instead of being cut off from every capability that isn't also in
-that language: `greeting.compose.process`
-(capabilities/greeting/compose_process/) is a second, real implementation
-of `greeting.compose`, written in Rust for this worked example, that
-calls `console.write` FROM that out-of-process program, through the
-Bridge, mid-request (the nested-call side of the wire protocol) -- the
-same declared-dependency mechanism and enforcement
-`capabilities/greeting/compose/executor.py`'s Python factory already gets
-(2-RULES.md R4), just reached from another language. Its name identifies
-what it proves (out-of-process vs. in-process), not which language it
-happens to be written in. It never prints anything itself; the nested
-call resolves to `console.write.default` (1.0.0, Python) -- the exact
-same implementation the Python composer already reaches, since both
-share the one contract-declared dependency pin (R2).
-
-`console_write_process` closes the loop: `console.write.process`
-(capabilities/console/write_process/) is a THIRD implementation of
-`console.write`, and it's Python too -- but it runs as its own separate
-process, using `clients/python/bridge_client.py`, the same way
-`greeting.compose.process` uses `clients/rust/`. It doesn't reach the
-Bridge in-process just because it happens to share a language with it;
-it reaches it the exact same protocol-based way any other language does.
-That's what makes "capabilities don't know what language the Bridge is
-implemented with" actually true, not just true for languages that aren't
-Python.
+Six calls, each resolved by a declared name (app/dependencies.yaml),
+never a restated contract_version/implementation_id:
+  1-2. console_write (>=2.0.0 -> console.write.v2) -- plain, then
+       `format: "uppercase"`, a 2.0.0-only option.
+  3. greeting_compose (1.0.0) -- its factory executor makes a nested
+     Bridge call to console.write (R4), not a shortcut.
+  4. console_write_legacy (<2.0.0 -> console.write.default) -- proves
+     1.0.0 is still alive alongside 2.0.0 (2-RULES.md R2).
+  5. greeting_compose_process -- same nested-call mechanism as #3, from
+     an out-of-process implementation (executor_kind: process, written
+     in Rust for this example; named for that, not the language).
+  6. console_write_process -- console.write 2.0.0 again, from a second
+     out-of-process implementation (Python this time), over the same
+     protocol #5 uses -- proves the protocol isn't a non-Python escape
+     hatch.
 
 Run from the repository root (build the Rust executor first -- see
 capabilities/greeting/compose_process/manifest.yaml):

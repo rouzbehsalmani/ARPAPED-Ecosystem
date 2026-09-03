@@ -1,32 +1,18 @@
 // Reference client for the process executor protocol
-// (schemas/process-executor-protocol.schema.json) -- the wire shape a
-// process-kind executor (executor_kind: process, 2-RULES.md R4/R5)
-// exchanges with the resolved Bridge. Any Rust capability's executor
-// depends on this crate (see bridge/samples/hello_world/capabilities/greeting/compose_process
-// for the pattern) instead of hand-writing the connect/frame/dispatch
-// logic itself -- the same "one shared, reusable way to talk to the
-// Bridge" role bridge/bridge.py's Dependencies plays for a Python
-// capability that runs in-process.
+// (schemas/process-executor-protocol.schema.json) -- what a process-kind
+// executor (2-RULES.md R4/R5) exchanges with the Bridge. Any Rust
+// executor here depends on this crate instead of hand-writing
+// connect/frame/dispatch itself (see ../compose_process for the pattern).
 //
-// Lives inside this sample, not under bridge/: it's not part of the
-// Bridge implementation (bridge/ is that, and only that -- see
-// bridge/MANIFEST.yaml) either way, but it's also not shared,
-// ecosystem-level infrastructure -- every consumer of it is a capability
-// inside this one sample. A real application copies the shape of this
-// client into its own structure, the same way it copies the shape of a
-// contract or a capability, rather than depending on hello_world's copy
-// -- see clients/python/bridge_client.py for the same role in Python,
-// proving this isn't a Rust-specific need.
+// Lives inside this sample, not under bridge/ (not part of the Bridge
+// implementation) and not at the repo root (not shared, ecosystem-level
+// infrastructure -- every consumer is a capability inside this one
+// sample; a real application copies the shape, not this copy). See
+// clients/python/bridge_client.py for the same role in Python.
 //
-// Uses a real JSON library (serde_json) -- deliberately, not the narrow
-// hand-written field extraction an earlier version of this file used.
-// That mattered for more than style: input validation is the Bridge's
-// job now (2-RULES.md "No silent defaults on what resolution depends
-// on"), and a capability can only actually trust that guarantee if this
-// client's own parsing is trustworthy too. A real parser is what lets a
-// Rust executor write `invocation.input["name"].as_str().expect(...)`
-// and mean it, the same way a Python executor can write `input["name"]`
-// and mean it.
+// Uses a real JSON library (serde_json), not hand-written field
+// extraction -- required for `invocation.input["name"].as_str().expect(...)`
+// to actually mean something, the same way `input["name"]` does in Python.
 
 use serde_json::{json, Value};
 use std::env;

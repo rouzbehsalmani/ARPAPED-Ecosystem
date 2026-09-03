@@ -1,17 +1,12 @@
 """Generates this sample's capability-catalog.jsonl (Phase 8, Publish).
 
-Run manually whenever anything under capabilities/ or the contracts it
-references changes:
+Run whenever anything under capabilities/ or its contracts changes:
     python -m bridge.samples.hello_world.build_catalog
 
-Uses rebuild_catalog (bridge/assembler.py), which walks capabilities/ once
-and regenerates the catalog from scratch. That full walk is appropriate here
-because this sample's whole tree predates the catalog mechanism. A growing
-ecosystem publishing capabilities one at a time should call
-append_to_catalog per newly published manifest instead -- O(1) per
-publish, never re-walking what's already in the catalog. See
-app/requests.py, which reads the generated catalog at startup instead of
-walking capabilities/ itself.
+Uses rebuild_catalog (full rewalk, bridge/assembler.py) since this
+sample's tree predates the catalog. A growing ecosystem should call
+append_to_catalog per publish instead -- O(1), never re-walking what's
+already there. See app/requests.py, which reads the catalog at startup.
 """
 
 from pathlib import Path

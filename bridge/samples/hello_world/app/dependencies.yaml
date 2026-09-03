@@ -1,17 +1,11 @@
-# This application's own declared dependencies, in the single
-# request-construction point (../requests.py). Each top-level key is a
-# name this app chooses for one thing it depends on -- unlike a capability
-# contract's dependencies.capabilities (schemas/component-contract.schema.json),
-# which is keyed by capability_id, this is keyed by whatever the app calls
-# it, so the SAME capability can be declared more than once under
-# different names, each pinned differently for a different purpose (see
-# console_write vs console_write_legacy below -- an app often has more
-# than one relationship with the same capability, which a single
-# capability's own dependency on another never needs).
-#
-# resolve(name, operation) (../requests.py) reads capability_id,
-# contract_version, and (if given) implementation_id from the named entry
-# -- none of that is ever restated at a resolve() call site.
+# This app's own declared dependencies (../requests.py). Each top-level
+# key is a name the app chooses; unlike a contract's own
+# dependencies.capabilities (keyed by capability_id), this is keyed by
+# name, so the same capability can be declared more than once under
+# different names, pinned differently (see console_write vs.
+# console_write_legacy). resolve(name, operation) reads capability_id,
+# contract_version, and implementation_id from the named entry --
+# never restated at a resolve() call site.
 capabilities:
   console_write:
     capability_id: console.write
@@ -25,24 +19,17 @@ capabilities:
     capability_id: console.write
     contract_version: "<2.0.0"
   greeting_compose_process:
-    # A deliberate proof, not an ongoing dependency: shows a capability
-    # can be implemented in another language (executor_kind: process)
-    # AND still call other capabilities through the Bridge -- it composes
-    # a greeting out-of-process (written in Rust for this worked
-    # example), then calls console.write (the Python implementation) to
-    # write it, through the same declared-dependency mechanism a Python
-    # factory implementation gets (R4). Named for what it proves --
-    # out-of-process vs. in-process -- not for the language it happens to
-    # be written in.
+    # A deliberate proof, not an ongoing dependency: shows an
+    # out-of-process implementation (executor_kind: process) can still
+    # call other capabilities through the Bridge (R4), same as a Python
+    # factory implementation can.
     capability_id: greeting.compose
     contract_version: "1.0.0"
     implementation_id: greeting.compose.process
   console_write_process:
     # A deliberate proof, not an ongoing dependency: shows the process
-    # executor protocol is language-neutral, not just a non-Python
-    # workaround -- this implementation is Python too, but runs as its
-    # own separate process (clients/python/bridge_client.py) instead of
-    # in-process, exactly like greeting_compose_process does.
+    # executor protocol is language-neutral, not a non-Python workaround
+    # -- this implementation is Python too, but runs out-of-process.
     capability_id: console.write
     contract_version: ">=2.0.0,<3.0.0"
     implementation_id: console.write.process

@@ -1,59 +1,29 @@
-"""Out-of-process executor over loopback TCP, for a capability implemented
-in a language other than the resolved Bridge's own (bridge/MANIFEST.yaml).
-This module is the Bridge-side implementation of the process executor
-protocol formally defined in `schemas/process-executor-protocol.schema.json`
--- a language's own reference client (resolved from `bridge/MANIFEST.yaml`'s
-`clients:`) implements the other side of the same protocol.
+"""Out-of-process executor over loopback TCP, for a capability
+implemented in a language other than the Bridge's own. Implements the
+Bridge side of `schemas/process-executor-protocol.schema.json`; a
+language's own reference client implements the other side.
 
-A `ProcessExecutorPool` matches the executor contract exactly --
-`__call__(operation, input, policy) -> output` -- so it plugs into
-`CapabilityImplementation.executor` (registry.py) unchanged; `bridge.handle`
-never knows or cares whether the executor it calls is in-process or not.
+`ProcessExecutorPool` matches the executor contract exactly --
+`__call__(operation, input, policy) -> output` -- so `bridge.handle`
+never knows or cares whether an executor is in-process or not.
 
-Wire shape mirrors the same three inputs and one output/error every
-executor already has, framed as one newline-delimited JSON object per
-message. Bridge -> process starts one invocation: `{"operation", "input",
-"policy"}`. Process -> Bridge, while handling it, may be the terminal
-reply (`{"output": ...}` or `{"error": {"code", "message", "details"}}`)
--- or, first, any number of nested call requests, `{"call": {"capability_id",
-"operation", "input"}}`, each one sent and then immediately awaited before
-the process continues. A worker connection is exclusively borrowed for the
-whole duration of one invocation (see `ProcessExecutorPool`), so the
-Bridge never sends anything else on it while a nested call is outstanding
--- the reply to a nested call can never be confused with a fresh
-invocation, and reuses the exact same `{"output"}`/`{"error"}` shape the
-terminal reply uses; no separate message-type tag is needed. The external
-process never sees `request_id`, `capability_id` (its own),
-`contract_version`, or the trace -- those stay the Bridge's job, exactly
-as for a direct in-process executor.
+Wire shape: one newline-delimited JSON object per message. Bridge ->
+process: `{"operation", "input", "policy"}`. Process -> Bridge: either
+the terminal `{"output"}`/`{"error"}`, or, first, any number of
+`{"call": {capability_id, operation, input}}` nested-call requests, each
+awaited before the process continues -- safe to reuse the same
+`{"output"}`/`{"error"}` shape since a worker connection is exclusively
+borrowed for one invocation's whole duration. A nested call resolves
+through a `Dependencies` scoped to this implementation's own declared
+dependencies (R4), the same enforcement a factory executor gets.
 
-A nested call is resolved through a `Dependencies` (bridge/bridge.py)
-scoped to this implementation's own declared `dependencies.capabilities`
-(R4) -- the identical mechanism and enforcement an `executor_kind: factory`
-executor already gets, just reached over the wire instead of a direct
-in-process call. This is what lets a capability implemented in another
-language compose other capabilities instead of being stuck as a leaf.
+`pool_size` workers are spawned once, at assembly time, concurrently
+(not serially -- each spawn is mostly idle wait, and each binds its own
+port). A worker that doesn't connect within `startup_timeout` fails
+assembly loudly (2-RULES.md R5, gate 6).
 
-A handful of worker processes are spawned once, at assembly time (see
-`bridge/assembler.py`), each with its own connection; `__call__` borrows
-one per invocation instead of serializing every call onto a single shared
-connection. A worker that never connects within `startup_timeout` fails
-assembly loudly (`ProcessExecutorError`, wrapped by the assembler into
-`AssemblerError`) rather than registering a capability that was never
-actually verified to have started (2-RULES.md R5, gate 6).
-
-`pool_size` workers are spawned concurrently, not one at a time -- each
-spawn is mostly idle wait (process launch, then a blocking socket
-accept), and each binds its own ephemeral port, so nothing about one
-spawn depends on another finishing first. With an interpreted language's
-real startup cost (an interpreter, not just a compiled binary), spawning
-serially would multiply that cost by `pool_size` for every single
-process-kind implementation an ecosystem assembles at once; concurrent
-spawning keeps one pool's startup cost close to its single slowest
-worker instead.
-
-Loopback TCP, not a Unix domain socket: `socket.AF_UNIX` is not available
-on every platform this reference Bridge runs on.
+Loopback TCP, not a Unix domain socket: `socket.AF_UNIX` isn't
+available on every platform this reference Bridge runs on.
 """
 
 from __future__ import annotations

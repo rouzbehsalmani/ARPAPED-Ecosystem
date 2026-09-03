@@ -1,19 +1,13 @@
 # Sample capability manifest, valid against schemas/capability-manifest.schema.json.
 #
-# A SECOND manifest for the SAME contract (console.write) at a different,
-# newer contract_version -- contract_version is a manifest-level field, so
-# two coexisting versions of one capability need two manifest files, each
-# referencing the same contract (see ../write/manifest.yaml for the
-# original 1.0.0 one, and contracts/console.write.contract.yaml's
-# `versions` -- both 1.0.0 and 2.0.0 are peer entries there, neither
-# demoted -- see 2-RULES.md R2/R3).
+# A SECOND manifest for console.write, at a newer contract_version --
+# contract_version is manifest-level, so two coexisting versions need two
+# manifest files pointing at the same contract (see ../write/manifest.yaml
+# for 1.0.0; both are peer entries under the contract's `versions`, R2/R3).
 #
-# priority: 200 -- higher than the 100 default (schemas/capability-manifest.schema.json:
-# higher number = higher precedence), so this version wins any resolve
-# that doesn't itself pin a version, matching identity.version: "2.0.0" --
-# the contract's designated default. ../write/manifest.yaml (1.0.0) never
-# needed to change for that to be true; it stays fully alive and reachable
-# for anyone who explicitly pins an older contract_version.
+# priority: 200, higher than 1.0.0's 100, matching identity.version
+# ("2.0.0" -- the contract's default), so this wins any unpinned resolve;
+# 1.0.0 stays alive for anyone who pins it explicitly.
 capability_id: console.write
 contract: bridge/samples/hello_world/contracts/console.write.contract.yaml
 contract_version: "2.0.0"

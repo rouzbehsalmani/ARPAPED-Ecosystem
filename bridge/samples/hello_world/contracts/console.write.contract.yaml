@@ -1,20 +1,14 @@
 # Sample contract artifact, valid against schemas/component-contract.schema.json.
-# Part of the runnable hello-world sample app (see ../README.md). Follows
-# the recommended layout from 0-WALKTHROUGH.md step 3: contract artifacts
-# under contracts/, named <domain>.<operation>.contract.yaml.
+# Part of the hello-world sample (../README.md), following
+# 0-WALKTHROUGH.md step 3's layout. Scaffolding — copy the shape, not
+# the domain content.
 #
-# Deliberately the simplest possible capability, to prove the
-# contract -> manifest -> executor -> Bridge wiring end to end, including the
-# point that even writing to a console is a capability, not entry-point
-# plumbing. Scaffolding — copy the shape, not the domain content.
-#
-# Two versions, both alive, both peers under `versions` below: 1.0.0's
-# `text` field was renamed to `message` in 2.0.0 (a real breaking change).
-# Neither is demoted to lineage.history -- that's reserved for versions
-# that are actually dead (2-RULES.md R2). The original 1.0.0 implementation
-# (../capabilities/console/write/) stays registered alongside the new 2.0.0
-# one (../capabilities/console/write_v2/); greeting.compose pins <2.0.0 and
-# is demonstrably unaffected by 2.0.0 existing.
+# Two versions, both alive, both peers under `versions`: 1.0.0's `text`
+# was renamed to `message` in 2.0.0 (a real breaking change). Neither is
+# demoted to lineage.history -- that's for versions actually dead
+# (2-RULES.md R2). 1.0.0's implementation (../capabilities/console/write/)
+# stays registered alongside 2.0.0's (.../write_v2/); greeting.compose
+# pins <2.0.0 and is unaffected by 2.0.0 existing.
 contract:
   identity:
     id: console.write
@@ -24,10 +18,8 @@ contract:
     family: console
     type: capability
   responsibility:
-    # Deliberately version-neutral: this describes the capability's purpose
-    # as a whole, never a specific version's field names (see `versions`
-    # below for what "write" actually takes at each version) -- it must
-    # stay equally true of 1.0.0 and 2.0.0 alike.
+    # Version-neutral: describes the capability as a whole, never a
+    # specific version's field names (see `versions` below for those).
     description: Writes a line of output to the console.
     invariants:
       - does not modify its input

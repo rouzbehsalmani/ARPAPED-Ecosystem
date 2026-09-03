@@ -1,29 +1,21 @@
 # Sample capability manifest, valid against schemas/capability-manifest.schema.json.
 #
-# A THIRD, independent implementation of console.write 2.0.0 (alongside
-# ../write/ at 1.0.0 and ../write_v2/ at 2.0.0) -- but unlike either of
-# those, this one runs as its own separate out-of-process program
-# (executor_kind: process), not in-process. Proves the process executor
-# protocol (schemas/process-executor-protocol.schema.json) is genuinely
-# language-neutral, not just "the non-Python escape hatch": a Python
-# capability doesn't have to run in-process just because the Bridge
-# happens to be Python too. (Written in Python for this worked example,
-# but that's not what this name identifies -- what's out-of-process vs.
-# in-process is; see console.write.process's sibling implementation
-# ../../greeting/compose_process/, written in Rust, for the same
-# distinction proved in a different language.) Uses
-# clients/python/bridge_client.py, the same reference client role
-# clients/rust/ plays for ../../greeting/compose_process/.
+# A THIRD implementation of console.write 2.0.0 (alongside ../write/ at
+# 1.0.0 and ../write_v2/ at 2.0.0), running out-of-process
+# (executor_kind: process) instead of in-process -- proves the process
+# executor protocol is language-neutral even for Python itself. Written
+# in Python for this example, but the name identifies the mechanism
+# (out-of-process), not the language -- see the Rust sibling proving the
+# same thing, ../../greeting/compose_process/. Uses
+# clients/python/bridge_client.py, the same role clients/rust/ plays there.
 #
-# `executor:` is an argv list here, not a single command string like
-# ../../greeting/compose_process/'s compiled binary -- an interpreted
-# language needs an interpreter AND a script (bridge/process_executor.py,
-# ProcessExecutorPool).
+# `executor:` is an argv list, not a single command string, since an
+# interpreted language needs an interpreter AND a script
+# (bridge/process_executor.py, ProcessExecutorPool).
 #
-# priority is below console.write.v2's (200), so it stays reachable only
-# by an explicit declared name (app/dependencies.yaml's
-# console_write_process), never silently becoming the default -- same
-# posture every other extra implementation in this sample has.
+# priority is below console.write.v2's (200), reachable only via its own
+# declared name (app/dependencies.yaml's console_write_process), never
+# silently becoming the default.
 capability_id: console.write
 contract: bridge/samples/hello_world/contracts/console.write.contract.yaml
 contract_version: "2.0.0"

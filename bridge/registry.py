@@ -27,24 +27,16 @@ Executor = Callable[[str, dict[str, Any], "PolicyContext"], dict[str, Any]]
 
 @dataclass(frozen=True)
 class InputField:
-    """One operation input field, exactly as a contract declares it
-    (schemas/component-contract.schema.json) — read by `bridge/assembler.py`,
-    checked and (when absent and defaulted) filled in by `bridge/bridge.py`
-    before any executor runs, in any language.
+    """One operation input field, exactly as a contract declares it —
+    read by `bridge/assembler.py`, enforced by `bridge/bridge.py` before
+    any executor runs.
 
-    `has_default` is a separate flag rather than checking `default is not
-    None`: a field is allowed to declare `default: null`, which is a real,
-    meaningful default, not the same thing as "no default was declared."
-
-    `min_length`/`max_length`/`pattern` (only meaningful for `type:
-    "string"`) and `enum_values` (any type) are JSON Schema's own
-    constraint vocabulary, checked by `bridge/bridge.py` the same way
-    `type`/`required` already are — a length bound, a regular expression,
-    or a fixed set of allowed values needs no capability-specific
-    understanding to check, so all of it is exactly as generic as
-    `type`/`required`, not business logic. `min_length` alone does not
-    mean "not blank" (a whitespace-only string has nonzero length) --
-    `pattern: "\\S"` is what actually expresses that.
+    `has_default` is separate from `default is not None` since `default:
+    null` is a real, meaningful default. `min_length`/`max_length`/
+    `pattern` (string-only) and `enum_values` (any type) are JSON
+    Schema's constraint vocabulary, checked the same way `type`/
+    `required` already are. `min_length` alone doesn't mean "not blank"
+    (whitespace has nonzero length) -- `pattern: "\\S"` does.
     """
 
     name: str
@@ -131,19 +123,13 @@ def _matches_version(required: str, actual: str) -> bool:
 class CapabilityImplementation:
     """A versioned declaration of one way to execute a capability, independent of consumers.
 
-    ``domain``, ``family``, and ``tags`` are read from the capability's own
-    contract (identity.domain, identity.family, discoverability.tags) by the
-    assembler when it is given a ``root`` to resolve the contract path
-    against (see assembler.py). They are optional: an implementation
-    registered without them is still fully discoverable at the Exact/Scoped
-    levels, just invisible to Family/Domain/Cross-domain discovery.
-
-    ``input_schema`` is likewise read from the contract: ``{operation:
-    (InputField, ...)}``, empty when registered without a ``root``.
-    `Bridge.handle` (bridge/bridge.py) validates a request's input against
-    it, and fills in any declared default, before any executor runs, for
-    whichever operation the request names -- no executor, in any language,
-    needs to hand-check required-ness, basic types, or a default value itself.
+    ``domain``, ``family``, ``tags``, and ``input_schema`` are read from
+    the capability's own contract by the assembler when given a ``root``
+    (assembler.py); optional -- without them, still discoverable at
+    Exact/Scoped, just invisible to Family/Domain/Cross-domain, and with
+    an empty input_schema. `Bridge.handle` validates a request's input
+    against input_schema, filling in declared defaults, before any
+    executor runs.
     """
 
     implementation_id: str

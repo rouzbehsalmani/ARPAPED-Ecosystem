@@ -1,46 +1,23 @@
-"""Single request-construction point for this sample app (Phase 6, R6).
+"""Single request-construction point for this sample app (R6).
 
-Exactly one module builds the Bridge and hands out access to it: build a
-registry; construct the Bridge from it plus the policy and selector
-resolved from bridge/MANIFEST.yaml; only THEN register every implementation
-from the generated capability catalog into the registry (build_catalog.py,
-Phase 8 mechanics, step 5) — never by walking and re-parsing capabilities/
-itself, which doesn't scale. It then exposes one `resolve` operation
-(below). Nothing else in this sample imports the Bridge, constructs a
-request, or calls `bridge.handle` directly.
+Builds a registry and Bridge (policy/selector from bridge/MANIFEST.yaml),
+then registers every implementation from the generated capability
+catalog (build_catalog.py) -- never by walking capabilities/ directly.
+The Bridge is built before assembly runs: greeting.compose declares
+executor_kind: factory, which needs a live Bridge to build its
+Dependencies, even though the registry it wraps is still empty at that
+instant (nothing reads it until real calls happen).
 
-The Bridge is built BEFORE assembly runs, not after: `greeting.compose`
-declares `executor_kind: factory` (it needs live access to console.write —
-see its manifest and executor), and a factory-kind entry needs a Bridge to
-build its `Dependencies` against. This is safe even though the registry is
-still empty at that instant — `Bridge` only holds a reference to it, and
-nothing reads that reference until real calls happen, well after assembly
-finishes.
+Exposes resolve(name, operation) -- name and operation are the only
+things ever restated at a call site; capability_id, contract_version,
+and (if pinned) implementation_id come from the matching entry in
+dependencies.yaml, keyed by name rather than capability_id (unlike a
+contract's own dependencies.capabilities, R4) so the same capability can
+be declared more than once under different names/pins.
 
-This module also declares its OWN dependencies, in `dependencies.yaml`:
-each entry is named by whatever this app calls it, mapping to exactly the
-capability_id, contract_version, and (if needed) implementation_id
-`resolve` should use — read once, here, at load time. `resolve(name,
-operation)` takes only a name and an operation; the version (and, where
-declared, which specific implementation) is never restated at the call
-site — upgrading which version the app uses means editing one entry in
-`dependencies.yaml`, not hunting down every call site. Unlike a capability
-contract's own `dependencies.capabilities` (R4), which is keyed by
-capability_id, this is keyed by name — so the SAME capability can be
-declared more than once, pinned differently for different purposes (see
-`dependencies.yaml`), which a single capability's own dependency on
-another never needs.
-
-Either way, the returned handle's `call(...)` can be invoked as many times
-as needed (discover once, call many times): only the discovery stage is
-reused — policy is still evaluated and a candidate is still selected and
-executed fresh on every call, through the same `bridge.handle` every
-request goes through, and the handle re-checks its cached candidates' live
-state on each use (self-healing by re-discovering if they've all become
-unusable) rather than trusting a stale snapshot. Building the request
-itself is Bridge library code, not application code, so this stays
-consistent with R6: this module is still the only place in the app that
-reaches the Bridge at all.
+Only discovery is cached per resolve() call -- every .call() still runs
+a fresh policy/select/execute cycle through bridge.handle, self-healing
+if cached candidates have gone stale.
 """
 
 from pathlib import Path
@@ -63,20 +40,13 @@ assemble_from_catalog(_APP_ROOT / "capability-catalog.jsonl", _registry, bridge=
 
 def _load_declared_dependencies(raw):
     """Decodes `dependencies.yaml`'s `capabilities` mapping into
-    `{name: {capability_id, contract_version, implementation_id}}`.
-    `implementation_id` is `None` when not declared for that name.
-
-    Deliberately does not reuse `bridge/assembler.py`'s `parse_dependencies`:
-    that helper is keyed by capability_id (one entry per capability, the
-    shape a capability contract's own dependencies need) and lets a bare
-    string mean "*"; this is keyed by name, so the same capability_id can
-    appear under more than one name, pinned differently for different
-    purposes -- and `contract_version` is required on every entry, never
-    defaulted to "*", the same "no silent default" discipline `Bridge.resolve`
-    itself enforces (2-RULES.md "No silent defaults on what resolution
-    depends on"). A malformed entry fails loudly here, at load time,
-    rather than surfacing later as a confusing `BRIDGE_UNDECLARED_DEPENDENCY`
-    for a name the caller thought was already declared correctly.
+    `{name: {capability_id, contract_version, implementation_id}}`
+    (`implementation_id` is `None` when undeclared). Keyed by name, not
+    capability_id (unlike `assembler.py`'s `parse_dependencies`), so the
+    same capability_id can appear under more than one name.
+    `contract_version` is required, never defaulted to "*" -- a
+    malformed entry fails here, at load time, not later as a confusing
+    `BRIDGE_UNDECLARED_DEPENDENCY`.
     """
 
     declared = {}
@@ -99,10 +69,8 @@ _declared = _load_declared_dependencies(_declared_raw.get("capabilities"))
 
 def resolve(name, operation):
     """Resolves the capability+operation declared under `name` in
-    `dependencies.yaml` -- capability_id, contract_version, and (if given)
-    implementation_id all come from that one declared entry, never
-    restated at the call site. Raises `BRIDGE_UNDECLARED_DEPENDENCY` if
-    `name` isn't declared there; add it before depending on it.
+    `dependencies.yaml`. Raises `BRIDGE_UNDECLARED_DEPENDENCY` if `name`
+    isn't declared there.
     """
     spec = _declared.get(name)
     if spec is None:

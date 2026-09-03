@@ -1,85 +1,43 @@
-"""Generic, product-agnostic assembler for the ARPAPED self-improving cycle.
+"""Generic, product-agnostic assembler for the ARPAPED self-improving
+cycle (Publish phase, Phase 8) -- the only place that constructs
+implementation records, from manifest data alone (no capability
+identity, component name, or product reference of its own). Swapping a
+component means editing the manifest, never consumer code.
 
-The assembler is the Publish-phase (Phase 8) helper that reads capability
-manifests and builds implementation records into the canonical Registry. It is
-the ONLY place that constructs implementation records.
+With a ``root``, also resolves each manifest's contract path and reads
+identity.domain/family and discoverability.tags -- the source of truth
+for Family/Domain/Cross-domain discovery (2-RULES.md "Registry
+contract"); omitting root limits discovery to Exact/Scoped.
 
-The assembler contains no capability identity, no component name, and no
-product reference. Everything it needs arrives as manifest data:
+Builds and consumes a generated capability catalog (JSON Lines, one
+implementation per line; schemas/capability-catalog.schema.json) so
+neither Discover-phase reasoning nor runtime bootstrap has to re-walk
+every manifest: ``append_to_catalog`` (O(1) per publish),
+``rebuild_catalog`` (full rewalk -- initial creation or recovery),
+``assemble_from_catalog`` (runtime bootstrap). All three share
+``from_manifest``/``_load_executor``.
 
-    capability manifest (validated)
-              |
-              v
-        import executor (module:attr)
-              |
-              v
-        CapabilityImplementation
-              |
-              v
-        registry.register(...)
+``executor_kind: process``: ``executor`` names a program instead of a
+``module:attr`` path; spawned once, here, into a ``ProcessExecutorPool``
+(bridge/process_executor.py), which becomes the executor -- lets a
+capability be implemented in another language, invisibly to the rest of
+the Bridge.
 
-Components remain registration-unaware executors, and swapping a component
-requires editing the manifest, never consumer code.
+``executor_kind: factory``: for a contract declaring
+``dependencies.capabilities`` (R4 -- live access during execution, not
+just input data), ``executor`` is instead ``(dependencies: Dependencies)
+-> Executor``, called once, here, at assembly time, resolving through
+the injected ``Dependencies`` (scoped to exactly the declared capability
+ids, routing every call through the canonical Bridge, R6/R8). The
+declared dependency graph is verified acyclic before registering or
+invoking any factory (R5).
 
-When given a ``root`` (see ``assemble``), the assembler additionally resolves
-each manifest's ``contract`` path against it and reads that contract's
-``identity.domain``, ``identity.family``, and ``discoverability.tags`` — the
-source of truth for those fields is always the contract (R2/R3), never the
-manifest. This is what makes Family/Domain/Cross-domain discovery possible
-(2-RULES.md "Registry contract"); omitting ``root`` limits discovery to
-Exact/Scoped only.
-
-At scale, neither an agent deciding whether to reuse/compose/create (Phase 3
-— Discover) nor the runtime bootstrap should have to walk and re-parse every
-manifest and contract in the tree. This module also builds and consumes a
-generated **capability catalog** (JSON Lines, one implementation per line;
-see ``schemas/capability-catalog.schema.json``) for that: ``append_to_catalog``
-(Publish-time, O(1) per newly published capability — never re-walks what
-already exists), ``rebuild_catalog`` (a maintenance operation: initial
-creation from a pre-existing tree, or recovery/compaction), and
-``assemble_from_catalog`` (runtime bootstrap, reading the catalog instead of
-walking ``capabilities/``). All three reuse ``from_manifest`` and
-``_load_executor`` — no parsing logic is duplicated for the catalog path.
-
-An implementation entry may instead set ``executor_kind: process`` — its
-``executor`` names a program to run, not a ``module:attr`` path.
-``_build_implementation`` spawns it once, here, at assembly time, through
-``ProcessExecutorPool`` (``bridge/process_executor.py``) instead of
-importing anything, and the resulting pool becomes the executor: still
-exactly ``execute(operation, input, policy) -> output``, just carried out
-over a small out-of-process protocol instead of an in-process call. This
-is what lets a capability be implemented in a language other than this
-Bridge's own, without the Bridge's request path, discovery, policy, or
-selection ever needing to know the difference.
-
-A capability's contract may declare ``dependencies.capabilities`` (R4) —
-other capabilities it needs *live* access to during its own execution, not
-just pre-computed input data from its caller. An implementation entry opts
-into that by setting ``executor_kind: factory`` (default ``direct``,
-unchanged behavior): its ``executor`` path is then a factory —
-``(dependencies: Dependencies) -> Executor`` — called once, here, at
-assembly time, instead of being used directly as the executor. The factory
-resolves what it needs through the injected ``Dependencies`` (bridge.py),
-which is scoped to exactly the capability ids this contract declared and
-routes every call through the same canonical Bridge (R6/R8) — never a raw
-executor-to-executor call. ``assemble``/``assemble_from_catalog`` verify the
-declared dependency graph is acyclic before registering or invoking any
-factory (R5).
-
-A manifest's declared ``contract_version`` is never re-derived, only
-cross-checked (R2): whenever a manifest is actually parsed from its source
-files (every ``assemble`` call; every ``rebuild_catalog``/
-``append_to_catalog``), ``from_manifest`` verifies it names a currently
-supported (alive) version in the contract's ``versions`` — a peer-keyed map
-where every alive version is a full, independent entry, never a numeric
-"newer/older than current" comparison. A version recorded in the
-contract's ``lineage.history`` is dead: no implementation may declare it.
-Each implementation entry's declared ``operations`` are also checked
-against what that specific alive version actually records, catching a
-manifest that claims an operation which was never part of the version it
-declares. This is NOT re-checked from the catalog's snapshotted data at
-runtime bootstrap (``assemble_from_catalog`` trusts the catalog as-is, same
-as domain/family/tags/dependencies).
+``contract_version`` is cross-checked, never re-derived (R2): every
+real parse (``assemble``, ``rebuild_catalog``, ``append_to_catalog``)
+verifies it names a currently alive version in the contract's
+``versions``, and that each declared operation actually belongs to that
+version. Not re-checked from the catalog's snapshotted data at runtime
+bootstrap.
 """
 
 from __future__ import annotations

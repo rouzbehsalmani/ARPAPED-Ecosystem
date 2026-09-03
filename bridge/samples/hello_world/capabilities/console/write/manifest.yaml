@@ -1,13 +1,10 @@
 # Sample capability manifest, valid against schemas/capability-manifest.schema.json.
-# Co-located with its executor in the owning package, per R3.
+# Co-located with its executor, per R3.
 #
-# priority: 100 -- required, no default (schemas/capability-manifest.schema.json,
-# 2-RULES.md "The Registry contract"): every implementation states its own
-# precedence explicitly. ../write_v2/manifest.yaml (contract_version 2.0.0,
-# matching identity.version -- the contract's default for a consumer that
-# doesn't pin one) states a higher number, so it wins any resolve that
-# doesn't itself pin a version; 1.0.0 stays fully alive and callable for
-# anyone who explicitly pins it.
+# priority: 100, no default (2-RULES.md "The Registry contract") --
+# ../write_v2/manifest.yaml (2.0.0, the contract's default version)
+# states a higher number so it wins an unpinned resolve; 1.0.0 stays
+# alive for anyone who explicitly pins it.
 capability_id: console.write
 contract: bridge/samples/hello_world/contracts/console.write.contract.yaml
 contract_version: "1.0.0"

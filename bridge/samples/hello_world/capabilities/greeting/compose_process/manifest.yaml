@@ -1,32 +1,25 @@
 # Sample capability manifest, valid against schemas/capability-manifest.schema.json.
 #
-# A SECOND, independent implementation of greeting.compose, running as
-# its own out-of-process program (executor_kind: process) instead of
-# in-process, using the SAME contract as ../compose/manifest.yaml --
-# proves a process-kind capability can call ANOTHER capability through
-# the Bridge (2-RULES.md R4/R5, bridge/process_executor.py's nested-call
-# protocol), not just answer the Bridge's own calls; it's not a leaf.
-# Inherits the contract's existing dependencies.capabilities
-# (console.write, ">=1.0.0,<2.0.0") automatically -- dependencies live on
-# the contract (R2), shared by every implementation of it, including this
-# one. (Written in Rust for this worked example -- see the sample
-# README's "A capability in another language" -- but the implementation
-# language isn't what this name identifies; what's out-of-process vs.
-# in-process is.)
+# A SECOND implementation of greeting.compose, running out-of-process
+# (executor_kind: process) instead of in-process, same contract as
+# ../compose/manifest.yaml -- proves a process-kind capability can call
+# ANOTHER capability through the Bridge too (R4/R5 nested-call
+# protocol), not just answer the Bridge's own calls. Inherits the
+# contract's dependencies.capabilities (console.write) automatically.
+# Written in Rust for this worked example (see README "A capability in
+# another language"), but the name identifies the mechanism
+# (out-of-process), not the language.
 #
-# priority is below greeting.compose.default's (100), so it stays
-# reachable only by an explicit implementation_id pin
-# (app/dependencies.yaml's greeting_compose_process), never silently
-# becoming the default.
+# priority is below greeting.compose.default's (100) -- reachable only
+# via its own declared name (app/dependencies.yaml's
+# greeting_compose_process), never silently becoming the default.
 #
-# A real Cargo crate (Cargo.toml, src/main.rs), not a single rustc-compiled
-# file: it depends on serde_json (real JSON parsing/serialization) and on
-# bridge_client (clients/rust/, a path dependency) -- see clients/rust/src/lib.rs.
-# NOT built automatically. Build it once with, run from this directory
-# (see ../../../README.md "A capability in another language"):
+# A real Cargo crate (Cargo.toml, src/main.rs), depending on serde_json
+# and bridge_client (clients/rust/, a path dependency). NOT built
+# automatically -- from this directory:
 #   cargo build
-# which places the binary at target/debug/greeting_compose_process[.exe] --
-# not committed (build/target/ is gitignored).
+# places the binary at target/debug/greeting_compose_process[.exe],
+# gitignored.
 capability_id: greeting.compose
 contract: bridge/samples/hello_world/contracts/greeting.compose.contract.yaml
 contract_version: "1.0.0"

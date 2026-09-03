@@ -1,29 +1,17 @@
 """Reference client for the process executor protocol
-(schemas/process-executor-protocol.schema.json) -- the wire shape a
-process-kind executor (executor_kind: process, 2-RULES.md R4/R5)
-exchanges with the resolved Bridge. Any Python capability that runs as
-its own separate process (instead of in-process, as a direct or factory
-executor) uses this instead of hand-writing the connect/frame/dispatch
-logic itself -- the same role clients/rust/ plays for a Rust capability.
+(schemas/process-executor-protocol.schema.json) -- what a process-kind
+executor (2-RULES.md R4/R5) exchanges with the Bridge. A Python
+capability running as its own separate process uses this instead of
+hand-writing connect/frame/dispatch -- the same role clients/rust/
+plays for Rust, proving the protocol isn't a non-Python escape hatch
+(see ../../capabilities/console/write_process/executor.py).
 
-Proves the protocol is genuinely language-neutral, not just "the
-non-Python escape hatch": a Python capability doesn't have to run
-in-process just because the Bridge happens to be Python too. It reaches
-the Bridge exactly the way any other language does, over this same
-protocol -- see bridge/samples/hello_world/capabilities/console/write_process/executor.py.
-
-Lives inside this sample, not under bridge/: it's not part of the Bridge
-implementation (bridge/ is that, and only that -- see bridge/MANIFEST.yaml)
-either way, but it's also not shared, ecosystem-level infrastructure --
-every consumer of it is a capability inside this one sample. A real
-application copies the shape of this client into its own structure, the
-same way it copies the shape of a contract or a capability, rather than
-depending on hello_world's copy.
-
-This does real JSON parsing via the standard library, needing no
-external dependency to do it -- clients/rust/ also does real parsing now
-(serde_json), a real dependency it depends on directly (Cargo, not bare
-rustc); the difference here is Python's own stdlib already includes one.
+Lives inside this sample, not under bridge/ (not part of the Bridge
+implementation) and not at the repo root (not shared, ecosystem-level
+infrastructure -- every consumer is a capability inside this one
+sample). Uses the standard library's real JSON parser -- clients/rust/
+uses a real one too (serde_json), just an external dependency there
+since Rust's stdlib doesn't include one.
 """
 
 from __future__ import annotations

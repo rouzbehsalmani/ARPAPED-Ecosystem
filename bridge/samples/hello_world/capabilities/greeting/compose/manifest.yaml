@@ -1,10 +1,10 @@
 # Sample capability manifest, valid against schemas/capability-manifest.schema.json.
-# Co-located with its executor in the owning package, per R3.
+# Co-located with its executor, per R3.
 #
 # executor_kind: factory -- this capability declares console.write as a
-# dependency (see ../../../contracts/greeting.compose.contract.yaml) and
-# needs live access to it, so its executor is a factory: (dependencies) ->
-# executor, invoked once at assembly time. See executor.py.
+# dependency (../../../contracts/greeting.compose.contract.yaml) and
+# needs live access to it, so its executor is a factory: (dependencies)
+# -> executor, invoked once at assembly time. See executor.py.
 capability_id: greeting.compose
 contract: bridge/samples/hello_world/contracts/greeting.compose.contract.yaml
 contract_version: "1.0.0"
