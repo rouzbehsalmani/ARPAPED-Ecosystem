@@ -30,5 +30,5 @@ def execute(operation, input, policy):
     formatter = _FORMATTERS.get(format_)
     if formatter is None:
         raise BridgeError("INVALID_INPUT", "execution", f"format must be one of {sorted(_FORMATTERS)}, got {format_!r}")
-    print(formatter(message))
+    print(formatter(message), flush=True)  # see capabilities/console/write/executor.py's comment on flush=True
     return {}

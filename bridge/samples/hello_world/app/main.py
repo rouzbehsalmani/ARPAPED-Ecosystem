@@ -5,83 +5,77 @@ the single request-construction point (app/requests.py) and then calls the
 handle that comes back. Nothing here prints anything; that's console.write's
 job.
 
-The first three `resolve` calls below take no `contract_version` at all --
-it comes from this app's own declared dependencies (app/requests.py,
-app/dependencies.yaml), the same "declared once, never restated" pattern a
-capability's own executor factory uses for ITS dependencies
-(bridge/bridge.py's `Dependencies`). The fourth call is different: it's a
-deliberate one-off proof, not a normal dependency, so it goes through
-`resolve_pinned` and states its version explicitly right there -- there is
-no default on that path either (see app/requests.py). A default would mean
-"whichever version tie-breaking happens to pick" -- an implicit choice
-nobody actually made. Either way, a missing or undeclared version is an
-immediate, loud failure, never a quiet wrong answer.
+Every `resolve` call below takes just a declared name and an operation --
+no `contract_version`, no `implementation_id`. Each name (`console_write`,
+`greeting_compose`, `console_write_legacy`, `console_write_rust`) is
+declared once, in app/dependencies.yaml, with exactly the capability_id,
+version, and (where it matters) implementation_id that name means -- the
+same "declared once, never restated" pattern a capability's own executor
+factory uses for ITS dependencies (bridge/bridge.py's `Dependencies`),
+just keyed by name instead of capability_id so the same capability
+(console.write) can be declared more than once, pinned differently for
+different purposes. There is no default anywhere in this chain: a name
+that isn't declared fails loudly (see app/requests.py).
 
 Calling `resolve` once and reusing the handle for both of the first two
-calls is the "discover once, call many times" pattern: `console.write`'s
+calls is the "discover once, call many times" pattern: `console_write`'s
 discovery only runs once, while each `call` still gets its own fresh
 policy_evaluated / selected / executed trace.
 
-The first call also passes `on_stage`, observing each trace stage live as
-the Bridge reaches it (bridge/bridge.py) instead of only seeing the trace
-once the call has already returned — the same mechanism a verification
-harness uses (bounded per-stage timeout, via `Bridge.handle_with_timeout`)
-so a hung capability operation fails fast and diagnosably instead of
-blocking an unattended pipeline forever (2-RULES.md R5).
-
-The third call, to `greeting.compose`, proves capability-to-capability
+The third call, to `greeting_compose`, exercises capability-to-capability
 calls (2-RULES.md R4): that capability's executor factory resolved
 console.write once (see capabilities/greeting/compose/executor.py) and
-calls it through the Bridge, same as this module does — a real, nested,
-fully-traced request, never a shortcut. Its own trace reaching `executed`
-is only possible if that nested call itself completed the full
-validated/discovered/policy_evaluated/selected/executed path.
+calls it through the Bridge, same as this module does -- a real, nested,
+fully-traced request, never a shortcut.
 
 Both console.write versions are genuinely alive, each with its own real,
 callable implementation, not just declared: contracts/console.write.contract.yaml's
 `versions` holds 1.0.0 and 2.0.0 as peers (2-RULES.md R2)
-(capabilities/console/write/ and capabilities/console/write_v2/). The first
-two calls resolve at this app's declared pin (>=2.0.0, console.write.v2,
-the contract's default -- identity.version) and use `message`; the fourth
-explicitly pins <2.0.0 (console.write.default) through `resolve_pinned` and
-uses `text`. The pin alone determines which implementation each call reaches.
+(capabilities/console/write/ and capabilities/console/write_v2/). `console_write`
+resolves at this app's declared pin (>=2.0.0, console.write.v2, the
+contract's default -- identity.version) and uses `message`; `console_write_legacy`
+is a deliberate proof, not an ongoing dependency, declared separately at
+<2.0.0 (console.write.default) and uses `text`. The declared pin alone
+determines which implementation each name reaches.
 
 2.0.0 is more than a renamed field: the second call also passes
 `format: "uppercase"`, an option 1.0.0 has no equivalent for
 (capabilities/console/write_v2/executor.py) -- a real, exercised
 capability difference between the two versions, not just a cosmetic one.
 
-Run from the repository root:
+`console_write_rust` shows a capability can be implemented in a language
+other than this Bridge's own (executor_kind: process,
+bridge/process_executor.py): `console.write.rust`
+(capabilities/console/write_rust/) is a second, real implementation of the
+SAME console.write 2.0.0 operation, written in Rust, spawned as a separate
+process and reached over loopback TCP -- never imported. Its priority
+(150) is below console.write.v2's (200), so it never becomes the default
+for `console_write`'s own pin; it's declared under its own name, with its
+own implementation_id, precisely so it's reached regardless of priority
+ordering -- the same posture `console_write_legacy` already has toward
+`console_write`.
+
+Run from the repository root (build the Rust executor first -- see
+capabilities/console/write_rust/manifest.yaml):
     python -m bridge.samples.hello_world.app.main
 """
 
-from bridge.samples.hello_world.app.requests import resolve, resolve_pinned
+from bridge.samples.hello_world.app.requests import resolve
 
 
 def main():
-    writer = resolve("console.write", "write")
+    writer = resolve("console_write", "write")
+    writer.call({"message": "This is a test of the Bridge's console.write capability."})
+    writer.call({"message": "Hello, world!", "format": "uppercase"})
 
-    stages_seen = []
-    first = writer.call(
-        {"message": "This is a test of the Bridge's console.write capability."},
-        on_stage=stages_seen.append,
-    )
-    assert first.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
-    assert tuple(stages_seen) == first.trace
-    assert first.implementation_id == "console.write.v2"
+    composer = resolve("greeting_compose", "compose")
+    composer.call({"name": "ARPAPED"})
 
-    second = writer.call({"message": "Hello, world!", "format": "uppercase"})
-    assert second.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
-    assert second.implementation_id == "console.write.v2"
+    writer_v1 = resolve("console_write_legacy", "write")
+    writer_v1.call({"text": "console.write 1.0.0 is real and independently callable."})
 
-    composer = resolve("greeting.compose", "compose")
-    third = composer.call({"name": "ARPAPED"})
-    assert third.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
-
-    writer_v1 = resolve_pinned("console.write", "write", contract_version="<2.0.0")
-    fourth = writer_v1.call({"text": "console.write 1.0.0 is real and independently callable."})
-    assert fourth.trace == ("validated", "discovered", "policy_evaluated", "selected", "executed")
-    assert fourth.implementation_id == "console.write.default"
+    writer_rust = resolve("console_write_rust", "write")
+    writer_rust.call({"message": "This line is printed by a Rust process, through the Bridge."})
 
 
 if __name__ == "__main__":

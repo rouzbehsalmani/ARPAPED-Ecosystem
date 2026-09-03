@@ -1,0 +1,28 @@
+# Sample capability manifest, valid against schemas/capability-manifest.schema.json.
+#
+# A SECOND, independent implementation of console.write's 2.0.0 operation --
+# same contract, same contract_version, written in Rust instead of Python,
+# to prove executor_kind: process end to end (2-RULES.md R4/R5,
+# bridge/process_executor.py). priority is below console.write.v2's (200),
+# so it stays reachable only by an explicit implementation_id pin
+# (app/main.py's fifth call), never silently becoming the default for an
+# unpinned resolve -- the same posture 1.0.0 already has.
+#
+# executor.rs is NOT compiled automatically. Build it once with (Windows;
+# on Linux/Mac drop the .exe from both the -o name and executor: below --
+# a bare path needs no recognized extension on those platforms):
+#   rustc executor.rs -o console_write_rust.exe
+# run from this directory (see ../../../README.md "A capability in
+# another language"). The compiled binary is not committed -- it's
+# platform-specific, same posture the generated capability catalog has
+# toward its own build step.
+capability_id: console.write
+contract: bridge/samples/hello_world/contracts/console.write.contract.yaml
+contract_version: "2.0.0"
+implementations:
+  - implementation_id: console.write.rust
+    version: "2.0.0"
+    operations: [write]
+    executor_kind: process
+    executor: bridge/samples/hello_world/capabilities/console/write_rust/console_write_rust.exe
+    priority: 150

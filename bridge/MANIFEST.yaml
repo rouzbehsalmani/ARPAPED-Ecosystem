@@ -53,7 +53,11 @@ bridge:
       bridge/bridge.py) scoped to that contract's declared
       dependencies.capabilities (2-RULES.md R4), and verifies the whole
       declared dependency graph is acyclic before registering or invoking
-      any factory (R5).
+      any factory (R5). For an implementation entry with executor_kind:
+      process, spawns the named program once instead of importing anything
+      (see bridge/process_executor.py), and verifies it actually started
+      before registering it (R5) — the mechanism that lets a capability be
+      implemented in a language other than this Bridge's own.
 
 samples:
   location: bridge/samples/

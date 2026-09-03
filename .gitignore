@@ -2,3 +2,11 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+*.pdb
+
+# Locally-built, platform-specific process executor (executor_kind:
+# process) -- not committed, same posture as any other build artifact.
+# See bridge/samples/hello_world/capabilities/console/write_rust/manifest.yaml.
+# *.pdb above already covers the debug symbols rustc writes alongside it.
+bridge/samples/hello_world/capabilities/console/write_rust/console_write_rust
+bridge/samples/hello_world/capabilities/console/write_rust/console_write_rust.exe

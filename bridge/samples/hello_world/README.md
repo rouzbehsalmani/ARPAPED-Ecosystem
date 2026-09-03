@@ -24,47 +24,42 @@ capabilities/
   console/write_v2/
     manifest.yaml                 a SECOND manifest for console.write, at contract_version 2.0.0
     executor.py                   given message (renamed from text) and an optional format, writes it
+  console/write_rust/
+    manifest.yaml                 a THIRD manifest for console.write 2.0.0 — executor_kind: process
+    executor.rs                   not Python — see "A capability in another language"
   greeting/compose/
     manifest.yaml                 executor_kind: factory — see "Capability-to-capability calls"
     executor.py                   resolves console.write once, calls it through the Bridge
 build_catalog.py                  generates capability-catalog.jsonl (Phase 8, Publish)
 capability-catalog.jsonl          generated — see "Capability catalog" below
 app/
-  dependencies.yaml              this app's own declared dependencies — same shape as a contract's
-  requests.py                     the single request-construction point (R6) — exposes resolve()/resolve_pinned()
-  main.py                         the entry point — decides nothing, resolves once per capability
+  dependencies.yaml              this app's own declared dependencies — keyed by name, not capability_id
+  requests.py                     the single request-construction point (R6) — exposes resolve(name, operation)
+  main.py                         the entry point — decides nothing, resolves once per declared name
 ```
 
-`app/main.py` calls `requests.resolve("console.write", "write")` once and
+`app/main.py` calls `requests.resolve("console_write", "write")` once and
 gets back a handle, then calls `.call(...)` on that handle for each request
 (discover once, call many times) instead of re-running discovery every
-time. No `contract_version` is passed at the call site — `resolve` reads it
-from `app/dependencies.yaml`, this app's own declared dependencies, the
-same shape a capability contract's `dependencies.capabilities` uses and
-resolved through the same `Dependencies` mechanism (bridge/bridge.py) a
-capability's own executor factory relies on. A capability id that isn't
-declared there raises `BRIDGE_UNDECLARED_DEPENDENCY`; there is no silent
-default anywhere in this chain (`app/dependencies.yaml`, `app/requests.py`,
-`Bridge.resolve`) — a caller must always have stated what it needs
-somewhere, never silently inherit whatever tie-breaking among registered
-versions happens to produce. A genuine one-off need outside the app's
-normal declared dependencies still states its version explicitly, through
-`requests.resolve_pinned(...)` (see the fourth call, below). Only the
-discovery stage is cached — policy is still evaluated and a
-candidate is still selected and executed fresh on every `call`, through the
-same `bridge.handle` every request goes through — and the handle re-checks
-its cached candidates' live state on each use (self-healing by
-re-discovering if they've all become unusable), so it can never return a
-stale result. `Bridge.resolve`/`BoundCapability` (bridge/bridge.py) are what
-actually build the request; `app/requests.py` stays the only application
-module that reaches the Bridge at all.
-
-The first call also passes `on_stage`, observing each trace stage live as
-the Bridge reaches it instead of only seeing the trace once the call has
-returned. This is the same mechanism a verification harness relies on for
-bounded, per-stage timeouts (`Bridge.handle_with_timeout`) — a capability
-operation that never progresses is a hard failure, detected fast, instead of
-an unattended pipeline hanging forever with nobody to notice (2-RULES.md R5).
+time. Neither `contract_version` nor `implementation_id` is passed at the
+call site — `resolve` reads both from the named entry in
+`app/dependencies.yaml`. Unlike a capability contract's own
+`dependencies.capabilities` (keyed by capability_id, one entry per
+capability), this file is keyed by a name the app chooses, so the same
+capability_id (`console.write`) can be declared more than once under
+different names, each pinned differently for a different purpose — see
+`console_write` vs. `console_write_legacy`/`console_write_rust`, below. A
+name that isn't declared raises `BRIDGE_UNDECLARED_DEPENDENCY`; a declared
+entry missing `contract_version` fails just as loudly, at load time —
+there is no silent default anywhere in this chain (`app/dependencies.yaml`,
+`app/requests.py`, `Bridge.resolve`). Only the discovery stage is cached —
+policy is still evaluated and a candidate is still selected and executed
+fresh on every `call`, through the same `bridge.handle` every request goes
+through — and the handle re-checks its cached candidates' live state on
+each use (self-healing by re-discovering if they've all become unusable),
+so it can never return a stale result. `Bridge.resolve`/`BoundCapability`
+(bridge/bridge.py) are what actually build the request; `app/requests.py`
+stays the only application module that reaches the Bridge at all.
 
 ## Capability-to-capability calls
 
@@ -90,8 +85,8 @@ constraint — never `"*"`, never a value the factory chooses.
 `console.write` genuinely has a 2.0.0 (`capabilities/console/write_v2/`,
 real and registered, see below), and `greeting.compose` is unaffected by
 it: its pin keeps it resolving `console.write.default` (1.0.0), never the
-newer version, and `app/main.py` asserts this directly rather than just
-trusting it.
+newer version -- observable directly in the printed output (see "Run"),
+not just declared.
 
 ## console.write's two versions
 
@@ -116,15 +111,50 @@ pins it explicitly.
 Priority only breaks ties among candidates that already satisfy a given
 version constraint — it is never a substitute for stating that constraint.
 `app/main.py`'s calls all resolve at a stated version, even where it isn't
-typed at the call site: the first two resolve through the app's declared
-dependency (`app/dependencies.yaml` pins `>=2.0.0,<3.0.0`) and land on
-`console.write.v2` (`message`); `greeting.compose`'s own dependency pin
-(`<2.0.0`) lands on `console.write.default`; a fourth call, a deliberate
-proof rather than a normal dependency, explicitly pins `<2.0.0` through
-`resolve_pinned` and asserts the same. 1.0.0's exact interface is right there in
+typed at the call site: `console_write` (`app/dependencies.yaml` pins
+`>=2.0.0,<3.0.0`) lands on `console.write.v2` (`message`);
+`greeting.compose`'s own dependency pin (`<2.0.0`) lands on
+`console.write.default`; `console_write_legacy`, a deliberate proof rather
+than a normal dependency, is declared separately at `<2.0.0` and lands on
+the same implementation. 1.0.0's exact interface is right there in
 `versions["1.0.0"]`, a full peer of 2.0.0's, and the assembler checks every
 manifest's declared operations against whichever version it actually
 claims, not merely a version number (2-RULES.md R2).
+
+## A capability in another language
+
+`console.write.rust` (`capabilities/console/write_rust/`) is a THIRD
+implementation of the same `console.write` 2.0.0 operation — same
+contract, same `contract_version`, but its manifest sets
+`executor_kind: process` and its `executor:` names a compiled program
+instead of a `module:attr` path. `bridge/assembler.py` spawns it once, at
+assembly time, into a `ProcessExecutorPool` (`bridge/process_executor.py`)
+instead of importing anything; the pool becomes the executor and is
+verified to have actually connected before being registered (2-RULES.md
+R5, gate 6) — a path that never resolves fails assembly loudly, not
+silently.
+
+`executor.rs` is real Rust, not a stand-in: it connects back over loopback
+TCP (the port is handed to it in `ARPAPED_BRIDGE_PORT`) and speaks the
+same `execute(operation, input, policy) -> output` contract every executor
+has, one newline-delimited JSON message per call — it never sees
+`request_id`, `contract_version`, or the trace; that stays the Bridge's
+job. It is NOT compiled automatically; build it once (from this
+directory, on Windows):
+
+```
+rustc capabilities/console/write_rust/executor.rs -o capabilities/console/write_rust/console_write_rust.exe
+```
+
+(on Linux/Mac, drop `.exe` from both the `-o` name and the manifest's
+`executor:`). The compiled binary isn't committed — it's platform-specific,
+the same posture the catalog already has toward needing a build step.
+
+Its `priority` (150) is below `console.write.v2`'s (200), so it's reached
+only by its own declared name, `console_write_rust`, which pins
+`implementation_id` explicitly (`app/dependencies.yaml`) — it never
+silently becomes the default for `console_write`'s own, separately
+declared pin, the same posture `console_write_legacy` already has.
 
 ## Capability catalog
 
@@ -155,17 +185,24 @@ From the repository root:
 python -m bridge.samples.hello_world.app.main
 ```
 
-Expected output — four lines, all printed by a console.write executor
+(Build the Rust executor first — see "A capability in another language" —
+or the fifth call below will fail assembly with a clear error naming the
+missing program, rather than a confusing one.)
+
+Expected output — five lines, all printed by a console.write executor
 (2.0.0 directly for the first two; 1.0.0 via the nested Bridge call for
-`greeting.compose`'s, and directly again for the fourth), never by
-`app/main.py`:
+`greeting.compose`'s; directly again for the fourth; and the Rust process
+for the fifth), never by `app/main.py`:
 
 ```
 This is a test of the Bridge's console.write capability.
 HELLO, WORLD!
 Greetings, ARPAPED!
 console.write 1.0.0 is real and independently callable.
+This line is printed by a Rust process, through the Bridge.
 ```
 
 The second line is uppercase because that call passes `format: "uppercase"`
-— 2.0.0's optional feature 1.0.0 has no equivalent for.
+— 2.0.0's optional feature 1.0.0 has no equivalent for. The fifth line is
+printed by a genuinely separate process (`console.write.rust`), not the
+Python interpreter running `app/main.py` at all.

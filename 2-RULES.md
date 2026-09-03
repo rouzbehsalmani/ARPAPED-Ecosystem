@@ -169,6 +169,18 @@ assembler and Bridge (`bridge/MANIFEST.yaml`) implement this via an
 `executor_kind: factory` manifest entry, given resolved access to its
 declared dependencies at assembly time.
 
+An executor's `execute(operation, input, policy) -> output` contract
+(Glossary) is honored either by a direct in-process call or by an
+out-of-process protocol that mirrors it exactly — the resolved assembler
+and Bridge implement the latter via an `executor_kind: process` manifest
+entry, whose `executor` names a program instead of an importable path.
+Neither the request path, discovery, policy, nor selection can tell the
+difference; only assembly, resolved from `bridge/MANIFEST.yaml`, knows how
+a given implementation is actually reached, never hard-coded to one
+language. Spawning that program is launching ongoing work: R5's condition
+6 applies exactly as it does to any other launched service — it must be
+verified to have actually started before being registered, never assumed.
+
 A declared dependency MAY pin the version constraint it was actually built
 against, not just the capability id — a bare id means any registered
 version, same as leaving it unpinned. When pinned, resolution always uses
@@ -436,15 +448,21 @@ stated is not "average" by accident. Silently guessing here is exactly how
 a consumer ends up resolved against a candidate nobody actually chose.
 
 "Stated" does not mean "restated at every call site." The single
-request-construction point (R6) may declare its own dependencies the same
-way a capability contract does (R4), and resolve through the identical
-mechanism — reading the version it needs from that one declared place
-instead of a caller passing it in fresh on every call. This still fails
-loudly: resolving a capability the declared dependencies don't name is an
-immediate error, not a silent "any version." A genuine one-off need outside
-the declared set still requires an explicit, stated version at the point
-it's resolved — declaring dependencies once is a convenience over restating
-them, never a way to make an unstated version implicit again.
+request-construction point (R6) may declare its own dependencies, each
+under a name it chooses, and resolve through that declared list — reading
+the capability, version, and (where it matters) which specific
+implementation from one declared place instead of a caller passing them
+in fresh on every call. Unlike a capability contract's own
+`dependencies.capabilities` (R4), which is keyed by capability id, an
+application's declared list may be keyed by name instead — so the same
+capability can be declared more than once, pinned differently for
+different purposes, without forcing every use of it into lockstep. This
+still fails loudly: resolving a name the declared list doesn't contain is
+an immediate error, never a silent "any version" or "whichever tie-breaking
+picks." Declaring dependencies once is a convenience over restating them,
+never a way to make an unstated version implicit again — every declared
+entry still states its own version explicitly; there is no default there
+either.
 
 ## Capability reference discipline
 

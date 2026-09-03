@@ -167,20 +167,31 @@ calls through that one operation. Nothing else constructs a request or calls
 the Bridge's handle operation directly (the verification harness in step 6
 is the one exception, per R6).
 
-This module may also hold its own small declared-dependencies list — the
-same shape a capability contract uses for `dependencies.capabilities` — and
-resolve through it, so callers get a capability+operation handle without
-restating a version constraint at every call site; only genuinely stated
-once, in that list, upgrading it is a single edit instead of a hunt across
-every call site. A one-off need outside that declared list still states its
-version explicitly, right where it's resolved — this is a convenience over
-restating, never a way to make an unstated version implicit (2-RULES.md
+This module may also hold its own small declared-dependencies list, each
+entry named by whatever this module chooses to call it, and resolve
+through that list by name — so callers get a capability+operation handle
+without restating a version constraint (or which specific implementation)
+at every call site; only genuinely stated once, in that list, upgrading it
+is a single edit instead of a hunt across every call site. Unlike a
+capability contract's own `dependencies.capabilities`, which is keyed by
+capability id, this list may be keyed by name instead, so the same
+capability can be declared more than once, pinned differently for
+different purposes — useful here in a way it rarely is for a single
+capability's own dependency on another. Every declared entry still states
+its own version explicitly; there is no default there either, and
+resolving a name the list doesn't contain still fails loudly (2-RULES.md
 "No silent defaults on what resolution depends on").
 
 This module is the only structural exception (R6). The process entry point
 that calls it is ordinary consumer code, not a second exemption (R9) — its
 top-level loop should do little more than call capabilities in sequence
 through this module (step 2).
+
+An implementation's executor may also run out-of-process instead of being
+imported — for a capability implemented in a language other than this
+Bridge's own. Whatever launches it is still bound by the same duty as any
+other launched service (R5, gate 6): verify, synchronously and promptly,
+that it actually started before treating it as available, never assume.
 
 ## 5. Assemble every manifest at startup (Phase 8 mechanics, R8's indirections)
 

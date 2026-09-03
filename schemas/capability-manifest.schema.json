@@ -52,13 +52,13 @@
           },
           "executor": {
             "type": "string",
-            "description": "Reference to the executor as 'module:attr'. The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', this instead names a factory — (dependencies) -> executor — called once at assembly time."
+            "description": "Reference to the executor. For executor_kind 'direct' or 'factory' (the default 'direct'), this is 'module:attr'. For executor_kind 'process', this instead names a program to run, spawned once at assembly time and reached over an out-of-process protocol that mirrors the same execute(operation, input, policy) -> output contract. The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', 'module:attr' names a factory — (dependencies) -> executor — called once at assembly time."
           },
           "executor_kind": {
             "type": "string",
-            "enum": ["direct", "factory"],
+            "enum": ["direct", "factory", "process"],
             "default": "direct",
-            "description": "'direct' (default): executor IS the registration-unaware executor. 'factory': executor is invoked once at assembly time with a Dependencies scoped to this contract's dependencies.capabilities (R4), and its return value becomes the executor — for a capability that needs live access to another capability during its own execution, not just pre-computed input from its caller."
+            "description": "'direct' (default): executor IS the registration-unaware executor. 'factory': executor is invoked once at assembly time with a Dependencies scoped to this contract's dependencies.capabilities (R4), and its return value becomes the executor — for a capability that needs live access to another capability during its own execution, not just pre-computed input from its caller. 'process': executor names a program, spawned once at assembly time, that becomes the executor — for a capability implemented in a language other than the resolved Bridge's own (bridge/MANIFEST.yaml)."
           },
           "priority": {
             "type": "integer",

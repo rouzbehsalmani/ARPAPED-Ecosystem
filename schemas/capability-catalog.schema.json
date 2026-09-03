@@ -38,8 +38,8 @@
     },
     "executor_path": {
       "type": "string",
-      "pattern": "^[^:]+:[^:]+$",
-      "description": "module:attr reference, imported lazily by the runtime loader — never eagerly by the catalog itself."
+      "minLength": 1,
+      "description": "For executor_kind 'direct'/'factory': a module:attr reference, imported lazily by the runtime loader — never eagerly by the catalog itself. For executor_kind 'process': a program name, spawned lazily by the runtime loader instead of imported."
     },
     "priority": {
       "type": "integer",
@@ -76,9 +76,9 @@
     },
     "executor_kind": {
       "type": "string",
-      "enum": ["direct", "factory"],
+      "enum": ["direct", "factory", "process"],
       "default": "direct",
-      "description": "'direct' (default): executor_path IS the executor. 'factory': executor_path is invoked once with a Dependencies scoped to `dependencies`, and its return value becomes the executor."
+      "description": "'direct' (default): executor_path IS the executor. 'factory': executor_path is invoked once with a Dependencies scoped to `dependencies`, and its return value becomes the executor. 'process': executor_path names a program, spawned once, that becomes the executor -- for a capability implemented in a language other than the resolved Bridge's own."
     },
     "description": {
       "type": "string",
@@ -93,5 +93,18 @@
       "description": "As declared in the manifest, for provenance/debugging only."
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "if": {
+    "properties": {"executor_kind": {"const": "process"}},
+    "required": ["executor_kind"]
+  },
+  "then": {},
+  "else": {
+    "properties": {
+      "executor_path": {
+        "pattern": "^[^:]+:[^:]+$",
+        "description": "module:attr, required for executor_kind 'direct' (the default) and 'factory'."
+      }
+    }
+  }
 }

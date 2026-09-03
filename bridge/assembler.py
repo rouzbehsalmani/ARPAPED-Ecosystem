@@ -41,6 +41,17 @@ creation from a pre-existing tree, or recovery/compaction), and
 walking ``capabilities/``). All three reuse ``from_manifest`` and
 ``_load_executor`` — no parsing logic is duplicated for the catalog path.
 
+An implementation entry may instead set ``executor_kind: process`` — its
+``executor`` names a program to run, not a ``module:attr`` path.
+``_build_implementation`` spawns it once, here, at assembly time, through
+``ProcessExecutorPool`` (``bridge/process_executor.py``) instead of
+importing anything, and the resulting pool becomes the executor: still
+exactly ``execute(operation, input, policy) -> output``, just carried out
+over a small out-of-process protocol instead of an in-process call. This
+is what lets a capability be implemented in a language other than this
+Bridge's own, without the Bridge's request path, discovery, policy, or
+selection ever needing to know the difference.
+
 A capability's contract may declare ``dependencies.capabilities`` (R4) —
 other capabilities it needs *live* access to during its own execution, not
 just pre-computed input data from its caller. An implementation entry opts
@@ -147,16 +158,16 @@ class ManifestEntry:
 
         if not isinstance(implementation_id, str) or not implementation_id.strip():
             raise AssemblerError("an implementation entry must declare a non-empty 'implementation_id'")
+        if executor_kind not in ("direct", "factory", "process"):
+            raise AssemblerError(f"'executor_kind' must be 'direct', 'factory', or 'process', got {executor_kind!r}")
         if not isinstance(executor_path, str) or not executor_path.strip():
-            raise AssemblerError(f"an implementation must declare an 'executor' module:attr path, got {executor_path!r}")
-        if _EXECUTOR_SPLIT not in executor_path:
-            raise AssemblerError(f"executor must be 'module:attr', got {executor_path!r}")
+            raise AssemblerError(f"an implementation must declare a non-empty 'executor', got {executor_path!r}")
+        if executor_kind in ("direct", "factory") and _EXECUTOR_SPLIT not in executor_path:
+            raise AssemblerError(f"executor must be 'module:attr' for executor_kind {executor_kind!r}, got {executor_path!r}")
         if not isinstance(operations, list) or not operations or not all(
             isinstance(op, str) and op.strip() for op in operations
         ):
             raise AssemblerError("an implementation entry must declare a non-empty 'operations' list")
-        if executor_kind not in ("direct", "factory"):
-            raise AssemblerError(f"'executor_kind' must be 'direct' or 'factory', got {executor_kind!r}")
 
         package_version = entry.get("version", contract_version)
         if not isinstance(package_version, str) or not package_version.strip():
@@ -427,27 +438,38 @@ def _build_implementation(
     with a ``Dependencies`` scoped to ``dependencies`` (R4) — its return
     value becomes the executor. Requires ``bridge`` (fail closed otherwise):
     a factory with no Bridge to resolve its dependencies through can't do
-    its job.
+    its job. ``executor_kind: "process"``: ``executor`` names a program,
+    spawned once, here, into a ``ProcessExecutorPool`` (bridge/process_executor.py)
+    that becomes the executor — no import, no Python callable, for a
+    capability implemented in another language.
     """
 
-    raw = _load_executor(executor_path)
-    if executor_kind == "factory":
-        if bridge is None:
-            raise AssemblerError(
-                f"{implementation_id!r} declares executor_kind='factory' but no Bridge was "
-                "given to build its Dependencies — construct the Bridge before assembling "
-                "(see app/requests.py's ordering)"
-            )
-        from .bridge import Dependencies
+    if executor_kind == "process":
+        from .process_executor import ProcessExecutorError, ProcessExecutorPool
 
-        executor = raw(Dependencies(bridge, dict(dependencies)))
-        if not callable(executor):
-            raise AssemblerError(
-                f"executor factory {executor_path!r} must return a callable executor, "
-                f"got {type(executor).__name__}"
-            )
+        try:
+            executor = ProcessExecutorPool(executor_path)
+        except ProcessExecutorError as exc:
+            raise AssemblerError(f"{implementation_id!r}: {exc}") from exc
     else:
-        executor = raw
+        raw = _load_executor(executor_path)
+        if executor_kind == "factory":
+            if bridge is None:
+                raise AssemblerError(
+                    f"{implementation_id!r} declares executor_kind='factory' but no Bridge was "
+                    "given to build its Dependencies — construct the Bridge before assembling "
+                    "(see app/requests.py's ordering)"
+                )
+            from .bridge import Dependencies
+
+            executor = raw(Dependencies(bridge, dict(dependencies)))
+            if not callable(executor):
+                raise AssemblerError(
+                    f"executor factory {executor_path!r} must return a callable executor, "
+                    f"got {type(executor).__name__}"
+                )
+        else:
+            executor = raw
 
     return CapabilityImplementation(
         implementation_id=implementation_id,
