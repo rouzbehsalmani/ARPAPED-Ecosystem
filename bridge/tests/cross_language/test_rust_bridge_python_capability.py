@@ -1,10 +1,4 @@
-"""Cross-language invariant: Rust Bridge -> Python process capability.
-
-The Rust Bridge is intentionally a small reference implementation for this
-branch. It consumes the same generated capability catalog and the same
-language-neutral process-executor protocol used by the production Python
-Bridge. The capability is the existing Python console.write.process.
-"""
+"""Cross-language invariant: Rust Bridge -> Python process capability."""
 
 from __future__ import annotations
 
@@ -23,13 +17,23 @@ RUST_BRIDGE = ROOT / "bridge" / "tests" / "cross_language" / "rust_bridge" / "Ca
 
 
 def make_catalog() -> Path:
-    # Rust's test Bridge deliberately consumes the same catalog information,
-    # but requires process executor argv as an array because that is the
-    # protocol boundary it owns.
-    entries = [json.loads(line) for line in CATALOG.read_text(encoding="utf-8").splitlines() if line.strip()]
-    entry = next(e for e in entries if e["implementation_id"] == "console.write.process")
+    # Production catalog uses `operations`; the small Rust test Bridge models
+    # this as `operation`. Normalize only at the test boundary. The production
+    # catalog, Contract and Capability are not changed by this adapter.
+    entries = [
+        json.loads(line)
+        for line in CATALOG.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    entry = next(
+        e for e in entries if e["implementation_id"] == "console.write.process"
+    )
+    entry["operation"] = entry.pop("operations")
     entry["executor_path"] = [sys.executable, str(PY_CAP)]
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".jsonl", delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", suffix=".jsonl", delete=False
+    ) as f:
         json.dump(entry, f)
         f.write("\n")
         return Path(f.name)
@@ -61,7 +65,13 @@ def main() -> None:
         assert response["ok"] is True, response
         assert response["implementation_id"] == "console.write.process"
         assert response["output"] == {}
-        assert response["trace"] == ["validated", "discovered", "policy_evaluated", "selected", "executed"]
+        assert response["trace"] == [
+            "validated",
+            "discovered",
+            "policy_evaluated",
+            "selected",
+            "executed",
+        ]
         print("PASS: Rust Bridge -> Python capability")
     finally:
         catalog.unlink(missing_ok=True)
