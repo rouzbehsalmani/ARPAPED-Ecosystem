@@ -1,0 +1,27 @@
+name: Cross-Language Bridge
+
+on:
+  push:
+    branches:
+      - test/cross-language-bridge
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  cross-language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Python dependencies
+        run: python -m pip install pyyaml
+      - name: Build Rust capability
+        run: cargo build --manifest-path bridge/samples/hello_world/capabilities/greeting/compose_process/Cargo.toml
+      - name: Run Python Bridge -> Rust capability
+        run: python bridge/tests/cross_language/test_python_bridge_rust_capability.py
+      - name: Run Rust Bridge -> Python capability
+        run: python bridge/tests/cross_language/test_rust_bridge_python_capability.py
