@@ -42,6 +42,16 @@ assembly loudly (`ProcessExecutorError`, wrapped by the assembler into
 `AssemblerError`) rather than registering a capability that was never
 actually verified to have started (2-RULES.md R5, gate 6).
 
+`pool_size` workers are spawned concurrently, not one at a time -- each
+spawn is mostly idle wait (process launch, then a blocking socket
+accept), and each binds its own ephemeral port, so nothing about one
+spawn depends on another finishing first. With an interpreted language's
+real startup cost (an interpreter, not just a compiled binary), spawning
+serially would multiply that cost by `pool_size` for every single
+process-kind implementation an ecosystem assembles at once; concurrent
+spawning keeps one pool's startup cost close to its single slowest
+worker instead.
+
 Loopback TCP, not a Unix domain socket: `socket.AF_UNIX` is not available
 on every platform this reference Bridge runs on.
 """
@@ -49,6 +59,7 @@ on every platform this reference Bridge runs on.
 from __future__ import annotations
 
 import atexit
+import concurrent.futures
 import dataclasses
 import json
 import os
@@ -120,15 +131,20 @@ class ProcessExecutorPool:
         self._dependencies = Dependencies(bridge, dict(declared))
         self._workers: "queue.Queue[_Worker]" = queue.Queue()
         spawned: list[_Worker] = []
-        try:
-            for _ in range(pool_size):
-                worker = self._spawn_worker(startup_timeout)
-                spawned.append(worker)
-                self._workers.put(worker)
-        except Exception:
+        errors: list[Exception] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=pool_size) as pool:
+            futures = [pool.submit(self._spawn_worker, startup_timeout) for _ in range(pool_size)]
+            for future in futures:
+                try:
+                    spawned.append(future.result())
+                except Exception as exc:
+                    errors.append(exc)
+        if errors:
             for worker in spawned:
                 _terminate(worker)
-            raise
+            raise errors[0]
+        for worker in spawned:
+            self._workers.put(worker)
         atexit.register(self._shutdown)
 
     def _spawn_worker(self, startup_timeout: float) -> _Worker:
