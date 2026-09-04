@@ -12,6 +12,14 @@ Not a capability: like build_catalog.py is Publish-phase tooling for the
 Bridge, this is Evolution-phase tooling for DEP -- nothing here is
 resolved through the Registry or reached over the Bridge.
 
+Generic, like build_catalog.py's own machinery (bridge/assembler.py):
+this module has no opinion on WHERE an episode corpus lives -- `episodes_dir`
+is always given explicitly by the caller, never defaulted to a path
+inside dep/ itself. A sample's own episodes belong under that sample
+(e.g. samples/hello_world/state/episodes/, alongside its
+verification-record.json), the same way its own capability-catalog.jsonl
+belongs under it, not inside bridge/.
+
 An episode's identity is its verification_record's own `verification_id`
 (already required, already unique per verification-record.schema.json) --
 no new identifier scheme is invented. Episodes are historical fact, never
@@ -28,7 +36,6 @@ import jsonschema
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCHEMAS_DIR = _REPO_ROOT / "schemas"
-_DEFAULT_EPISODES_DIR = Path(__file__).resolve().parent / "episodes"
 
 _CYCLE_REPORT_SCHEMA = json.loads((_SCHEMAS_DIR / "agent-cycle-report.schema.json").read_text(encoding="utf-8"))
 _VERIFICATION_RECORD_SCHEMA = json.loads((_SCHEMAS_DIR / "verification-record.schema.json").read_text(encoding="utf-8"))
@@ -42,7 +49,7 @@ class EpisodeStoreError(Exception):
 def save_episode(
     cycle_report: dict[str, Any],
     verification_record: dict[str, Any],
-    episodes_dir: Path = _DEFAULT_EPISODES_DIR,
+    episodes_dir: Path,
 ) -> Path:
     """Validates `cycle_report` and `verification_record` against their
     schemas, then writes both into a new `episodes_dir/<verification_id>/`
@@ -70,7 +77,7 @@ def save_episode(
     return episode_dir
 
 
-def load_episodes(episodes_dir: Path = _DEFAULT_EPISODES_DIR) -> Iterator[dict[str, Any]]:
+def load_episodes(episodes_dir: Path) -> Iterator[dict[str, Any]]:
     """Yields `{"episode_id", "cycle_report", "verification_record"}` for
     every episode in `episodes_dir`, oldest directory name first. Missing
     `episodes_dir` yields nothing -- an empty corpus is not an error.

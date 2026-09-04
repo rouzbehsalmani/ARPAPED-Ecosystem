@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Process Executor Protocol",
-  "description": "Language-agnostic wire shape a process-kind executor (executor_kind: process, 2-RULES.md R4/R5) exchanges with the resolved Bridge, over its own connection -- one JSON object per line. Any client, in any language, reads and writes data matching these shapes; a worked example of a reference client per language lives in bridge/samples/hello_world/clients/. Distinct from schemas/bridge-protocol.schema.json, which shapes what a CONSUMER exchanges with the Bridge -- this shapes what a SPAWNED EXECUTOR exchanges with it.",
+  "description": "Language-agnostic wire shape a process-kind executor (executor_kind: process, 2-RULES.md R4/R5) exchanges with the resolved Bridge, over its own connection -- one JSON object per line. Any client, in any language, reads and writes data matching these shapes; a worked example of a reference client per language lives in samples/hello_world/clients/. Distinct from schemas/bridge-protocol.schema.json, which shapes what a CONSUMER exchanges with the Bridge -- this shapes what a SPAWNED EXECUTOR exchanges with it.",
   "$defs": {
     "invocation": {
       "type": "object",

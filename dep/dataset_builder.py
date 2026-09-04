@@ -1,6 +1,6 @@
-"""Turns the accumulated episode_store corpus into training rows
-(dep/MANIFEST.yaml's dataset_builder) -- the piece that makes "historical
-episodes" usable as data, not just an audit trail.
+"""Turns an episode_store corpus into training rows (dep/MANIFEST.yaml's
+dataset_builder) -- the piece that makes "historical episodes" usable as
+data, not just an audit trail.
 
 One row per decision, not per episode: a single cycle can decompose a
 goal into several responsibilities (1-CYCLE.md Phase 2), each independently
@@ -15,6 +15,12 @@ evaluated by whether the episode it was part of verified.
 Not a capability, same posture as episode_store.py and build_catalog.py:
 Evolution-phase tooling, not something resolved through the Registry or
 reached over the Bridge.
+
+Generic, same posture as episode_store.py: no default `episodes_dir`/
+`output_path` baked in here -- a sample calls this against its own
+episode corpus and writes its own dataset alongside it (see
+samples/hello_world/build_dataset.py), the same way it calls
+bridge/assembler.py's rebuild_catalog against its own capabilities/.
 """
 
 from __future__ import annotations
@@ -25,11 +31,8 @@ from typing import Any, Iterator
 
 from dep.episode_store import load_episodes
 
-_DEFAULT_EPISODES_DIR = Path(__file__).resolve().parent / "episodes"
-_DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent / "dataset.jsonl"
 
-
-def build_rows(episodes_dir: Path = _DEFAULT_EPISODES_DIR) -> Iterator[dict[str, Any]]:
+def build_rows(episodes_dir: Path) -> Iterator[dict[str, Any]]:
     for episode in load_episodes(episodes_dir):
         report = episode["cycle_report"]
         for decision in report["decisions"]:
@@ -45,7 +48,7 @@ def build_rows(episodes_dir: Path = _DEFAULT_EPISODES_DIR) -> Iterator[dict[str,
             }
 
 
-def build_dataset(episodes_dir: Path = _DEFAULT_EPISODES_DIR, output_path: Path = _DEFAULT_OUTPUT_PATH) -> int:
+def build_dataset(episodes_dir: Path, output_path: Path) -> int:
     """Writes one JSON object per line to `output_path`. Returns the row
     count. Rebuilds from scratch every time -- the episode corpus is the
     source of truth; this file is a derived, regenerable view of it, the
@@ -60,12 +63,3 @@ def build_dataset(episodes_dir: Path = _DEFAULT_EPISODES_DIR, output_path: Path 
             f.write("\n")
             count += 1
     return count
-
-
-def main() -> None:
-    count = build_dataset()
-    print(f"wrote {count} row(s) to {_DEFAULT_OUTPUT_PATH}")
-
-
-if __name__ == "__main__":
-    main()

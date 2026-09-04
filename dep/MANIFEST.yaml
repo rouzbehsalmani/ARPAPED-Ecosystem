@@ -49,26 +49,34 @@ dep:
     location: dep/episode_store.py
     role: >
       Durable, accumulating corpus of completed cycles -- one directory
-      per episode under dep/episodes/, keyed by the verification_record's
-      own verification_id (no new identifier scheme invented). Both
-      records are schema-validated (jsonschema, against decision_record/
-      verification_record above) before being written; an episode is
-      never silently overwritten. This is what was missing for
-      "historical episodes" to be more than a phrase in 1-CYCLE.md Phase
-      9 -- somewhere they actually accumulate across cycles, not just
-      within one.
+      per episode under a caller-given `episodes_dir`, keyed by the
+      verification_record's own verification_id (no new identifier
+      scheme invented). Both records are schema-validated (jsonschema,
+      against decision_record/verification_record above) before being
+      written; an episode is never silently overwritten. Generic, like
+      bridge/assembler.py: has no opinion on WHERE a corpus lives --
+      `episodes_dir` is always given explicitly, never defaulted to a
+      path inside dep/ itself. An application's own episodes belong
+      under that application (e.g. samples/hello_world/state/episodes/,
+      alongside its verification-record.json), the same way its own
+      capability-catalog.jsonl belongs under it, not inside bridge/. This
+      is what was missing for "historical episodes" to be more than a
+      phrase in 1-CYCLE.md Phase 9 -- somewhere they actually accumulate
+      across cycles, not just within one.
   dataset_builder:
     location: dep/dataset_builder.py
     role: >
-      Walks the episode_store corpus and emits dep/dataset.jsonl, one row
-      per decision (not per episode) -- a cycle can decompose a goal into
+      Walks a given episode corpus and emits a dataset.jsonl, one row per
+      decision (not per episode) -- a cycle can decompose a goal into
       several independently-decided responsibilities (Phase 2/4), and
       `decision`/`reason` are what a future predictor is meant to
       predict, given goal/starting_state/responsibility, with the
       episode's verification_status/resulting_state carried on every row
-      as the outcome that decision led to. Regenerable from the corpus at
-      any time, the same relationship bridge/samples/hello_world's
-      capability-catalog.jsonl has to the manifests it was built from.
+      as the outcome that decision led to. Generic, same posture as
+      episode_store.py: no default `episodes_dir`/`output_path` here --
+      see samples/hello_world/build_dataset.py for a worked example, the
+      same relationship it has to bridge/assembler.py's rebuild_catalog.
+      Regenerable from the corpus at any time.
   jepa:
     role: >
       NOT YET BUILT. The agent that does the implementation job (Phase 5

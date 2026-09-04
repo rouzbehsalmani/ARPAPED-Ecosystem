@@ -1,0 +1,19 @@
+# Sample capability manifest, valid against schemas/capability-manifest.schema.json.
+#
+# A SECOND manifest for console.write, at a newer contract_version --
+# contract_version is manifest-level, so two coexisting versions need two
+# manifest files pointing at the same contract (see ../write/manifest.yaml
+# for 1.0.0; both are peer entries under the contract's `versions`, R2/R3).
+#
+# priority: 200, higher than 1.0.0's 100, matching identity.version
+# ("2.0.0" -- the contract's default), so this wins any unpinned resolve;
+# 1.0.0 stays alive for anyone who pins it explicitly.
+capability_id: console.write
+contract: samples/hello_world/contracts/console.write.contract.yaml
+contract_version: "2.0.0"
+implementations:
+  - implementation_id: console.write.v2
+    version: "2.0.0"
+    operations: [write]
+    executor: samples.hello_world.capabilities.console.write_v2.executor:execute
+    priority: 200

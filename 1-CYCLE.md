@@ -316,7 +316,12 @@ hard failure, not grounds to wait longer (R5) — every consumer control
 through a scripted stream, an operator decision window, a reactive loop and
 injected input in the same session, regression checks for every previously
 reported defect, and a machine-readable verification record written into
-the resulting state.
+the resulting state. The strongest place to satisfy Phase 8's Gate 31 is
+here, as the harness's own last act once every check has passed
+(`dep.episode_store.save_episode(cycle_report, verification_record,
+episodes_dir)`, 0-WALKTHROUGH.md step 6) — that makes "verified" and "recorded" the same
+event, a harness failure rather than a step a later phase can forget,
+instead of two separately-rememberable actions.
 
 **Non-negotiables.** Gates 17–24, 27, 28:
 
@@ -369,12 +374,14 @@ implementation) + generic assembler build each implementation record and
 register it into the canonical Registry. Publish the decomposition per R3 —
 one contract per capability, referenced by its one or more capability-manifest
 entries; the Registry records the composition. Then record the cycle itself:
-call `dep.episode_store.save_episode(cycle_report, verification_record)`
-(`dep/MANIFEST.yaml`) with the Phase 7 verification record and this phase's
-cycle report — this is what makes the cycle an actual entry in the
-accumulating episode corpus (`dep/episodes/`), not just a record "written
-into the resulting state" and never seen again. A cycle that skips this is
-not published, regardless of what else it did.
+call `dep.episode_store.save_episode(cycle_report, verification_record,
+episodes_dir)` (`dep/MANIFEST.yaml`) with the Phase 7 verification record
+and this phase's cycle report — `episodes_dir` is this application's own
+episode corpus (e.g. `state/episodes/`, alongside its
+`state/verification-record.json`; dep/ itself has no default), and this
+call is what makes the cycle an actual entry in it, not just a record
+"written into the resulting state" and never seen again. A cycle that
+skips this is not published, regardless of what else it did.
 
 **Non-negotiables.** Gates 8, 9, 14, 31:
 
@@ -384,9 +391,9 @@ not published, regardless of what else it did.
     components contain no registration logic and swapping an implementation
     requires no consumer code change?
 31. Was this cycle recorded into the episode store (`dep.episode_store.save_episode`),
-    so its decision record and verification record accumulate in
-    `dep/episodes/` for `dep.dataset_builder` — not left unrecorded because
-    nothing in this phase's own output required it?
+    so its decision record and verification record accumulate in this
+    application's own episode corpus for `dep.dataset_builder` — not left
+    unrecorded because nothing in this phase's own output required it?
 
 **Produces.** A discoverable, registered, verified resulting state, recorded
 as one episode in the DEP corpus.

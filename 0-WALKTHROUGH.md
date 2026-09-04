@@ -22,7 +22,7 @@ line of feature code.
 Nothing here names a class, import, or exact call signature belonging to any
 one language — the canonical Bridge could be implemented in any language.
 Wherever an exact shape matters, this file points at `bridge/MANIFEST.yaml`
-(which role lives where) and `bridge/samples/hello_world/` (a real, runnable
+(which role lives where) and `samples/hello_world/` (a real, runnable
 sample app) instead of restating it in prose.
 
 ## 0. What already exists here — use it, never reinvent it
@@ -143,7 +143,7 @@ different wiring locally, and never reach the Bridge any other way.
 
 A minimal, runnable sample of this exact shape (contract → manifest →
 executor → request-construction point → entry point) lives at
-`bridge/samples/hello_world/` — its own `README.md` explains how to run it
+`samples/hello_world/` — its own `README.md` explains how to run it
 and what it does. It happens to print to a console purely because that is
 the smallest possible interface to demonstrate the wiring with; this
 Blueprint never constrains what interface an application presents (console,
@@ -242,6 +242,12 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   with `check_type: capability_operation` MUST carry a `trace` array copied
   verbatim from the observed response), `passed`, `failed`, `status`
   (`"verified"` or `"failed"`).
+- Once every check has passed, call `dep.episode_store.save_episode(cycle_report,
+  verification_record, episodes_dir)` as the harness's own last act
+  (section 7) — the harness is already the one place Gate 17 requires to
+  run before anything is published, so recording the episode here, not as a
+  separately-rememberable later step, is what makes 1-CYCLE.md Phase 8
+  Gate 31 a structural consequence of this gate passing.
 
 **This is a loop, not a one-shot:**
 
@@ -256,10 +262,24 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
 - Confirm the registry discovers a candidate for every capability you built
   (capability id, contract version, operation).
 - Write the cycle report, valid against `schemas/agent-cycle-report.schema.json`.
+- Record the completed cycle into the episode store:
+  `dep.episode_store.save_episode(cycle_report, verification_record, episodes_dir)`
+  (`dep/MANIFEST.yaml`, 1-CYCLE.md Phase 8 Gate 31). `episodes_dir` is
+  always given explicitly, never defaulted by dep/ itself — an
+  application's own episodes live under its own tree (e.g.
+  `state/episodes/`, alongside `state/verification-record.json`), the
+  same way its own `capability-catalog.jsonl` lives under it, not inside
+  `bridge/`. A cycle is not published until this succeeds — a
+  schema-invalid record or a duplicate `verification_id` must fail the
+  cycle, never be caught and silently skipped. The strongest place to
+  make this call is the verification harness's own last line (section
+  6), once every check has passed: that way "verified" and "recorded"
+  are the same event, not two separately rememberable steps — see
+  `samples/hello_world/tests/verify/verify.py` for a worked example.
 - The resulting state — `contracts/`, `capabilities/`, `app/`, `tests/`,
-  `state/verification-record.json`, and the report — is everything the next
-  cycle needs. No private memory of this session should be required to
-  continue the work (Gate 11).
+  `state/verification-record.json`, the report, and the recorded episode
+  in `state/episodes/` — is everything the next cycle needs. No private
+  memory of this session should be required to continue the work (Gate 11).
 
 ## Failure patterns this file exists to prevent
 

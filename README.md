@@ -36,7 +36,7 @@ authoritative ecosystem root.
    through the Bridge" enforceable rather than aspirational.
 
 Contract, manifest, and cycle-report shapes are formally defined in
-`schemas/` and demonstrated concretely in `bridge/samples/hello_world/` —
+`schemas/` and demonstrated concretely in `samples/hello_world/` —
 there is no separate template document.
 
 Manifests and contract artifacts are machine-validated against the schemas in

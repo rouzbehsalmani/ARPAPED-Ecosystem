@@ -10,7 +10,7 @@ these rules by number; nothing else states a rule in full. If a document
 seems to redefine a term or restate a rule differently, that document is
 wrong, not this page. The cycle that applies these rules phase by phase is
 `1-CYCLE.md`; the contract/manifest/report shapes these rules govern are
-defined in `schemas/` and demonstrated in `bridge/samples/hello_world/`.
+defined in `schemas/` and demonstrated in `samples/hello_world/`.
 
 ## Glossary
 

@@ -7,8 +7,10 @@
 # Schemas are NOT listed here: contract/manifest/protocol shapes are pure
 # data-structure definitions, not coupled to the Bridge's implementation
 # language, so they live in the stable top-level `schemas/` and never move
-# or change just because this file's contents do. `samples/` (below) IS
-# concrete to this Bridge's implementation and gets rewritten alongside it.
+# or change just because this file's contents do. `samples/` is likewise
+# not listed here: it demonstrates BOTH pillars together (this Bridge and
+# dep/'s cycle-recording), so it lives at the repo root, a peer of this
+# folder and dep/, not nested inside either -- see dep/MANIFEST.yaml.
 bridge:
   execution_boundary:
     location: bridge/bridge.py
@@ -68,8 +70,3 @@ bridge:
       already uses for `process`, applied one level earlier) should
       import it and serve it behind the same out-of-process protocol
       instead, so the capability never has to know or care.
-
-samples:
-  location: bridge/samples/
-  contents:
-    - hello_world   # a single, real, runnable console app — see its README.md
