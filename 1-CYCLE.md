@@ -21,7 +21,7 @@ goal
 
 | Phase | Gate(s) enforced |
 |---|---|
-| 0 — Bootstrap | 1, 2, 3, 25, 32, 33 |
+| 0 — Bootstrap | 1, 2, 3, 25, 32, 33, 34 |
 | 1 — Understand | 3 |
 | 1.5 — Component health check | 12 |
 | 2 — Decompose the goal | 13, 21 (by construction) |
@@ -78,6 +78,26 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    justify, the checkpoint was incomplete (missing `artifacts` or
    `ecosystem_resolution_ref`), not the concept — fix the checkpoint being
    written, not the resuming agent's caution.
+
+   **A stale checkpoint is not an excuse to fall back on a project-wide
+   read.** A checkpoint goes stale when work happened but
+   `save_checkpoint` wasn't called to record it — observed for real: a
+   checkpoint frozen at `current_phase: "0-bootstrap"`, every
+   responsibility still `planned`, while the contracts/manifests/executors
+   for all of them already existed on disk. Trusting a stale checkpoint
+   blindly is wrong, but "read the existing code to reconstruct progress"
+   reintroduces the exact O(project) cost checkpoints exist to remove.
+   Reconcile instead, still bounded: `dep.checkpoint.reconcile_with_catalog
+   (checkpoint, catalog_path)` (`dep/MANIFEST.yaml`) cross-checks each
+   responsibility against the application's own `capability-catalog.jsonl`
+   — the same bounded index Phase 3 discovery already uses — filling in
+   `artifacts` and advancing `status` to at least `code_written` wherever
+   the catalog proves it, in O(this cycle's own capability count), never
+   O(project size). It never invents `integrated` from catalog evidence
+   alone (that still needs a real, cheap per-responsibility Bridge check),
+   and it never regresses a status already further along. Immediately
+   `save_checkpoint` the reconciled result — reconciling without re-saving
+   pays this same cost again on the very next interruption.
 2. Establish the ecosystem root supplied by the operator; never create a
    second copy.
 3. Starting there, discover the authoritative ecosystem profile/manifest,
@@ -130,7 +150,7 @@ an authoritative implementation; write a monolith file mixing independent
 responsibilities; embed registration logic inside an application package
 (registration is an assembly/Publish concern, Phase 8).
 
-**Non-negotiables.** Gates 1, 2, 3, 25, 32, 33:
+**Non-negotiables.** Gates 1, 2, 3, 25, 32, 33, 34:
 
 1. Did I resolve the canonical Bridge? (From the ecosystem root.)
 2. Did I resolve the canonical Registry?
@@ -152,6 +172,12 @@ responsibilities; embed registration logic inside an application package
     with total project size, in a project with a handful of capabilities
     or hundreds, is a failed resume regardless of whether it eventually
     succeeded.
+34. If the checkpoint appeared stale (its recorded status/artifacts didn't
+    match what's actually on disk), was it reconciled against the bounded
+    capability catalog (`dep.checkpoint.reconcile_with_catalog`) — never
+    by reading the project to reconstruct progress by hand — and
+    immediately re-saved corrected, so the same staleness is never paid
+    for twice?
 
 **Produces.** Resolved ecosystem root + loaded rules + accepted `goal` + a
 written ecosystem-resolution record.

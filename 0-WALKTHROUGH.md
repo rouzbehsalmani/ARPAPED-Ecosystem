@@ -42,7 +42,7 @@ it. `contracts/` does not exist yet in this repo; you create it as you add
 capabilities. There is no product concept and no per-application copy of the
 Bridge: one Bridge, built once, serves every capability you add.
 
-## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25, 32, 33)
+## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25, 32, 33, 34)
 
 Before decomposing the goal:
 
@@ -96,6 +96,29 @@ else:
     # the new goal, then start saving a checkpoint from step 2 onward.
     ...
 ```
+
+**If the checkpoint looks stale (Gate 34), reconcile — don't fall back to
+reading the whole project.** Observed for real: a checkpoint frozen at
+`current_phase: "0-bootstrap"`, every responsibility still `planned`,
+while all 8 capabilities' contracts/manifests/executors already existed —
+the agent had done the work but never called `save_checkpoint` again
+after Phase 0. The wrong recovery is "let me read the existing code" —
+that reintroduces the full-project cost checkpoints exist to remove. The
+bounded recovery uses the same index Phase 3 discovery already reads:
+
+```python
+catalog_path = app_root / "capability-catalog.jsonl"  # already built, one line per capability
+cp = checkpoint.reconcile_with_catalog(cp, catalog_path)
+checkpoint.save_checkpoint(cp, checkpoint_path)  # persist the repair immediately
+```
+
+This fills in each responsibility's `artifacts` and advances `status` to
+at least `code_written` wherever the catalog proves it — O(this cycle's
+own capability count), never O(project size) — but never claims
+`integrated` from catalog evidence alone (confirm that with a real,
+still-cheap per-responsibility Bridge check) and never regresses a status
+already further along. Re-saving immediately means this exact repair is
+never paid for twice.
 
 `dep.checkpoint.save_checkpoint(checkpoint, checkpoint_path)` is called
 again — not once — as each responsibility's status changes through steps
@@ -362,6 +385,15 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   only records a status label, without the file path that earned it,
   still forces that same expensive re-scan (Gate 33) — resuming must cost
   less than starting fresh, never the same.
+- A checkpoint that exists but went stale — work happened without
+  `save_checkpoint` being called to record it (also observed for real:
+  frozen at Phase 0 while 8 capabilities already existed on disk). The
+  instinct to distrust a stale checkpoint is correct; falling back to
+  reading the whole project to reconstruct progress is not — that pays
+  the exact O(project) cost checkpoints exist to remove. Reconcile against
+  the bounded `capability-catalog.jsonl` instead
+  (`dep.checkpoint.reconcile_with_catalog`, Gate 34), then re-save
+  immediately so the repair is never paid for twice.
 - Building a real service (a web server, a scheduler) directly inside the
   entry point because "it's just infrastructure." If the entry point needs a
   real service, that service is a capability (R9) — the entry point only

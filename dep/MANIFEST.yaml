@@ -102,6 +102,20 @@ dep:
       has -- a project with hundreds of capabilities resumes exactly as
       cheaply as one with a handful, because a resuming agent never
       touches the project as a whole, only the paths this file names.
+      `reconcile_with_catalog(checkpoint, catalog_path)` handles the other
+      real failure mode observed: a checkpoint that went STALE because
+      work happened without `save_checkpoint` being called to record it
+      (found once at `current_phase: "0-bootstrap"`/every responsibility
+      `planned` while 8 capabilities already existed). Cross-checks each
+      responsibility against the application's own
+      `capability-catalog.jsonl` -- the same bounded index Phase 3
+      discovery reads -- filling in `artifacts` and advancing `status` to
+      at least `code_written` wherever the catalog proves it, in O(this
+      cycle's own capability count); never invents `integrated`, never
+      regresses a status already further along, and never reads the
+      project itself. The caller must `save_checkpoint` the reconciled
+      result immediately, or this exact repair repeats on the next
+      interruption (Gate 34).
   episode_store:
     location: dep/episode_store.py
     role: >

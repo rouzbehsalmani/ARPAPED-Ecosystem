@@ -80,3 +80,77 @@ def clear_checkpoint(checkpoint_path: Path) -> bool:
         return False
     checkpoint_path.unlink()
     return True
+
+
+_STATUS_ORDER = [
+    "planned",
+    "decided",
+    "contract_written",
+    "manifest_written",
+    "code_written",
+    "integrated",
+]
+
+
+def reconcile_with_catalog(checkpoint: dict[str, Any], catalog_path: Path) -> dict[str, Any]:
+    """Repairs a checkpoint that fell behind reality -- observed for real:
+    an agent kept working through Phase 4/5/6 (contracts, manifests,
+    executors all written) without ever calling `save_checkpoint` again
+    after Phase 0, so a resuming agent found `status: planned` for every
+    responsibility while 8 capabilities already existed on disk. The
+    wrong fix is reading the project to rebuild the checkpoint by hand --
+    that is the exact O(project) cost this whole mechanism exists to
+    avoid. The right fix: `catalog_path` (a sample/application's own
+    `capability-catalog.jsonl`, built by its `build_catalog.py`) is
+    already a bounded, one-line-per-capability index -- the same one
+    Phase 3 discovery already uses instead of scanning the Registry.
+    Reconciling against it costs O(this cycle's own capability count),
+    never O(total project size), regardless of catalog size.
+
+    For every responsibility whose name matches a `capability_id` in the
+    catalog, fills in `artifacts` (contract/manifest/executor paths) from
+    that entry and advances `status` to at least `code_written` -- a
+    catalog entry with all three paths resolved is real evidence code
+    exists, but never proves Bridge integration (Phase 6) by itself, so
+    `integrated` is never set here; a resuming agent still confirms that
+    with its own cheap per-responsibility check. Never regresses a status
+    already further along (e.g. leaves an already-`integrated` entry
+    alone). Responsibilities with no matching catalog entry are left
+    untouched -- reconciliation only repairs what the catalog can prove,
+    it never invents progress.
+
+    Mutates and returns `checkpoint`; the caller MUST `save_checkpoint`
+    the result to actually persist the repair -- reconciling without
+    re-saving pays this same cost again on the next interruption.
+    """
+
+    if not catalog_path.exists():
+        return checkpoint
+
+    by_id: dict[str, dict[str, Any]] = {}
+    for line in catalog_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        entry = json.loads(line)
+        by_id[entry["capability_id"]] = entry
+
+    for responsibility in checkpoint.get("responsibilities", []):
+        entry = by_id.get(responsibility["responsibility"])
+        if entry is None:
+            continue
+        artifacts = responsibility.setdefault("artifacts", {})
+        if entry.get("contract_path"):
+            artifacts["contract"] = entry["contract_path"]
+        if entry.get("manifest_path"):
+            artifacts["manifest"] = entry["manifest_path"]
+        if entry.get("executor_path"):
+            artifacts["executor"] = entry["executor_path"]
+
+        current = responsibility.get("status", "planned")
+        current_idx = _STATUS_ORDER.index(current) if current in _STATUS_ORDER else 0
+        target_idx = _STATUS_ORDER.index("code_written")
+        if target_idx > current_idx:
+            responsibility["status"] = "code_written"
+
+    return checkpoint
