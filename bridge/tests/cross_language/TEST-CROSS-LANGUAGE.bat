@@ -3,8 +3,8 @@ setlocal
 cd /d "%~dp0\..\..\.."
 
 echo ARPAPED Cross-Language Bridge Test
- echo =================================
- echo.
+echo =================================
+echo.
 
 python bridge\tests\cross_language\test_python_bridge_rust_capability.py
 if errorlevel 1 goto :fail
