@@ -30,7 +30,7 @@ goal
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
 | 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30 |
-| 8 — Publish | 8, 9, 14 |
+| 8 — Publish | 8, 9, 14, 31 |
 | 9 — Return state | 11 |
 
 A gate answered NO means the cycle is not complete.
@@ -368,17 +368,28 @@ Register every capability: the capability manifests (one entry per
 implementation) + generic assembler build each implementation record and
 register it into the canonical Registry. Publish the decomposition per R3 —
 one contract per capability, referenced by its one or more capability-manifest
-entries; the Registry records the composition.
+entries; the Registry records the composition. Then record the cycle itself:
+call `dep.episode_store.save_episode(cycle_report, verification_record)`
+(`dep/MANIFEST.yaml`) with the Phase 7 verification record and this phase's
+cycle report — this is what makes the cycle an actual entry in the
+accumulating episode corpus (`dep/episodes/`), not just a record "written
+into the resulting state" and never seen again. A cycle that skips this is
+not published, regardless of what else it did.
 
-**Non-negotiables.** Gates 8, 9, 14:
+**Non-negotiables.** Gates 8, 9, 14, 31:
 
 8. If I split a component, did I preserve lineage and update discoverability?
 9. Is the resulting component discoverable through the canonical Registry?
 14. Is registration performed by the manifest + a generic assembler, so
     components contain no registration logic and swapping an implementation
     requires no consumer code change?
+31. Was this cycle recorded into the episode store (`dep.episode_store.save_episode`),
+    so its decision record and verification record accumulate in
+    `dep/episodes/` for `dep.dataset_builder` — not left unrecorded because
+    nothing in this phase's own output required it?
 
-**Produces.** A discoverable, registered, verified resulting state.
+**Produces.** A discoverable, registered, verified resulting state, recorded
+as one episode in the DEP corpus.
 
 ## Phase 9 — Return state
 
