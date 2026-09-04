@@ -44,46 +44,77 @@ function execute(request, entry, trace) {
       return;
     }
 
-    const server = net.createServer(socket => {
+    let child = null;
+    let socket = null;
+    let settled = false;
+    const server = net.createServer(client => {
+      socket = client;
       const invocation = {
         operation: request.operation,
         input: request.input,
         policy: { user: {}, consumer: {}, ecosystem: {}, provider: {}, module: {} }
       };
-      socket.write(JSON.stringify(invocation) + "\n");
+      client.write(JSON.stringify(invocation) + "\n");
       let data = "";
-      socket.on("data", chunk => {
+      client.on("data", chunk => {
         data += chunk.toString();
         const newline = data.indexOf("\n");
-        if (newline === -1) return;
-        const reply = JSON.parse(data.slice(0, newline).trim());
-        socket.destroy();
-        if (reply.error) reject(new Error(JSON.stringify(reply)));
-        else resolve(reply.output || {});
+        if (newline === -1 || settled) return;
+        try {
+          const reply = JSON.parse(data.slice(0, newline).trim());
+          settled = true;
+          if (reply.error) reject(new Error(JSON.stringify(reply)));
+          else resolve(reply.output || {});
+        } catch (error) {
+          settled = true;
+          reject(error);
+        } finally {
+          client.destroy();
+          if (server.listening) server.close();
+          if (child && !child.killed) child.kill();
+        }
       });
-      socket.on("error", reject);
+      client.on("error", error => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+        if (server.listening) server.close();
+        if (child && !child.killed) child.kill();
+      });
     });
+
+    const cleanup = () => {
+      if (socket && !socket.destroyed) socket.destroy();
+      if (server.listening) server.close();
+      if (child && !child.killed) child.kill();
+    };
 
     server.listen(0, "127.0.0.1", () => {
       const port = server.address().port;
-      const child = spawn(entry.executor_path[0], entry.executor_path.slice(1), {
+      child = spawn(entry.executor_path[0], entry.executor_path.slice(1), {
         env: { ...process.env, ARPAPED_BRIDGE_PORT: String(port) },
         stdio: ["ignore", "pipe", "pipe"]
       });
-      const cleanup = () => {
-        server.close();
-        if (!child.killed) child.kill();
-      };
-      child.on("error", err => { cleanup(); reject(new Error(`failed to spawn ${entry.implementation_id}: ${err.message}`)); });
+      child.on("error", err => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error(`failed to spawn ${entry.implementation_id}: ${err.message}`));
+      });
       child.on("exit", code => {
-        if (code !== null && code !== 0) {
+        if (!settled && code !== null && code !== 0) {
+          settled = true;
           cleanup();
           reject(new Error(`executor exited with code ${code}`));
         }
       });
-      server.once("close", () => { if (!child.killed) child.kill(); });
     });
-    server.on("error", reject);
+    server.on("error", error => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    });
   });
 }
 
