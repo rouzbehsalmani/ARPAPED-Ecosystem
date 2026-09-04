@@ -98,6 +98,21 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    and it never regresses a status already further along. Immediately
    `save_checkpoint` the reconciled result — reconciling without re-saving
    pays this same cost again on the very next interruption.
+
+   No catalog exists yet before Phase 8 first runs it, though — observed
+   for real, mid-Phase-5: a checkpoint frozen at `current_phase:
+   "0-bootstrap"` while 7 contracts and 5 of 7 executors already existed,
+   with no `capability-catalog.jsonl` anywhere to reconcile against. For
+   this case, `dep.checkpoint.reconcile_with_filesystem(checkpoint,
+   contracts_dir, capabilities_dir)` (`dep/MANIFEST.yaml`) uses the
+   ecosystem's own naming convention (R1: `<domain>.<rest>` places a
+   contract/manifest/executor at predictable paths) instead of a catalog —
+   three `Path.exists()` checks per responsibility, no file contents read,
+   still O(this checkpoint's own responsibility count). It also catches
+   what a raw status-bump would hide: an executor written without its
+   manifest is an R7 order violation (Gate 26), so it's recorded as a
+   `blocker`, not silently advanced past `manifest_written` — reconciling
+   must never launder a real rule violation into a clean-looking status.
 2. Establish the ecosystem root supplied by the operator; never create a
    second copy.
 3. Starting there, discover the authoritative ecosystem profile/manifest,
@@ -173,11 +188,16 @@ responsibilities; embed registration logic inside an application package
     or hundreds, is a failed resume regardless of whether it eventually
     succeeded.
 34. If the checkpoint appeared stale (its recorded status/artifacts didn't
-    match what's actually on disk), was it reconciled against the bounded
-    capability catalog (`dep.checkpoint.reconcile_with_catalog`) — never
-    by reading the project to reconstruct progress by hand — and
-    immediately re-saved corrected, so the same staleness is never paid
-    for twice?
+    match what's actually on disk), was it reconciled against a bounded
+    source of truth — the capability catalog if one exists
+    (`dep.checkpoint.reconcile_with_catalog`), or the ecosystem's own
+    naming convention if it doesn't yet (`dep.checkpoint.
+    reconcile_with_filesystem`) — never by reading the project to
+    reconstruct progress by hand, and immediately re-saved corrected so
+    the same staleness is never paid for twice? Did reconciliation record
+    any rule violation it exposed (e.g. code written without its manifest,
+    R7/Gate 26) as a `blocker` instead of silently advancing the status
+    past it?
 
 **Produces.** Resolved ecosystem root + loaded rules + accepted `goal` + a
 written ecosystem-resolution record.

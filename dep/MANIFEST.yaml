@@ -116,6 +116,17 @@ dep:
       project itself. The caller must `save_checkpoint` the reconciled
       result immediately, or this exact repair repeats on the next
       interruption (Gate 34).
+      `reconcile_with_filesystem(checkpoint, contracts_dir,
+      capabilities_dir)` covers the same staleness before a catalog
+      exists to reconcile against -- also observed for real, mid-Phase-5:
+      a checkpoint frozen at Phase 0 while 7 contracts and 5 of 7
+      executors already existed. Uses R1's own naming convention instead
+      of a catalog (three `Path.exists()` checks per responsibility, no
+      file contents read) -- still O(this checkpoint's own responsibility
+      count). Catches what a raw status-bump would hide: an executor
+      found without its manifest is an R7 order violation (Gate 26),
+      recorded as a `blocker` rather than silently advanced past
+      `manifest_written`.
   episode_store:
     location: dep/episode_store.py
     role: >

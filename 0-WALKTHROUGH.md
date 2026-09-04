@@ -120,6 +120,26 @@ still-cheap per-responsibility Bridge check) and never regresses a status
 already further along. Re-saving immediately means this exact repair is
 never paid for twice.
 
+**No catalog exists yet before Phase 8 first builds one.** Also observed
+for real, mid-Phase-5: a checkpoint frozen at Phase 0 while 7 contracts
+and 5 of 7 executors already existed — too early for a
+`capability-catalog.jsonl` to reconcile against. Use the convention
+instead:
+
+```python
+cp = checkpoint.reconcile_with_filesystem(cp, contracts_dir, capabilities_dir)
+checkpoint.save_checkpoint(cp, checkpoint_path)
+```
+
+Three `Path.exists()` checks per responsibility against the paths R1's own
+naming convention predicts (`contracts/<id>.contract.yaml`,
+`capabilities/<domain>/<rest>/{manifest.yaml,executor.py}`) — no file
+contents read, still bounded by this checkpoint's own responsibility
+count. It also catches what a raw status-bump would hide: an executor
+found without its manifest is an R7 order violation (Gate 26) — recorded
+as a `blocker`, never silently advanced past `manifest_written` as if the
+correct order had been followed.
+
 `dep.checkpoint.save_checkpoint(checkpoint, checkpoint_path)` is called
 again — not once — as each responsibility's status changes through steps
 2–4 below (`planned` → `decided`) and step 3 (`contract_written` →
@@ -391,9 +411,11 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   instinct to distrust a stale checkpoint is correct; falling back to
   reading the whole project to reconstruct progress is not — that pays
   the exact O(project) cost checkpoints exist to remove. Reconcile against
-  the bounded `capability-catalog.jsonl` instead
-  (`dep.checkpoint.reconcile_with_catalog`, Gate 34), then re-save
-  immediately so the repair is never paid for twice.
+  a bounded source of truth instead — `capability-catalog.jsonl` if it
+  exists (`dep.checkpoint.reconcile_with_catalog`), or the naming
+  convention if it doesn't yet, e.g. mid-Phase-5 before Phase 8 ever
+  builds one (`dep.checkpoint.reconcile_with_filesystem`; Gate 34) — then
+  re-save immediately so the repair is never paid for twice.
 - Building a real service (a web server, a scheduler) directly inside the
   entry point because "it's just infrastructure." If the entry point needs a
   real service, that service is a capability (R9) — the entry point only

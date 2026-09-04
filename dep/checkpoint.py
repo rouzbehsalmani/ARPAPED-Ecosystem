@@ -154,3 +154,91 @@ def reconcile_with_catalog(checkpoint: dict[str, Any], catalog_path: Path) -> di
             responsibility["status"] = "code_written"
 
     return checkpoint
+
+
+def reconcile_with_filesystem(
+    checkpoint: dict[str, Any],
+    contracts_dir: Path,
+    capabilities_dir: Path,
+) -> dict[str, Any]:
+    """Same purpose as reconcile_with_catalog, for the point in a cycle
+    where staleness can happen but no capability-catalog.jsonl exists yet
+    to reconcile against -- observed for real: a checkpoint frozen at
+    Phase 0/all `planned` while 7 contracts and 5 of 7 executors already
+    existed, mid-Phase-5, well before Phase 8 ever builds a catalog. A
+    resuming agent with nothing bounded to check against falls back to
+    reading every file in the project to find out what's really done --
+    exactly the cost this whole mechanism exists to remove.
+
+    Uses the ecosystem's own naming convention instead (R1: a
+    responsibility named `<domain>.<rest>` places its contract at
+    `contracts_dir/<responsibility>.contract.yaml` and its manifest/
+    executor at `capabilities_dir/<domain>/<rest, dots as slashes>/`) --
+    three `Path.exists()` checks per responsibility, reading no file
+    contents, touching no path outside what the responsibility's own name
+    already predicts. Still O(this checkpoint's own responsibility
+    count), never O(project size), and works even before Phase 8 ever
+    runs -- this is the earliest-available bounded check, weaker than
+    reconcile_with_catalog's (it cannot see operations/dependencies, only
+    existence), so prefer that one once a catalog exists.
+
+    Advances `status` to the highest of contract_written / manifest_written
+    / code_written that the existing files support, IN ORDER -- an
+    executor found without a manifest is not fast-forwarded to
+    code_written (that status name asserts the R7 sequence actually
+    happened), it's capped at what's genuinely proven and the gap is
+    recorded in `checkpoint["blockers"]` instead, e.g. "world.advance:
+    executor.py exists but manifest.yaml is missing -- R7 order violation
+    (Gate 26)". Never claims `integrated` (still needs a real Bridge
+    check) and never regresses a status already further along. A
+    responsibility whose name doesn't resolve to any of these three paths
+    (e.g. the application's own single request-construction point, which
+    is not a capability) is left untouched -- this function only repairs
+    what a real file can prove.
+    """
+
+    for responsibility in checkpoint.get("responsibilities", []):
+        name = responsibility["responsibility"]
+        if "." not in name:
+            continue
+        domain, rest = name.split(".", 1)
+        capability_dir = capabilities_dir / domain / rest.replace(".", "/")
+
+        contract_path = contracts_dir / f"{name}.contract.yaml"
+        manifest_path = capability_dir / "manifest.yaml"
+        executor_path = capability_dir / "executor.py"
+
+        found = {}
+        if contract_path.exists():
+            found["contract"] = str(contract_path)
+        if manifest_path.exists():
+            found["manifest"] = str(manifest_path)
+        if executor_path.exists():
+            found["executor"] = str(executor_path)
+        if not found:
+            continue
+
+        artifacts = responsibility.setdefault("artifacts", {})
+        artifacts.update(found)
+
+        target = "planned"
+        if "contract" in found:
+            target = "contract_written"
+        if "contract" in found and "manifest" in found:
+            target = "manifest_written"
+        if "contract" in found and "manifest" in found and "executor" in found:
+            target = "code_written"
+        if "executor" in found and "manifest" not in found:
+            checkpoint.setdefault("blockers", []).append(
+                f"{name}: executor.py exists at {executor_path} but manifest.yaml is "
+                f"missing -- R7 order violation (Gate 26); write the manifest before "
+                f"trusting this as code_written."
+            )
+
+        current = responsibility.get("status", "planned")
+        current_idx = _STATUS_ORDER.index(current) if current in _STATUS_ORDER else 0
+        target_idx = _STATUS_ORDER.index(target)
+        if target_idx > current_idx:
+            responsibility["status"] = target
+
+    return checkpoint
