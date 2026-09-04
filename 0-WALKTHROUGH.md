@@ -42,7 +42,7 @@ it. `contracts/` does not exist yet in this repo; you create it as you add
 capabilities. There is no product concept and no per-application copy of the
 Bridge: one Bridge, built once, serves every capability you add.
 
-## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25)
+## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25, 32, 33)
 
 Before decomposing the goal:
 
@@ -65,6 +65,50 @@ Before decomposing the goal:
   ```
 
 - [ ] Do not create a second Bridge/Registry anywhere in your code.
+
+**Before accepting the goal as new, check for a resumable checkpoint (Gate
+32).** An agent can stop mid-cycle for reasons that have nothing to do with
+the work (tokens ran out, network dropped, the process crashed) — the fix
+isn't a fresh agent reconstructing progress by guesswork, it's checking
+first:
+
+```python
+from dep import checkpoint
+
+cp = checkpoint.load_checkpoint(checkpoint_path)  # e.g. state/cycle-checkpoint.json
+if cp is not None and cp["status"] == "in_progress":
+    # Resume CHEAPLY (Gate 33) — read cp["ecosystem_resolution_ref"]
+    # directly instead of re-discovering the Bridge/Registry, and open
+    # each responsibility's cp["responsibilities"][i]["artifacts"]
+    # (contract/manifest/executor paths) directly instead of searching
+    # the project for them. Adopt cp["goal"]/cp["starting_state"]
+    # unchanged, skip any responsibility already at "integrated", and
+    # continue from cp["current_phase"] / cp["next_action"] — do not
+    # re-decide it and do not re-verify it by scanning. Only fall back to
+    # normal Phase 1/3 discovery for what the checkpoint doesn't cover.
+    # Resume cost tracks THIS checkpoint's own responsibility count, never
+    # the project's total capability count -- a project with hundreds of
+    # capabilities must resume exactly as cheaply as one with a handful.
+    ...
+else:
+    # Nothing to resume (or operator confirmed discarding it — call
+    # checkpoint.clear_checkpoint(checkpoint_path) first). Proceed with
+    # the new goal, then start saving a checkpoint from step 2 onward.
+    ...
+```
+
+`dep.checkpoint.save_checkpoint(checkpoint, checkpoint_path)` is called
+again — not once — as each responsibility's status changes through steps
+2–4 below (`planned` → `decided`) and step 3 (`contract_written` →
+`manifest_written` → `code_written` → `integrated`), so the checkpoint
+always reflects what's actually on disk, not just what was true when the
+cycle started (`dep/MANIFEST.yaml`). A status change alone is not enough:
+each Phase 5 update also records the file just written into that
+responsibility's `artifacts.contract` / `.manifest` / `.executor`, and
+Phase 0 records `ecosystem_resolution_ref` once the resolution record
+exists — a checkpoint that only carries labels like "code_written" still
+forces a resuming agent to search for the file to trust the label, which
+is the exact cost this mechanism exists to remove.
 
 ## 2. Decompose the goal into capabilities (Phase 1–2, R1)
 
@@ -231,7 +275,17 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   long-lived process): its executor must itself verify, synchronously and
   promptly, that the work has actually started before returning — never a
   fabricated or assumed status — and must never block waiting for the
-  ongoing work itself to finish.
+  ongoing work itself to finish. If the harness itself needs to start such
+  a process to test it (e.g. an HTTP server it then sends requests to),
+  use `dep.process_supervisor.start(argv, pidfile, ready_check)` /
+  `.stop(pidfile)` (`dep/MANIFEST.yaml`) rather than a bare background
+  launch — a detached shell command, PowerShell's `Start-Process -PassThru`,
+  a fire-and-forget `subprocess.Popen` all leave the process running after
+  the command that launched it ends, invisible and still holding its port,
+  so the next run talks to whichever orphaned process happens to still be
+  listening, not the one just started. `ready_check` and `argv` are always
+  supplied by the caller, never assumed by the tool — it works the same
+  way regardless of what language or framework the process under test is.
 - Drive every consumer-visible interaction through a scripted command
   stream using the same dispatcher the real interface uses.
 - Include at least one case proving an operator decision window: a scripted
@@ -276,6 +330,11 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   6), once every check has passed: that way "verified" and "recorded"
   are the same event, not two separately rememberable steps — see
   `samples/hello_world/tests/verify/verify.py` for a worked example.
+- Once `save_episode` succeeds, call
+  `dep.checkpoint.clear_checkpoint(checkpoint_path)` (`dep/MANIFEST.yaml`,
+  1-CYCLE.md Phase 8) — the episode just recorded is now the permanent
+  record of this attempt, so no in-progress checkpoint should be left
+  behind for a future Phase 0 to mistake for unfinished work.
 - The resulting state — `contracts/`, `capabilities/`, `app/`, `tests/`,
   `state/verification-record.json`, the report, and the recorded episode
   in `state/episodes/` — is everything the next cycle needs. No private
@@ -291,6 +350,18 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   an operating procedure.
 - Skipping the verification harness because the application "runs fine
   manually."
+- An agent interrupted mid-cycle (tokens, network, crash) leaving no
+  checkpoint — the next agent has nothing but raw filesystem state to
+  reverse-engineer which responsibilities were decided, which have a
+  contract but no manifest yet, which are fully wired through the Bridge.
+  `dep.checkpoint.save_checkpoint` after every responsibility-status
+  change (step 1) exists to prevent exactly this. Observed for real: an
+  agent resumed successfully but at high cost, by scanning the whole
+  project — the checkpoint (or its `artifacts`/`ecosystem_resolution_ref`
+  fields) either didn't exist yet or wasn't trusted. A checkpoint that
+  only records a status label, without the file path that earned it,
+  still forces that same expensive re-scan (Gate 33) — resuming must cost
+  less than starting fresh, never the same.
 - Building a real service (a web server, a scheduler) directly inside the
   entry point because "it's just infrastructure." If the entry point needs a
   real service, that service is a capability (R9) — the entry point only

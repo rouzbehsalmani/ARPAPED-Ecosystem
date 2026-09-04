@@ -21,7 +21,7 @@ goal
 
 | Phase | Gate(s) enforced |
 |---|---|
-| 0 — Bootstrap | 1, 2, 3, 25 |
+| 0 — Bootstrap | 1, 2, 3, 25, 32, 33 |
 | 1 — Understand | 3 |
 | 1.5 — Component health check | 12 |
 | 2 — Decompose the goal | 13, 21 (by construction) |
@@ -42,37 +42,76 @@ the goal. Mandatory before any other phase, for any human or AI agent.
 
 **Do.**
 
-1. Establish the ecosystem root supplied by the operator; never create a
+1. Before accepting anything as a new goal, check for an existing mid-cycle
+   checkpoint: `dep.checkpoint.load_checkpoint(checkpoint_path)`
+   (`dep/MANIFEST.yaml`). If it returns an `in_progress` checkpoint, RESUME
+   it instead of starting fresh — adopt its `goal` and `starting_state`
+   unchanged, skip re-deciding any responsibility already at `integrated`,
+   and continue from its `current_phase` and `next_action`. Only proceed
+   with a genuinely new goal if `load_checkpoint` returns `None`, or the
+   operator explicitly confirms discarding the in-progress one (then
+   `dep.checkpoint.clear_checkpoint(checkpoint_path)` before continuing).
+   This is what lets a different agent — after the original stopped mid-cycle
+   for any reason unrelated to the work itself (tokens, network, crash) —
+   pick up exactly where it left off, at the responsibility level, not just
+   "somewhere in Phase 5."
+
+   **Resuming is a bounded lookup, not a project-wide re-scan.** Once a
+   checkpoint is found, read `ecosystem_resolution_ref` directly instead of
+   re-running Bridge/Registry discovery, and open each responsibility's
+   recorded `artifacts` (contract/manifest/executor paths) directly instead
+   of searching for them. A checkpoint that only carries a status label
+   forces a resuming agent back into full-project discovery to trust that
+   label — exactly the cost this mechanism exists to remove — so treat a
+   `next_action`/`artifacts` field that doesn't name concrete paths as an
+   incomplete checkpoint, not something to work around by scanning. Phase
+   1/3 discovery still runs, but only for what the checkpoint does not
+   already cover (a responsibility not yet in it, or new ground the goal
+   adds) — never to re-verify what the checkpoint already resolved. This
+   means resume cost is bounded by the number of responsibilities THIS
+   checkpoint recorded, never by how many capabilities the wider project
+   already has: a project with hundreds of existing capabilities must be
+   exactly as cheap to resume as one with a handful, because a resuming
+   agent touches only the checkpoint file and the specific paths it names
+   — never the project as a whole, regardless of its size. If resuming
+   ever costs meaningfully more than what the checkpoint's own contents
+   justify, the checkpoint was incomplete (missing `artifacts` or
+   `ecosystem_resolution_ref`), not the concept — fix the checkpoint being
+   written, not the resuming agent's caution.
+2. Establish the ecosystem root supplied by the operator; never create a
    second copy.
-2. Starting there, discover the authoritative ecosystem profile/manifest,
+3. Starting there, discover the authoritative ecosystem profile/manifest,
    canonical Bridge implementation, Registry implementation and records,
    policy implementation, capability/component contracts, implementation
    manifests, and connector contracts. Use the repository's own manifests as
    the authority for exact paths and versions. If two authoritative-looking
    implementations conflict, STOP and report the ambiguity — do not silently
    choose one.
-3. Build an implementation map: every required primitive (execution boundary,
+4. Build an implementation map: every required primitive (execution boundary,
    discovery/Registry, policy, capability model, component model, packaging
    model, implementation model, connector model, resource execution) must
    resolve to an authoritative artifact in the ecosystem (see the resolution
    table in `2-RULES.md`).
-4. Write a resolvable **ecosystem-resolution record** — machine-readable
+5. Write a resolvable **ecosystem-resolution record** — machine-readable
    (e.g. a small JSON artifact or a dedicated report section) — naming at
    minimum the resolved canonical Bridge, Registry, policy stage, selector,
    the `contracts/` area, and the root, plus the implementation map. Without
    it the cycle cannot proceed: a resolved-but-unrecorded Bridge is treated as
    unresolved. The record is referenced in the cycle report
-   (`schemas/agent-cycle-report.schema.json`).
-5. Load the operating rules: this Blueprint, the ecosystem's authoritative
+   (`schemas/agent-cycle-report.schema.json`) and, if a checkpoint is now
+   being started for this cycle attempt, as its `ecosystem_resolution_ref`
+   too — this is the single most valuable thing a checkpoint can save a
+   resuming agent from redoing.
+6. Load the operating rules: this Blueprint, the ecosystem's authoritative
    manifests, canonical Bridge/Registry contracts, immutable architectural
    decisions, capability/component reuse rules, repository-local policies.
    Local instructions may refine implementation details but never contradict
    canonical ecosystem rules.
-6. Resolve the current state from the authoritative discoverable state of the
+7. Resolve the current state from the authoritative discoverable state of the
    ecosystem — never from private conversation memory.
-7. Only after steps 1–6 are complete, accept the requested goal as the cycle
-   input.
-8. Plan the application's package structure before writing any code: contract
+8. Only after steps 2–7 are complete (or a checkpoint was resumed at step 1),
+   accept the requested goal as the cycle input.
+9. Plan the application's package structure before writing any code: contract
    artifacts under `contracts/`; component executors and their capability
    manifests co-located in their owning packages; small generic (single-task,
    reusable) components built and composed before the specific
@@ -91,7 +130,7 @@ an authoritative implementation; write a monolith file mixing independent
 responsibilities; embed registration logic inside an application package
 (registration is an assembly/Publish concern, Phase 8).
 
-**Non-negotiables.** Gates 1, 2, 3, 25:
+**Non-negotiables.** Gates 1, 2, 3, 25, 32, 33:
 
 1. Did I resolve the canonical Bridge? (From the ecosystem root.)
 2. Did I resolve the canonical Registry?
@@ -100,6 +139,19 @@ responsibilities; embed registration logic inside an application package
     canonical Bridge and Registry (and the implementation map)? The canonical
     Bridge is the only execution interface for every capability operation —
     in any package, in scripts, and in the harness (R8).
+32. Did I check for an existing in-progress checkpoint before accepting a
+    goal as new, and either resume it or get explicit confirmation to
+    discard it?
+33. If I resumed a checkpoint, did I go straight to its
+    `ecosystem_resolution_ref` and each responsibility's recorded
+    `artifacts`, instead of re-discovering already-resolved state via a
+    project-wide scan? Resuming from a checkpoint must cost less than
+    starting fresh, never the same or more — and that cost must be bounded
+    by the number of responsibilities the checkpoint itself recorded, not
+    by how many capabilities the wider project has. A resume that scales
+    with total project size, in a project with a handful of capabilities
+    or hundreds, is a failed resume regardless of whether it eventually
+    succeeded.
 
 **Produces.** Resolved ecosystem root + loaded rules + accepted `goal` + a
 written ecosystem-resolution record.
@@ -153,7 +205,11 @@ or more implementations, each bound by its own capability-manifest entry
 referencing the same contract. A bigger contract MAY require multiple other
 capability contracts in its `dependencies` per R4 — do not split into
 arbitrary micro-tasks and do not bundle unrelated responsibilities into a
-catch-all. Identity per R1.
+catch-all. Identity per R1. Add each responsibility to the checkpoint at
+status `planned` (`dep.checkpoint.save_checkpoint`, `dep/MANIFEST.yaml`) —
+this is what lets an agent resuming after an interruption see which
+responsibilities this cycle even decomposed into, not just which ones
+happen to have code on disk.
 
 **Non-negotiables.** Gates 13 and 21 by construction: this decomposition is
 what Verify (Phase 7) later proves survived integration. Creation order is
@@ -231,7 +287,10 @@ shortcut.
 **Non-negotiables.** Gate 6: prefer reuse over duplication. Record the reason
 for every decision, and for every `create` decision record the
 small-reusability verdict (a generic single-task id per R1) and the
-generics-first order it imposes (R4).
+generics-first order it imposes (R4). Update each responsibility's
+checkpoint entry to status `decided`, with its `decision`/`reason`
+(`dep.checkpoint.save_checkpoint`) — an agent resuming this cycle later
+must never re-decide a responsibility that already reached this status.
 
 **Produces.** A decision table per responsibility.
 
@@ -249,7 +308,16 @@ writing the contract, apply the product-neutrality checkpoint in `2-RULES.md`
 to confirm the responsibility is genuinely generic, not a one-off dressed up
 as a capability. Components never register themselves and never import the
 Registry (Publish phase owns registration, per R8's indirection rules in
-`2-RULES.md`).
+`2-RULES.md`). This contract → manifest → code order is exactly what the
+checkpoint's `contract_written` → `manifest_written` → `code_written`
+statuses track — update the responsibility's checkpoint entry after each
+one completes, not once at the end of the whole capability, so an
+interrupted implementation shows precisely which of the three exists on
+disk already. Each update MUST also record the file path just written
+into that responsibility's `artifacts.contract` / `.manifest` / `.executor`
+— a status alone only tells a resuming agent THAT something exists, not
+WHERE, which is what forces the expensive fallback of scanning the whole
+project to find it.
 
 **Non-negotiables.** Gates 7, 15, 16, 26:
 
@@ -275,7 +343,11 @@ second request pipeline.
 **Do.** Consumers speak only capability IDs + contract operations through the
 Bridge (`2-RULES.md`). Request path per R6: every consumer request — including
 terminal/CLI input handling — funnels through the application's single
-request-construction point.
+request-construction point. Once a responsibility's capability is actually
+wired through the Bridge and reachable this way, move its checkpoint entry
+to status `integrated` (`dep.checkpoint.save_checkpoint`) — the last status
+before Phase 7 verification, and the signal a resuming agent uses to skip
+re-implementing work that already made it this far.
 
 **Non-negotiables.** Gates 10, 13, 24, 27:
 
@@ -381,7 +453,11 @@ episode corpus (e.g. `state/episodes/`, alongside its
 `state/verification-record.json`; dep/ itself has no default), and this
 call is what makes the cycle an actual entry in it, not just a record
 "written into the resulting state" and never seen again. A cycle that
-skips this is not published, regardless of what else it did.
+skips this is not published, regardless of what else it did. Once
+`save_episode` succeeds, call `dep.checkpoint.clear_checkpoint(checkpoint_path)`
+(`dep/MANIFEST.yaml`) — the episode is now this attempt's permanent record,
+so a completed cycle leaves no lingering in-progress checkpoint behind for
+a future Phase 0 to mistake for unfinished work.
 
 **Non-negotiables.** Gates 8, 9, 14, 31:
 
