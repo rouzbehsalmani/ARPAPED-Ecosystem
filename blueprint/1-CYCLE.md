@@ -21,7 +21,7 @@ goal
 
 | Phase | Gate(s) enforced |
 |---|---|
-| 0 — Bootstrap | 1, 2, 3, 25, 32, 33, 34 |
+| 0 — Bootstrap | 1, 2, 3, 25, 32, 33, 34, 35 |
 | 1 — Understand | 3 |
 | 1.5 — Component health check | 12 |
 | 2 — Decompose the goal | 13, 21 (by construction) |
@@ -119,8 +119,27 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    order violation (Gate 26), so it's recorded as a
    `blocker`, not silently advanced past `manifest_written` — reconciling
    must never launder a real rule violation into a clean-looking status.
-2. Establish the ecosystem root supplied by the operator; never create a
-   second copy.
+2. **First decide: does this goal continue an application that already has
+   an ecosystem root in this repo, or does it need a genuinely NEW,
+   independent one?** (Gate 35) A repo can hold many independent
+   worked applications side by side (this one does); "the ecosystem" is
+   scoped per APPLICATION, never per repo. Getting this wrong is not a
+   style issue -- observed for real: a second, unrelated application
+   imported an existing application's Bridge/Registry/
+   assembler modules directly instead of resolving its own, because
+   nothing distinguished "continue this ecosystem" from "start a new
+   one" -- the new application could not run, or be copied into a real
+   deployment, without the first application's tree also present.
+   - **Continuing an existing application:** establish the root already
+     supplied by the operator (or already discoverable, e.g. the one
+     goal-relevant application in an otherwise-empty repo); never
+     create a second copy of THAT root.
+   - **Starting a genuinely new, independent application:** establish a
+     NEW root for it (never nested inside, or defaulting to, an
+     existing application's root) -- see 0-WALKTHROUGH.md section 0 for
+     what this application must resolve/establish for itself (its OWN
+     Bridge, Registry, Policy, Selector, assembler -- copied or ported
+     from a reference implementation, never imported cross-application).
 3. Starting there, discover the authoritative ecosystem profile/manifest,
    canonical Bridge implementation, Registry implementation and records,
    policy implementation, capability/component contracts, implementation
@@ -173,7 +192,11 @@ one competing within a runtime that already has its resolved canonical
 one — this is distinct from resolving one canonical Bridge per runtime
 when the consumer surface genuinely spans more than one, e.g. the backend
 plus a browser tab, a mobile app, or any other entry point, 2-RULES.md
-Bridge glossary); create a private
+Bridge glossary); resolve or import an EXISTING application's Bridge,
+Registry, Policy, Selector, or assembler as if it were a genuinely NEW,
+independent application's own (Gate 35) — a new application copies or
+ports the reference implementation into its own tree, it never imports
+another application's module across that boundary; create a private
 Registry; copy the entire ecosystem into a package; implement a small
 generic responsibility as one-off package-local logic merely for convenience;
 globally scan the Registry as the normal discovery mechanism; silently replace
@@ -183,7 +206,7 @@ responsibilities; embed registration logic inside an application package
 capability's own responsibility directly in a frontend instead of resolving
 it through a Bridge (R6/R9) — in any runtime, in any language.
 
-**Non-negotiables.** Gates 1, 2, 3, 25, 32, 33, 34:
+**Non-negotiables.** Gates 1, 2, 3, 25, 32, 33, 34, 35:
 
 1. Did I resolve the canonical Bridge? (From the ecosystem root.)
 2. Did I resolve the canonical Registry?
@@ -219,6 +242,15 @@ it through a Bridge (R6/R9) — in any runtime, in any language.
     any rule violation it exposed (e.g. code written without its manifest,
     R7/Gate 26) as a `blocker` instead of silently advancing the status
     past it?
+35. Did I explicitly decide whether this goal continues an EXISTING
+    application's ecosystem or requires a genuinely NEW, independent
+    one, before resolving any Bridge/Registry — and if new, did the
+    resolved Bridge/Registry/Policy/Selector/assembler end up under
+    THIS application's own tree (copied or ported from a reference
+    implementation), never imported directly from another application's
+    module? "The ecosystem" is scoped per application, never per repo;
+    a repo holding several independent applications is not itself one
+    ecosystem they all share.
 
 **Produces.** Resolved ecosystem root + loaded rules + accepted `goal` + a
 written ecosystem-resolution record.

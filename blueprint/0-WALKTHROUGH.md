@@ -35,46 +35,95 @@ app) instead of restating any of it in prose.
 
 ## 0. What already exists here — use it, never reinvent it
 
-The canonical Bridge, Registry, Policy engine, Selector, and assembler this
-Blueprint tells you to resolve are **already implemented in this repo**,
-under `sample/hello_world/backend/runtime/bridge/`. `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` names exactly where each one lives
-and what it does; `sample/schemas/` holds the schemas that define contract,
-manifest, trace, and catalog shapes (this cycle's own record shapes --
-cycle input/report, verification record, checkpoint -- live separately in
-`blueprint/schemas/`, alongside this file). Resolve everything from there and read
-that implementation's own source for its actual language and call
-signatures — this file never restates them.
+A REFERENCE canonical Bridge, Registry, Policy engine, Selector, and
+assembler already exist in this repo, under
+`sample/hello_world/backend/runtime/bridge/` (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`
+names exactly where each one lives and what it does); `sample/schemas/`
+holds the schemas that define contract, manifest, trace, and catalog
+shapes (this cycle's own record shapes -- cycle input/report,
+verification record, checkpoint -- live separately in
+`blueprint/schemas/`, alongside this file).
 
-This **is** the canonical execution boundary that `1-CYCLE.md` Phase 0 tells
-you to resolve. Do not write a new Bridge, Registry, Policy, Selector, or
-assembler, and do not edit anything under `sample/hello_world/backend/runtime/bridge/` — only resolve and call
-it. `contracts/` does not exist yet in this repo; you create it as you add
-capabilities. There is no product concept and no per-application copy of the
-Bridge: one Bridge, built once, serves every capability you add.
+**"Ecosystem" is scoped per APPLICATION, never per repo.** This repo is
+not one application; it's a home for however many independent worked
+samples/applications end up here (`sample/hello_world/`, and others
+alongside it). Two genuinely different situations, never conflated:
 
-## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25, 32, 33, 34)
+- **Adding a capability to an EXISTING application** (e.g. hello_world
+  itself): that application's own ecosystem root already exists.
+  Resolve ITS ALREADY-ESTABLISHED Bridge from its own MANIFEST.yaml and
+  read that implementation's own source for its actual language and
+  call signatures — this file never restates them. Do not write a new
+  Bridge, Registry, Policy, Selector, or assembler for it, and do not
+  edit anything under its own `bridge/` — only resolve and call it.
+  `contracts/` already exists for it; you add to it as you add
+  capabilities.
+- **Building a genuinely NEW, independent application** (a new sample,
+  a new product -- anything that does not already have an ecosystem
+  root in this repo): this is a DIFFERENT ecosystem. It gets its OWN
+  Bridge, Registry, Policy, Selector, and assembler, under THAT
+  application's own tree -- copied or ported from the reference
+  implementation above (same architecture; proven portable, see
+  `2-RULES.md`'s Bridge glossary) -- never a
+  cross-application import of another application's module, and never
+  edited into the reference implementation's own tree either.
+  `contracts/` does not exist yet for a brand-new application; you
+  create it, under THAT application's own root, as you add
+  capabilities. Observed for real, the failure this causes when
+  skipped: a second, unrelated application imported
+  `sample.hello_world.backend.runtime.bridge` directly instead of
+  resolving its own -- the new application could not run, or even be
+  copied into a real deployment, without the first, unrelated
+  application's tree also being present. Two independent applications
+  sharing one Bridge module is not reuse; it is an undeclared
+  dependency between two things that are supposed to be independent
+  worked examples, each self-contained enough to copy on its own.
+
+Whichever case applies, the resolved Bridge (existing or newly
+established) **is** the canonical execution boundary that `1-CYCLE.md`
+Phase 0 tells you to resolve for that application.
+
+## 1. Bootstrap (1-CYCLE.md Phase 0 — Gates 1, 2, 3, 25, 32, 33, 34, 35)
 
 Before decomposing the goal:
 
-- [ ] Confirm `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` exists and read it, then read the
-      implementation and schemas it points at. This satisfies "resolve the
-      canonical Bridge/Registry" (Gates 1, 2) without inventing anything
-      (Gate 3).
+- [ ] **First, decide which of section 0's two cases this goal is** (Gate
+      35): does the goal continue an application that already has an
+      ecosystem root in this repo (e.g. `sample/hello_world/`), or does
+      it need a NEW, independent one? Get this wrong and everything below
+      resolves against the wrong application's Bridge.
+- [ ] **Existing application:** confirm that application's own
+      `<its root>/.../bridge/MANIFEST.yaml` exists and read it, then read
+      the implementation and schemas it points at. This satisfies
+      "resolve the canonical Bridge/Registry" (Gates 1, 2) without
+      inventing anything (Gate 3).
+- [ ] **New, independent application:** establish its own root under
+      `sample/` (never reusing or nesting inside an existing
+      application's root), then give it its own Bridge, Registry,
+      Policy, Selector, and assembler -- copied or ported from
+      `sample/hello_world/backend/runtime/bridge/`'s reference
+      implementation into THIS application's own tree, with its own
+      MANIFEST.yaml -- before resolving anything else. Never import the
+      reference implementation's module directly from the new
+      application's code (see section 0's observed-failure example).
 - [ ] Write the ecosystem-resolution record (Gate 25) — e.g.
-      `state/ecosystem-resolution.json`, naming what you resolved:
+      `<this application's root>/state/ecosystem-resolution.json`,
+      naming what you resolved:
 
   ```json
   {
-    "bridge": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: execution_boundary>",
-    "registry": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: registry>",
-    "policy": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: policy>",
-    "selector": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: selector>",
-    "contracts_area": "contracts/",
-    "root": "<repo root>"
+    "bridge": "<resolved per THIS APPLICATION's OWN bridge MANIFEST.yaml: execution_boundary>",
+    "registry": "<resolved per THIS APPLICATION's OWN bridge MANIFEST.yaml: registry>",
+    "policy": "<resolved per THIS APPLICATION's OWN bridge MANIFEST.yaml: policy>",
+    "selector": "<resolved per THIS APPLICATION's OWN bridge MANIFEST.yaml: selector>",
+    "contracts_area": "<this application's root>/contracts/",
+    "root": "<this application's own root, never the repo root>"
   }
   ```
 
-- [ ] Do not create a second Bridge/Registry anywhere in your code.
+- [ ] Do not create a second Bridge/Registry anywhere in your code, and
+      do not resolve or import another application's Bridge/Registry as
+      if it were this application's own.
 
 **Before accepting the goal as new, check for a resumable checkpoint (Gate
 32).** An agent can stop mid-cycle for reasons that have nothing to do with
