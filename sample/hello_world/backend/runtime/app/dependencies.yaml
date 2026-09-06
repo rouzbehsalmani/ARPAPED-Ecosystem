@@ -1,0 +1,38 @@
+# This app's own declared dependencies (../requests.py). Each top-level
+# key is a name the app chooses; unlike a contract's own
+# dependencies.capabilities (keyed by capability_id), this is keyed by
+# name, so the same capability can be declared more than once under
+# different names, pinned differently (see console_write vs.
+# console_write_legacy). resolve(name, operation) reads capability_id,
+# contract_version, and implementation_id from the named entry --
+# never restated at a resolve() call site.
+capabilities:
+  console_write:
+    capability_id: console.write
+    contract_version: ">=2.0.0,<3.0.0"
+  greeting_compose:
+    capability_id: greeting.compose
+    contract_version: "1.0.0"
+  console_write_legacy:
+    # A deliberate proof, not an ongoing dependency: shows 1.0.0 is still
+    # independently alive and callable alongside the 2.0.0 pinned above.
+    capability_id: console.write
+    contract_version: "<2.0.0"
+  greeting_compose_process:
+    # A deliberate proof, not an ongoing dependency: shows an
+    # out-of-process implementation (executor_kind: process) can still
+    # call other capabilities through the Bridge (R4), same as a Python
+    # factory implementation can.
+    capability_id: greeting.compose
+    contract_version: "1.0.0"
+    implementation_id: greeting.compose.process
+  console_write_process:
+    # A deliberate proof, not an ongoing dependency: shows the process
+    # executor protocol is language-neutral, not a non-Python workaround
+    # -- this implementation is Python too, but runs out-of-process.
+    capability_id: console.write
+    contract_version: ">=2.0.0,<3.0.0"
+    implementation_id: console.write.process
+  web_serve:
+    capability_id: web.serve
+    contract_version: "1.0.0"

@@ -1,0 +1,15 @@
+{
+  "capability_id": "greeting.render",
+  "contract": "sample/hello_world/frontend/implementation/contracts/greeting.render.contract.yaml",
+  "contract_version": "1.0.0",
+  "implementations": [
+    {
+      "implementation_id": "greeting.render.frontend",
+      "version": "1.0.0",
+      "operations": ["render"],
+      "executor": "capabilities/greeting/render/executor.js",
+      "executor_kind": "factory",
+      "priority": 100
+    }
+  ]
+}

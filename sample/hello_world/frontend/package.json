@@ -1,0 +1,6 @@
+{
+  "name": "hello-world-frontend",
+  "private": true,
+  "type": "module",
+  "description": "No dependencies -- this marks .js files under frontend/ as ES modules for Node (verify.js) and documents the same for any bundler-free browser deployment. Never `npm install`ed; nothing here declares a dependency."
+}

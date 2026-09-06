@@ -1,0 +1,63 @@
+# Authoritative, language-agnostic descriptor of this ecosystem's canonical
+# FRONTEND-runtime Bridge. Docs never name a file, class, or import path
+# directly -- they point here instead. If this Bridge is ever reimplemented
+# in a different language or restructured, update ONLY this file (and the
+# implementation itself); no document elsewhere in this Blueprint needs to
+# change.
+#
+# Lives inside THIS sample's own frontend/, a peer of
+# ../../../backend/runtime/bridge/MANIFEST.yaml (the backend runtime's own
+# descriptor, inside backend/) -- "exactly one canonical Bridge per
+# runtime" (blueprint/2-RULES.md Bridge glossary) means one Bridge per
+# runtime THIS SAMPLE ships, each kept with its own runtime's folder so
+# the sample stays one self-contained worked example: everything needed
+# to copy the shape of the frontend half lives under frontend/, nothing
+# to go hunting for elsewhere in the repo (README.md "copy the shape").
+#
+# Schemas are NOT listed here, same posture as
+# ../../../backend/runtime/bridge/MANIFEST.yaml: contract/manifest/protocol shapes
+# live in sample/schemas/, stable and independent of which language
+# implements either runtime's Bridge.
+bridge:
+  execution_boundary:
+    location: sample/hello_world/frontend/runtime/bridge/core.js
+    role: >
+      Routes a request through registry discovery -> policy -> selector ->
+      executor and returns a trace -- the SAME architecture as
+      sample/hello_world/backend/runtime/bridge/bridge.py's pipeline (Bridge Core, blueprint/2-RULES.md
+      glossary), running in the frontend runtime instead of the backend's.
+      Validation is Core-owned here too (checked once, against the
+      resolved candidate's own declared input_schema, before any executor
+      runs) -- never per-executor, never duplicated per capability.
+  registry:
+    location: sample/hello_world/frontend/runtime/bridge/core.js
+    role: >
+      Canonical discovery/index service for this runtime: capability+operation
+      -> bounded implementation candidates, with real version-constraint
+      matching (">=X.Y.Z,<A.B.C" clauses, an exact version, or "*") -- an
+      exact-string match on contract_version would silently fail every
+      pinned dependency, so this is real, not a placeholder.
+  assembler:
+    location: sample/hello_world/frontend/runtime/bridge/assembler.js
+    role: >
+      Reads a capability-catalog.jsonl (built by a per-sample
+      build_catalog.py from the shared contracts/ this runtime's
+      manifests reference, plus this runtime's own JSON manifests --
+      Node has no built-in YAML parser, so manifests here are JSON, never
+      an npm dependency added just to read YAML), imports each executor,
+      and registers each implementation -- never by walking capabilities/
+      directly at load time. executor_kind: factory is invoked once with
+      a Dependencies scoped to the contract's declared
+      dependencies.capabilities (blueprint/2-RULES.md R4). executor_kind:
+      remote is handled by remote_client.js below, never inline here.
+  remote_client:
+    location: sample/hello_world/frontend/runtime/bridge/remote_client.js
+    role: >
+      Reference client for executor_kind: remote (blueprint/2-RULES.md
+      R4) -- speaks sample/schemas/bridge-protocol.schema.json directly
+      (the same request/response/error shape any consumer's Bridge call
+      already uses), never a second, simpler protocol the way
+      executor_kind: process has its own. A Remote call reaches a whole
+      OTHER runtime's own Bridge Adapter entirely (e.g. the backend's
+      web.serve capability) -- this client owns the fetch/parse/
+      error-mapping entirely; a capability never hand-rolls this itself.

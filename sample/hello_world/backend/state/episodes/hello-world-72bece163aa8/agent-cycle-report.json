@@ -1,0 +1,49 @@
+{
+  "goal": {
+    "description": "Re-verify the hello_world sample's contract -> manifest -> executor -> Bridge wiring end to end (regression, no new capability)."
+  },
+  "starting_state": "samples/hello_world",
+  "decisions": [
+    {
+      "responsibility": "console_write",
+      "decision": "reuse",
+      "reason": "'console_write' already implemented and registered; this cycle re-verifies it end to end and changes nothing."
+    },
+    {
+      "responsibility": "greeting_compose",
+      "decision": "reuse",
+      "reason": "'greeting_compose' already implemented and registered; this cycle re-verifies it end to end and changes nothing."
+    },
+    {
+      "responsibility": "console_write_legacy",
+      "decision": "reuse",
+      "reason": "'console_write_legacy' already implemented and registered; this cycle re-verifies it end to end and changes nothing."
+    },
+    {
+      "responsibility": "greeting_compose_process",
+      "decision": "reuse",
+      "reason": "'greeting_compose_process' already implemented and registered; this cycle re-verifies it end to end and changes nothing."
+    },
+    {
+      "responsibility": "console_write_process",
+      "decision": "reuse",
+      "reason": "'console_write_process' already implemented and registered; this cycle re-verifies it end to end and changes nothing."
+    }
+  ],
+  "new_capabilities": [],
+  "reused_capabilities": [
+    "console_write",
+    "greeting_compose",
+    "console_write_legacy",
+    "greeting_compose_process",
+    "console_write_process"
+  ],
+  "bridge_integration": "Every call above resolved through app/requests.py's single request-construction point and the same canonical Bridge app/main.py uses (R6/R8); every observed trace reached executed.",
+  "verification": {
+    "harness": "samples/hello_world/tests/verify/verify.py",
+    "verification_record_ref": "samples/hello_world/state/verification-record.json",
+    "status": "verified"
+  },
+  "resulting_state": "samples/hello_world",
+  "next_cycle_readiness": "capability-catalog.jsonl, dependencies.yaml, and this verification record are everything the next cycle needs; no private memory of this run is required."
+}

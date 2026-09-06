@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hello_world -- frontend Bridge</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 40em; margin: 3em auto; padding: 0 1em; }
+  input { font-size: 1em; padding: 0.3em; }
+  button { font-size: 1em; padding: 0.3em 1em; }
+  pre { background: #f0f0f0; padding: 1em; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>greeting.render -- the frontend's own Bridge</h1>
+<p>
+  This page runs its own Bridge Core entirely in the browser (<code>bridge/core.js</code>).
+  <code>greeting.render</code> executes <strong>Local</strong>, right here, in this page's
+  own JavaScript -- but it depends on <code>console.write</code>, which only exists on the
+  <strong>backend</strong>, served separately (<code>web.serve</code>, an API only -- not
+  this page). Clicking the button makes a real cross-origin HTTP POST to the backend's
+  <code>/bridge</code> endpoint (executor_kind: remote) -- the text below the button is what
+  came back from THIS page's own Bridge; the backend's own console/terminal is where
+  <code>console.write</code> actually printed it.
+</p>
+<p>
+  Backend API base URL:
+  <input id="backend" value="http://127.0.0.1:8420" size="28">
+</p>
+<p>
+  <input id="name" placeholder="Your name" value="ARPAPED">
+  <button id="greet">Greet</button>
+</p>
+<pre id="result">assembling this page's own Bridge...</pre>
+<script type="module">
+  import { createApp } from "./app.js";
+
+  const resultEl = document.getElementById("result");
+  const greetButton = document.getElementById("greet");
+  greetButton.disabled = true;
+
+  let app;
+  try {
+    // selfBaseUrl stays "" -- this runtime's own catalog/executor assets
+    // are always relative to wherever THIS page was loaded from, whatever
+    // static host that is. backendBaseUrl is the one thing that must be
+    // told explicitly: adjust the field above if your backend isn't at the
+    // default `python -m sample.hello_world.backend.runtime.app.main` port.
+    //
+    // This assembly step needs no backend connectivity at all (it only
+    // fetches THIS page's own catalog/executor files) -- if it fails here,
+    // the page itself wasn't served/loaded correctly (e.g. opened as a
+    // file:// URL instead of through a real static server -- see
+    // ../README.md "Run"), never a backend problem.
+    app = await createApp({ backendBaseUrl: document.getElementById("backend").value });
+    resultEl.textContent = "ready -- click Greet";
+    greetButton.disabled = false;
+  } catch (exc) {
+    // Without this catch, a failed assembly would throw out of this
+    // top-level await and the script would stop right here -- BEFORE the
+    // click listener below is ever attached, so the button would silently
+    // do nothing at all on click, with the real error visible only in the
+    // browser's own DevTools console.
+    resultEl.textContent = "Failed to assemble this page's own Bridge: " + (exc && exc.message ? exc.message : String(exc));
+    throw exc;
+  }
+
+  greetButton.addEventListener("click", async () => {
+    resultEl.textContent = "...";
+    try {
+      const handle = app.resolve("greeting_render", "render");
+      const response = await handle.call({ name: document.getElementById("name").value });
+      resultEl.textContent = JSON.stringify(response, null, 2);
+    } catch (exc) {
+      resultEl.textContent = "Error: " + (exc && exc.message ? exc.message : String(exc));
+    }
+  });
+</script>
+</body>
+</html>

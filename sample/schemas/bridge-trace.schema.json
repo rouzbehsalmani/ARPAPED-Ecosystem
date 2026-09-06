@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Bridge Trace",
+  "type": "array",
+  "description": "Ordered list of stages the Bridge request completed. On success contains all five stages; on failure contains only stages reached before the error. Never empty.",
+  "minItems": 1,
+  "items": {
+    "type": "string",
+    "enum": [
+      "validated",
+      "discovered",
+      "policy_evaluated",
+      "selected",
+      "executed"
+    ]
+  }
+}

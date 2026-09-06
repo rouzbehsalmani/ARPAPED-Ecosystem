@@ -1,0 +1,90 @@
+# Authoritative, language-agnostic descriptor of this ecosystem's canonical
+# Bridge. Docs never name a file, class, or import path directly — they
+# point here instead. If this Bridge is ever reimplemented in a different
+# language or restructured, update ONLY this file (and the implementation
+# itself); no document elsewhere in this Blueprint needs to change.
+#
+# Schemas are NOT listed here: contract/manifest/protocol shapes are pure
+# data-structure definitions, not coupled to the Bridge's implementation
+# language, so they live in the stable `sample/schemas/` and never move or
+# change just because this file's contents do -- a peer of this folder
+# under the same `sample/` container (the resolved/concrete zone of this
+# repo), distinct from `blueprint/schemas/`, which holds the self-development
+# schemas (cycle input/report, verification record, checkpoint) belonging
+# to the OTHER zone, `blueprint/` (the methodology: docs + dep/), never
+# split the other way. `hello_world/` is likewise not listed here: it
+# demonstrates BOTH zones together (this Bridge and blueprint/dep/'s
+# cycle-recording), so it lives alongside this folder under `sample/`, not
+# nested inside it -- see blueprint/dep/MANIFEST.yaml.
+#
+# This file describes the backend runtime's canonical Bridge specifically.
+# "Exactly one canonical Bridge" (blueprint/2-RULES.md Bridge glossary) is
+# scoped per runtime a consumer surface executes in -- this sample's own
+# frontend (a browser tab in this case) has its own Bridge, with its own
+# equivalent descriptor, at ../../../frontend/runtime/bridge/MANIFEST.yaml
+# -- inside this SAME sample, one runtime's Bridge per runtime's own
+# runtime/ folder (never its implementation/ -- see ../../README.md), so the
+# whole sample stays one self-contained worked example (README.md "copy
+# the shape"), never split across a shared location plus a per-sample
+# remainder. Never edit this file to describe a second, different-language
+# Bridge in place of the backend's -- add or edit the frontend's own
+# descriptor instead.
+bridge:
+  execution_boundary:
+    location: sample/hello_world/backend/runtime/bridge/bridge.py
+    role: >
+      Routes a request through registry discovery -> policy -> selector ->
+      executor and returns a trace. There is exactly one canonical Bridge.
+      Once a candidate is selected, validates the request's input against
+      the operation's contract-declared shape (required fields, declared
+      types, declared defaults) before any executor runs, in any language
+      (blueprint/2-RULES.md "No silent defaults on what resolution depends on").
+      Each trace stage is observable live via handle's on_stage callback;
+      handle_with_timeout runs under a bounded per-stage timeout instead
+      of an unbounded wait, raising BRIDGE_STAGE_TIMEOUT with whatever
+      partial trace was observed (blueprint/2-RULES.md R5) — for verification in an
+      unattended pipeline with nobody to notice or interrupt a hung call.
+  registry:
+    location: sample/hello_world/backend/runtime/bridge/registry.py
+    role: >
+      Canonical discovery/index service: capability+operation -> bounded
+      implementation candidates. Supports the 5-level discovery cascade
+      (Exact -> Scoped -> Family -> Domain -> Cross-domain; see
+      `discover_cascade` and blueprint/2-RULES.md "Registry contract").
+  policy:
+    location: sample/hello_world/backend/runtime/bridge/policy.py
+    role: >
+      Canonical authorization stage that evaluates each candidate against
+      the request's policy context.
+  selector:
+    location: sample/hello_world/backend/runtime/bridge/selector.py
+    role: >
+      Canonical routing stage that picks which allowed candidate executes
+      (with failover awareness).
+  assembler:
+    location: sample/hello_world/backend/runtime/bridge/assembler.py
+    role: >
+      Generic Publish-phase helper: reads capability manifests, imports
+      each executor, builds implementation records (including each
+      operation's contract-recorded input shape, later enforced by the
+      Bridge above), and registers them into the canonical Registry.
+      Builds and consumes the generated capability catalog
+      (append_to_catalog, rebuild_catalog, assemble_from_catalog; see
+      sample/schemas/capability-catalog.schema.json) so neither discovery nor
+      runtime bootstrap has to re-walk every manifest. executor_kind:
+      factory is invoked once with a Dependencies scoped to the
+      contract's declared dependencies.capabilities (blueprint/2-RULES.md R4),
+      after verifying the dependency graph is acyclic (R5).
+      executor_kind: process spawns the named program instead of
+      importing anything (sample/hello_world/backend/runtime/bridge/process_executor.py), verified to have
+      actually started before registering it (R5) — how a capability can
+      be implemented in another language. executor_kind: direct/factory
+      is NOT language-neutral this way — it is a literal in-process
+      call, coupled to whatever language this Bridge happens to be. If
+      this Bridge is ever reimplemented in a different language, an
+      existing direct/factory capability's own files must not be edited
+      or deleted to keep it reachable (blueprint/2-RULES.md R4) — a generic,
+      per-language adapter (the same reference-client shape `sample/hello_world`
+      already uses for `process`, applied one level earlier) should
+      import it and serve it behind the same out-of-process protocol
+      instead, so the capability never has to know or care.
