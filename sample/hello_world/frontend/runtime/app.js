@@ -3,15 +3,17 @@
  * Single request-construction point (blueprint/2-RULES.md R6) for the
  * frontend runtime -- the Bridge Adapter (Bridge glossary): builds this
  * runtime's Bridge Core (./bridge/, this sample's own frontend-runtime
- * Bridge -- lives inside frontend/, the same way the backend's own Bridge
- * lives inside backend/bridge/, so this sample stays a self-contained
- * worked example: everything a reader needs to copy the shape of one
- * runtime lives under that runtime's own folder, nothing to go hunting
- * for elsewhere in the repo), assembles every implementation from the
- * generated capability catalog (build_catalog.py, fetched -- not read
- * from disk, this runtime has no filesystem) -- never by walking
+ * Bridge -- lives inside frontend/runtime/bridge/, the same way the
+ * backend's own Bridge lives inside backend/runtime/bridge/, so this
+ * sample stays a self-contained worked example: everything a reader
+ * needs to copy the shape of one runtime lives under that runtime's own
+ * folder, nothing to go hunting for elsewhere in the repo), assembles
+ * every implementation from the generated capability catalog (a build
+ * artifact, fetched -- not read from disk, this runtime has no
+ * filesystem; how it was generated is an implementation/-side concern
+ * this runtime file has no need to know or name) -- never by walking
  * capabilities/ directly -- and exposes resolve(name, operation), the JS
- * mirror of ../backend/app/requests.py.
+ * mirror of ../backend/runtime/app/requests.py.
  *
  * Backend and frontend are served SEPARATELY (../../README.md "Two
  * servers, not one"), so this runtime's own assets and the backend's API
@@ -36,7 +38,7 @@ import { assembleFromCatalog } from "./bridge/assembler.js";
 
 const DECLARED = {
   // This runtime's own declared-dependencies list (mirrors
-  // ../backend/app/dependencies.yaml) -- keyed by name, not capability_id,
+  // ../backend/runtime/app/dependencies.yaml) -- keyed by name, not capability_id,
   // resolved once here rather than restated at every call site.
   greeting_render: { capabilityId: "greeting.render", contractVersion: "1.0.0" },
 };

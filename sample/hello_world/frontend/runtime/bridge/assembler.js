@@ -1,9 +1,10 @@
 "use strict";
 /**
  * Publish-phase helper for the frontend runtime -- mirrors
- * sample/bridge/assembler.py's role exactly (blueprint/2-RULES.md
- * "assemble"): reads capability-catalog.jsonl (built by build_catalog.py
- * from this runtime's own contracts/manifests), imports each executor,
+ * ../../../backend/runtime/bridge/assembler.py's role exactly (blueprint/2-RULES.md
+ * "assemble"): reads capability-catalog.jsonl (a generated build
+ * artifact -- how it was built is an implementation/-side concern this
+ * runtime file has no need to know or name), imports each executor,
  * and registers each implementation into this runtime's own Bridge Core
  * -- never by walking capabilities/ directly at load time.
  *

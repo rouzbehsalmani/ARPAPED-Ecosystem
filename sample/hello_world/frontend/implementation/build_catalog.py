@@ -1,5 +1,5 @@
 """Generates this frontend's capability-catalog.jsonl (Phase 8, Publish) --
-the JS runtime's own equivalent of ../backend/build_catalog.py, same role
+the JS runtime's own equivalent of ../../backend/implementation/build_catalog.py, same role
 toward sample/hello_world/backend/runtime/bridge/assembler.py's discipline, just reading THIS runtime's
 own JSON manifests (frontend/capabilities/**/manifest.json) instead of
 YAML ones, since Node has no built-in YAML parser and this sample adds no

@@ -40,11 +40,12 @@ bridge:
   assembler:
     location: sample/hello_world/frontend/runtime/bridge/assembler.js
     role: >
-      Reads a capability-catalog.jsonl (built by a per-sample
-      build_catalog.py from the shared contracts/ this runtime's
-      manifests reference, plus this runtime's own JSON manifests --
-      Node has no built-in YAML parser, so manifests here are JSON, never
-      an npm dependency added just to read YAML), imports each executor,
+      Reads a capability-catalog.jsonl (a generated build artifact --
+      how it was built is an implementation/-side concern this runtime
+      file has no need to know or name -- from this runtime's OWN
+      contracts/manifests, never a shared area; manifests here are JSON,
+      never YAML, since Node has no built-in YAML parser and this sample
+      adds no npm dependency just to read it), imports each executor,
       and registers each implementation -- never by walking capabilities/
       directly at load time. executor_kind: factory is invoked once with
       a Dependencies scoped to the contract's declared

@@ -2,7 +2,9 @@
 
 Builds a registry and Bridge (policy/selector from sample/hello_world/backend/runtime/bridge/MANIFEST.yaml),
 then registers every implementation from the generated capability
-catalog (build_catalog.py) -- never by walking capabilities/ directly.
+catalog (a build artifact -- how it was built is an implementation/-side
+concern this runtime file has no need to know or name) -- never by
+walking capabilities/ directly.
 The Bridge is built before assembly runs: greeting.compose declares
 executor_kind: factory, which needs a live Bridge to build its
 Dependencies, even though the registry it wraps is still empty at that

@@ -6,8 +6,8 @@
 // function, and never writes the connect/read/dispatch/reply loop
 // itself (see ../compose_process for the pattern).
 //
-// Lives inside this sample, not under sample/bridge/ (not part of the Bridge
-// implementation) and not at the repo root (not shared, ecosystem-level
+// Lives inside this sample, not under backend/runtime/bridge/ (not part of
+// the Bridge implementation) and not at the repo root (not shared, ecosystem-level
 // infrastructure -- every consumer is a capability inside this one
 // sample; a real application copies the shape, not this copy). See
 // clients/python/bridge_client.py for the same role in Python.
@@ -31,7 +31,7 @@ pub struct CallError {
 }
 
 /// One connection to the Bridge -- one worker in a `ProcessExecutorPool`
-/// (sample/bridge/process_executor.py). `connect()` reads `ARPAPED_BRIDGE_PORT`
+/// (backend/runtime/bridge/process_executor.py). `connect()` reads `ARPAPED_BRIDGE_PORT`
 /// and connects; everything else is one invocation's request/reply cycle.
 pub struct Connection {
     reader: BufReader<TcpStream>,
