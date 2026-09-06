@@ -461,6 +461,26 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   separately-rememberable later step, is what makes 1-CYCLE.md Phase 8
   Gate 31 a structural consequence of this gate passing.
 
+**Before the loop below is considered done, re-read your own entry point
+code once more, on purpose (Gate 36).** The harness above proves every
+capability trace reaches `executed`; it does NOT catch an entry point that
+quietly re-derives a value a capability already owns, because that code
+still runs and still renders something plausible — nothing fails, nothing
+traces wrong, it's simply not resolving that value through the Bridge.
+Read every entry point / consumer-facing file (a process entry point, a
+browser runtime's bootstrap/rendering script) end to end and flag every
+numeric or string literal that is not pure presentation (a color, a pixel
+size, a label). For each one, check whether some capability's own contract
+or executor already defines or computes that same value — if so, this is
+the R6/R9 violation Gate 27 prohibits, just invisible to any automated
+check: fix it by having that capability RETURN the value in its output
+(extending its contract/executor if it doesn't yet), then have the entry
+point read it from there, never re-derive it locally. Observed for real:
+an entry point re-displayed a statistic using hardcoded per-type constants
+that a capability's own executor already computed internally under the
+same names but never returned — the two copies agreed by coincidence, and
+would have silently drifted the moment either one changed.
+
 **This is a loop, not a one-shot:**
 
 1. Run the harness.
@@ -540,3 +560,10 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   entry point because "it's just infrastructure." If the entry point needs a
   real service, that service is a capability (R9) — the entry point only
   calls it.
+- An entry point quietly re-deriving a value some capability already
+  defines or computes, instead of that capability returning it — every
+  mechanical check (schema validation, Bridge trace, harness) passes,
+  because nothing about this fails or traces wrong; it just isn't resolved
+  through the Bridge (R6/R9). Invisible to a "does it decide anything?"
+  skim; only checking the entry point's own literals one by one, against
+  what each capability already defines, catches it (Gate 36).

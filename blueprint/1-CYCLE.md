@@ -29,7 +29,7 @@ goal
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 36 |
 | 8 — Publish | 8, 9, 14, 31 |
 | 9 — Return state | 11 |
 
@@ -492,7 +492,27 @@ hard failure, not grounds to wait longer (R5) — every consumer control
 through a scripted stream, an operator decision window, a reactive loop and
 injected input in the same session, regression checks for every previously
 reported defect, and a machine-readable verification record written into
-the resulting state. The strongest place to satisfy Phase 8's Gate 31 is
+the resulting state.
+
+Before treating Gate 27 as satisfied, re-read every entry point's own code
+(a process entry point, a browser runtime's bootstrap/rendering script, any
+other consumer-facing file) end to end one more time — not to re-run it,
+to actually read it — specifically hunting for a numeric or string literal
+that isn't pure presentation (a color, a pixel size, a label) (Gate 36).
+For each one, check whether some capability's own contract or executor
+already defines or computes that same value. Observed for real: an entry
+point re-derived a displayed statistic (a resource total contributed per
+building type) using hardcoded per-type constants that were already
+computed, under the same names, inside a capability's own executor — which
+never returned that value in its output, so the entry point silently
+duplicated the rule instead of resolving it, and the two copies would have
+silently disagreed the moment either one changed. The fix is never in the
+entry point: extend the capability's own output to include the value, then
+have the entry point read it from there. A gate that only asks "does this
+decide anything?" is easy to answer yes-I-checked without ever finding
+this; checking literal-by-literal is what actually catches it.
+
+The strongest place to satisfy Phase 8's Gate 31 is
 here, as the harness's own last act once every check has passed
 (episode_store's own save operation with the cycle report, verification
 record, and episodes directory — `blueprint/dep/MANIFEST.yaml: episode_store`,
@@ -500,7 +520,7 @@ record, and episodes directory — `blueprint/dep/MANIFEST.yaml: episode_store`,
 event, a harness failure rather than a step a later phase can forget,
 instead of two separately-rememberable actions.
 
-**Non-negotiables.** Gates 17–24, 27, 28:
+**Non-negotiables.** Gates 17–24, 27, 28, 36:
 
 17. Did I run the result through a verification harness — headlessly, no
     real terminal required?
@@ -537,6 +557,12 @@ instead of two separately-rememberable actions.
 30. For every capability that calls another one, is the declared dependency
     graph acyclic, and does it call only what it declared under
     `dependencies.capabilities` (R4, R5)?
+36. Did I re-read every entry point's own code specifically for hardcoded
+    literals that duplicate a value some capability already defines or
+    computes, rather than trusting a general "does it decide anything?"
+    impression? A literal that happens to match a capability's own constant
+    is exactly the reimplementation Gate 27 prohibits, just easy to miss
+    without checking value-by-value.
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or
 split/reuse per Phase 4), re-run the harness, and only then proceed. An
