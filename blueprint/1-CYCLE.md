@@ -43,14 +43,14 @@ the goal. Mandatory before any other phase, for any human or AI agent.
 **Do.**
 
 1. Before accepting anything as a new goal, check for an existing mid-cycle
-   checkpoint: `dep.checkpoint.load_checkpoint(checkpoint_path)`
-   (`dep/MANIFEST.yaml`). If it returns an `in_progress` checkpoint, RESUME
+   checkpoint via checkpoint's own load operation
+   (`blueprint/dep/MANIFEST.yaml: checkpoint`). If it returns an `in_progress` checkpoint, RESUME
    it instead of starting fresh — adopt its `goal` and `starting_state`
    unchanged, skip re-deciding any responsibility already at `integrated`,
    and continue from its `current_phase` and `next_action`. Only proceed
-   with a genuinely new goal if `load_checkpoint` returns `None`, or the
+   with a genuinely new goal if nothing is returned, or the
    operator explicitly confirms discarding the in-progress one (then
-   `dep.checkpoint.clear_checkpoint(checkpoint_path)` before continuing).
+   clear it via checkpoint's own clear operation before continuing).
    This is what lets a different agent — after the original stopped mid-cycle
    for any reason unrelated to the work itself (tokens, network, crash) —
    pick up exactly where it left off, at the responsibility level, not just
@@ -87,8 +87,8 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    for all of them already existed on disk. Trusting a stale checkpoint
    blindly is wrong, but "read the existing code to reconstruct progress"
    reintroduces the exact O(project) cost checkpoints exist to remove.
-   Reconcile instead, still bounded: `dep.checkpoint.reconcile_with_catalog
-   (checkpoint, catalog_path)` (`dep/MANIFEST.yaml`) cross-checks each
+   Reconcile instead, still bounded: checkpoint's own catalog-reconciliation
+   operation (`blueprint/dep/MANIFEST.yaml: checkpoint`) cross-checks each
    responsibility against the application's own `capability-catalog.jsonl`
    — the same bounded index Phase 3 discovery already uses — filling in
    `artifacts` and advancing `status` to at least `code_written` wherever
@@ -103,14 +103,20 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    for real, mid-Phase-5: a checkpoint frozen at `current_phase:
    "0-bootstrap"` while 7 contracts and 5 of 7 executors already existed,
    with no `capability-catalog.jsonl` anywhere to reconcile against. For
-   this case, `dep.checkpoint.reconcile_with_filesystem(checkpoint,
-   contracts_dir, capabilities_dir)` (`dep/MANIFEST.yaml`) uses the
+   this case, checkpoint's own filesystem-reconciliation operation
+   (`blueprint/dep/MANIFEST.yaml: checkpoint`) uses the
    ecosystem's own naming convention (R1: `<domain>.<rest>` places a
-   contract/manifest/executor at predictable paths) instead of a catalog —
-   three `Path.exists()` checks per responsibility, no file contents read,
-   still O(this checkpoint's own responsibility count). It also catches
-   what a raw status-bump would hide: an executor written without its
-   manifest is an R7 order violation (Gate 26), so it's recorded as a
+   contract/manifest at predictable paths, tried as either a `.yaml` or
+   `.json` manifest since which one depends on the runtime's own
+   language) instead of a catalog — bounded, no file contents read beyond
+   a found manifest itself, still O(this checkpoint's own responsibility
+   count). A manifest's own `executor:` field is then resolved against
+   whichever filesystem roots the caller supplies (there is no one rule
+   for this across languages/executor_kinds — a Python `module:attr`
+   string and a plain relative path resolve completely differently). It
+   also catches what a raw status-bump would hide: a file sitting where a
+   manifest would name it, before any manifest exists there, is an R7
+   order violation (Gate 26), so it's recorded as a
    `blocker`, not silently advanced past `manifest_written` — reconciling
    must never launder a real rule violation into a clean-looking status.
 2. Establish the ecosystem root supplied by the operator; never create a
@@ -121,7 +127,12 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    manifests, and connector contracts. Use the repository's own manifests as
    the authority for exact paths and versions. If two authoritative-looking
    implementations conflict, STOP and report the ambiguity — do not silently
-   choose one.
+   choose one. If the goal's consumer surface spans more than one runtime —
+   the backend plus any other entry point it ships (a browser tab, a
+   mobile app, a desktop client, whatever kind it is) — repeat this
+   resolution for each runtime that needs its own canonical Bridge; never
+   assume a backend Bridge alone covers another entry point's own requests
+   (2-RULES.md Bridge glossary, R6).
 4. Build an implementation map: every required primitive (execution boundary,
    discovery/Registry, policy, capability model, component model, packaging
    model, implementation model, connector model, resource execution) must
@@ -133,7 +144,7 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    the `contracts/` area, and the root, plus the implementation map. Without
    it the cycle cannot proceed: a resolved-but-unrecorded Bridge is treated as
    unresolved. The record is referenced in the cycle report
-   (`schemas/agent-cycle-report.schema.json`) and, if a checkpoint is now
+   (`blueprint/schemas/agent-cycle-report.schema.json`) and, if a checkpoint is now
    being started for this cycle attempt, as its `ecosystem_resolution_ref`
    too — this is the single most valuable thing a checkpoint can save a
    resuming agent from redoing.
@@ -157,13 +168,20 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    independent responsibilities, and never reimplement a small reusable
    component instead of composing it.
 
-**Hard prohibitions.** The agent MUST NOT: create a parallel Bridge; create a
-private Registry; copy the entire ecosystem into a package; implement a small
+**Hard prohibitions.** The agent MUST NOT: create a parallel Bridge (a second
+one competing within a runtime that already has its resolved canonical
+one — this is distinct from resolving one canonical Bridge per runtime
+when the consumer surface genuinely spans more than one, e.g. the backend
+plus a browser tab, a mobile app, or any other entry point, 2-RULES.md
+Bridge glossary); create a private
+Registry; copy the entire ecosystem into a package; implement a small
 generic responsibility as one-off package-local logic merely for convenience;
 globally scan the Registry as the normal discovery mechanism; silently replace
 an authoritative implementation; write a monolith file mixing independent
 responsibilities; embed registration logic inside an application package
-(registration is an assembly/Publish concern, Phase 8).
+(registration is an assembly/Publish concern, Phase 8); reimplement a
+capability's own responsibility directly in a frontend instead of resolving
+it through a Bridge (R6/R9) — in any runtime, in any language.
 
 **Non-negotiables.** Gates 1, 2, 3, 25, 32, 33, 34:
 
@@ -171,9 +189,12 @@ responsibilities; embed registration logic inside an application package
 2. Did I resolve the canonical Registry?
 3. Did I avoid creating a parallel Bridge or Registry?
 25. Did I emit and reference a written ecosystem-resolution record naming the
-    canonical Bridge and Registry (and the implementation map)? The canonical
-    Bridge is the only execution interface for every capability operation —
-    in any package, in scripts, and in the harness (R8).
+    canonical Bridge(s) and Registry (and the implementation map) — one
+    Bridge per runtime the goal's consumer surface actually executes in, not
+    just the backend's? The canonical Bridge for each such runtime is the
+    only execution interface for every capability operation in it — in any
+    package, in scripts, in the harness, and in any other entry point
+    (browser, mobile, desktop, or otherwise) alike (R8).
 32. Did I check for an existing in-progress checkpoint before accepting a
     goal as new, and either resume it or get explicit confirmation to
     discard it?
@@ -189,10 +210,10 @@ responsibilities; embed registration logic inside an application package
     succeeded.
 34. If the checkpoint appeared stale (its recorded status/artifacts didn't
     match what's actually on disk), was it reconciled against a bounded
-    source of truth — the capability catalog if one exists
-    (`dep.checkpoint.reconcile_with_catalog`), or the ecosystem's own
-    naming convention if it doesn't yet (`dep.checkpoint.
-    reconcile_with_filesystem`) — never by reading the project to
+    source of truth — the capability catalog if one exists (checkpoint's
+    own catalog-reconciliation operation), or the ecosystem's own
+    naming convention if it doesn't yet (checkpoint's own
+    filesystem-reconciliation operation, `blueprint/dep/MANIFEST.yaml: checkpoint`) — never by reading the project to
     reconstruct progress by hand, and immediately re-saved corrected so
     the same staleness is never paid for twice? Did reconciliation record
     any rule violation it exposed (e.g. code written without its manifest,
@@ -252,7 +273,7 @@ referencing the same contract. A bigger contract MAY require multiple other
 capability contracts in its `dependencies` per R4 — do not split into
 arbitrary micro-tasks and do not bundle unrelated responsibilities into a
 catch-all. Identity per R1. Add each responsibility to the checkpoint at
-status `planned` (`dep.checkpoint.save_checkpoint`, `dep/MANIFEST.yaml`) —
+status `planned` (`blueprint.dep.checkpoint.save_checkpoint`, `blueprint/dep/MANIFEST.yaml`) —
 this is what lets an agent resuming after an interruption see which
 responsibilities this cycle even decomposed into, not just which ones
 happen to have code on disk.
@@ -335,7 +356,7 @@ for every decision, and for every `create` decision record the
 small-reusability verdict (a generic single-task id per R1) and the
 generics-first order it imposes (R4). Update each responsibility's
 checkpoint entry to status `decided`, with its `decision`/`reason`
-(`dep.checkpoint.save_checkpoint`) — an agent resuming this cycle later
+(`blueprint.dep.checkpoint.save_checkpoint`) — an agent resuming this cycle later
 must never re-decide a responsibility that already reached this status.
 
 **Produces.** A decision table per responsibility.
@@ -345,8 +366,8 @@ must never re-decide a responsibility that already reached this status.
 **What.** Create or adjust components only where the decision requires it.
 
 **Do.** For a new component, follow creation order per R7 — contract artifact
-first (validated against `schemas/component-contract.schema.json`), then
-capability manifest (validated against `schemas/capability-manifest.schema.json`,
+first (validated against `sample/schemas/component-contract.schema.json`), then
+capability manifest (validated against `sample/schemas/capability-manifest.schema.json`,
 declaring the executor reference, which may name a not-yet-existing module),
 then the concrete registration-unaware executor code
 (`execute(operation, input, policy) -> output`) — and satisfy R1–R4. Before
@@ -389,9 +410,11 @@ second request pipeline.
 **Do.** Consumers speak only capability IDs + contract operations through the
 Bridge (`2-RULES.md`). Request path per R6: every consumer request — including
 terminal/CLI input handling — funnels through the application's single
-request-construction point. Once a responsibility's capability is actually
+request-construction point, in whichever runtime that consumer executes (a
+backend process, any other entry point with its own resolved Bridge, or a
+thin client calling across to another runtime's — 2-RULES.md R6). Once a responsibility's capability is actually
 wired through the Bridge and reachable this way, move its checkpoint entry
-to status `integrated` (`dep.checkpoint.save_checkpoint`) — the last status
+to status `integrated` (`blueprint.dep.checkpoint.save_checkpoint`) — the last status
 before Phase 7 verification, and the signal a resuming agent uses to skip
 re-implementing work that already made it this far.
 
@@ -407,7 +430,10 @@ re-implementing work that already made it this far.
     verify harness live outside the application packages)?
 27. Is the canonical Bridge the ONLY path that executes any capability
     operation — no direct executor/orchestrator calls in any package, in
-    scripts, or in the harness (R8)?
+    scripts, in the harness, or in any other entry point (browser, mobile,
+    desktop, or otherwise), and no capability's own responsibility
+    reimplemented directly in that entry point's own code instead of
+    resolved through a Bridge (R6/R8/R9)?
 
 Every integration MUST inspect the Bridge trace on every response
 (`validated → discovered → policy_evaluated → selected → executed`). A trace
@@ -436,8 +462,9 @@ injected input in the same session, regression checks for every previously
 reported defect, and a machine-readable verification record written into
 the resulting state. The strongest place to satisfy Phase 8's Gate 31 is
 here, as the harness's own last act once every check has passed
-(`dep.episode_store.save_episode(cycle_report, verification_record,
-episodes_dir)`, 0-WALKTHROUGH.md step 6) — that makes "verified" and "recorded" the same
+(episode_store's own save operation with the cycle report, verification
+record, and episodes directory — `blueprint/dep/MANIFEST.yaml: episode_store`,
+0-WALKTHROUGH.md step 6) — that makes "verified" and "recorded" the same
 event, a harness failure rather than a step a later phase can forget,
 instead of two separately-rememberable actions.
 
@@ -449,7 +476,11 @@ instead of two separately-rememberable actions.
     contract-shaped data with every trace reaching `executed`?
 19. Does it simulate every consumer-visible interaction via a scripted
     command stream and assert its observable effect, running an automatic
-    loop and injected input in the SAME session?
+    loop and injected input in the SAME session? When a consumer surface is
+    another entry point (browser, mobile, desktop, or otherwise) with its
+    own resolved Bridge, does this include THAT Bridge's own resolution/
+    execution path — not just the backend capability tested in isolation
+    while the shipped entry point never actually calls it?
 20. Does every previously-reported defect have a regression check that now
     PASSES, and is a verification record written into the resulting state
     and referenced in the cycle report?
@@ -480,7 +511,7 @@ split/reuse per Phase 4), re-run the harness, and only then proceed. An
 unverified state is never published.
 
 **Produces.** A verification harness, a green (or failed) verification record
-in the resulting state (`schemas/verification-record.schema.json`).
+in the resulting state (`blueprint/schemas/verification-record.schema.json`).
 
 ## Phase 8 — Publish
 
@@ -492,16 +523,16 @@ implementation) + generic assembler build each implementation record and
 register it into the canonical Registry. Publish the decomposition per R3 —
 one contract per capability, referenced by its one or more capability-manifest
 entries; the Registry records the composition. Then record the cycle itself:
-call `dep.episode_store.save_episode(cycle_report, verification_record,
-episodes_dir)` (`dep/MANIFEST.yaml`) with the Phase 7 verification record
-and this phase's cycle report — `episodes_dir` is this application's own
+call episode_store's own save operation
+(`blueprint/dep/MANIFEST.yaml: episode_store`) with the Phase 7 verification record,
+this phase's cycle report, and the episodes directory — `episodes_dir` is this application's own
 episode corpus (e.g. `state/episodes/`, alongside its
-`state/verification-record.json`; dep/ itself has no default), and this
+`state/verification-record.json`; blueprint/dep/ itself has no default), and this
 call is what makes the cycle an actual entry in it, not just a record
 "written into the resulting state" and never seen again. A cycle that
 skips this is not published, regardless of what else it did. Once
-`save_episode` succeeds, call `dep.checkpoint.clear_checkpoint(checkpoint_path)`
-(`dep/MANIFEST.yaml`) — the episode is now this attempt's permanent record,
+the episode is recorded, call checkpoint's own clear operation
+(`blueprint/dep/MANIFEST.yaml: checkpoint`) — the episode is now this attempt's permanent record,
 so a completed cycle leaves no lingering in-progress checkpoint behind for
 a future Phase 0 to mistake for unfinished work.
 
@@ -512,9 +543,9 @@ a future Phase 0 to mistake for unfinished work.
 14. Is registration performed by the manifest + a generic assembler, so
     components contain no registration logic and swapping an implementation
     requires no consumer code change?
-31. Was this cycle recorded into the episode store (`dep.episode_store.save_episode`),
+31. Was this cycle recorded into the episode store (`blueprint.dep.episode_store.save_episode`),
     so its decision record and verification record accumulate in this
-    application's own episode corpus for `dep.dataset_builder` — not left
+    application's own episode corpus for `blueprint.dep.dataset_builder` — not left
     unrecorded because nothing in this phase's own output required it?
 
 **Produces.** A discoverable, registered, verified resulting state, recorded

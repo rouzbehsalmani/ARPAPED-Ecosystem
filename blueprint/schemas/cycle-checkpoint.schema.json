@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Cycle Checkpoint",
+  "description": "Mid-cycle progress record, so an agent interrupted at any point in blueprint/1-CYCLE.md Phase 0-8 (tokens, network, crash) can be resumed by a different agent without reverse-engineering filesystem state. Not a variant of agent-cycle-report.schema.json: a completed cycle's report has nothing left undone by definition, while a checkpoint's whole point is capturing what ISN'T done yet. Mutable and overwritten through one cycle attempt (dep.checkpoint.save_checkpoint); cleared once the cycle reaches Phase 8 and is recorded as an episode (Gate 31/32).",
+  "type": "object",
+  "required": [
+    "checkpoint_id",
+    "status",
+    "goal",
+    "starting_state",
+    "current_phase",
+    "phase_log",
+    "responsibilities",
+    "next_action"
+  ],
+  "properties": {
+    "checkpoint_id": {
+      "type": "string",
+      "description": "Stable for this cycle attempt -- generated once at Phase 0, unchanged across every subsequent save_checkpoint call."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["in_progress", "abandoned"]
+    },
+    "goal": {
+      "type": "object",
+      "description": "Same shape as agent-cycle-input.schema.json's goal -- adopted unchanged by a resuming agent, never re-decided."
+    },
+    "starting_state": {
+      "type": "string",
+      "description": "The current_state this cycle attempt began from (agent-cycle-input.schema.json)."
+    },
+    "current_phase": {
+      "type": "string",
+      "description": "blueprint/1-CYCLE.md phase name/number this attempt was last working in, e.g. \"5-implement\"."
+    },
+    "ecosystem_resolution_ref": {
+      "type": "string",
+      "description": "Path to the ecosystem-resolution record already written in Phase 0 (blueprint/1-CYCLE.md Gate 25) -- a resuming agent reads this file directly to get the resolved Bridge/Registry/policy/selector, instead of re-running discovery that already happened once this cycle attempt."
+    },
+    "phase_log": {
+      "type": "array",
+      "description": "Simple audit trail, oldest first.",
+      "items": {
+        "type": "object",
+        "required": ["phase", "note"],
+        "properties": {
+          "phase": {"type": "string"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "responsibilities": {
+      "type": "array",
+      "description": "One entry per responsibility decomposed in Phase 2, tracked through to Phase 6 integration.",
+      "items": {
+        "type": "object",
+        "required": ["responsibility", "status"],
+        "properties": {
+          "responsibility": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["planned", "decided", "contract_written", "manifest_written", "code_written", "integrated"]
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["reuse", "compose", "split_refactor", "create", "structural_floor"],
+            "description": "Set once status reaches 'decided' -- same enum as agent-cycle-report.schema.json's decisions[].decision."
+          },
+          "reason": {"type": "string"},
+          "notes": {"type": "string"},
+          "artifacts": {
+            "type": "object",
+            "description": "Concrete paths already written for this responsibility, filled in as each one is created (Phase 5, matching contract_written/manifest_written/code_written). The point of this field: a resuming agent opens these exact files directly -- it never has to rediscover them by scanning the project, the same bounded-lookup discipline Gates 4/5 already require of capability discovery.",
+            "properties": {
+              "contract": {"type": "string"},
+              "manifest": {"type": "string"},
+              "executor": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Anything flagged so a resuming agent doesn't rediscover it blind."
+    },
+    "next_action": {
+      "type": "string",
+      "description": "The single most useful field: a short, concrete \"do this next\" for whoever resumes -- name the exact file(s) to open or write when known (pair with responsibilities[].artifacts), not a vague restatement of the goal. A resuming agent should be able to act on this line alone, without first re-discovering project state."
+    }
+  }
+}

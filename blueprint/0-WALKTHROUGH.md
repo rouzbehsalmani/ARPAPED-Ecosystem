@@ -8,7 +8,7 @@ nothing else here, read this one rule: **default to capability.** Any
 distinct need — including things that look like plain infrastructure
 (reading input, tracking time, dispatching a command) — gets a contract,
 manifest, and executor, wired through the Bridge already implemented at
-`bridge/`. The only structural exception is the single request-construction
+`sample/hello_world/backend/runtime/bridge/`. The only structural exception is the single request-construction
 point (defined below); the entry point itself is ordinary consumer code, per
 R1. A class with several methods that directly mutate application state is a
 sign you're about to repeat the mistake — stop and decompose it into
@@ -20,24 +20,34 @@ repository**, in the order you actually do them, before you write a single
 line of feature code.
 
 Nothing here names a class, import, or exact call signature belonging to any
-one language — the canonical Bridge could be implemented in any language.
-Wherever an exact shape matters, this file points at `bridge/MANIFEST.yaml`
-(which role lives where) and `samples/hello_world/` (a real, runnable
-sample app) instead of restating it in prose.
+one language. This applies equally to the canonical Bridge (could be
+implemented in any language) and to `blueprint/dep/`'s own tooling
+(checkpoint, episode_store, process_supervisor, dataset_builder) — its
+current reference implementation happens to be Python, but
+`blueprint/dep/MANIFEST.yaml` declares itself just as language-agnostic as
+the Bridge's own manifest, and nothing in this file should be read as
+requiring Python specifically; if DEP is ever reimplemented in a
+different language, only that manifest changes. Wherever an exact shape
+matters, this file points at `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`
+(which Bridge role lives where), `blueprint/dep/MANIFEST.yaml` (which DEP
+role lives where), and `sample/hello_world/` (a real, runnable sample
+app) instead of restating any of it in prose.
 
 ## 0. What already exists here — use it, never reinvent it
 
 The canonical Bridge, Registry, Policy engine, Selector, and assembler this
 Blueprint tells you to resolve are **already implemented in this repo**,
-under `bridge/`. `bridge/MANIFEST.yaml` names exactly where each one lives
-and what it does; `schemas/` holds the schemas that define contract,
-manifest, trace, and record shapes. Resolve everything from there and read
+under `sample/hello_world/backend/runtime/bridge/`. `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` names exactly where each one lives
+and what it does; `sample/schemas/` holds the schemas that define contract,
+manifest, trace, and catalog shapes (this cycle's own record shapes --
+cycle input/report, verification record, checkpoint -- live separately in
+`blueprint/schemas/`, alongside this file). Resolve everything from there and read
 that implementation's own source for its actual language and call
 signatures — this file never restates them.
 
 This **is** the canonical execution boundary that `1-CYCLE.md` Phase 0 tells
 you to resolve. Do not write a new Bridge, Registry, Policy, Selector, or
-assembler, and do not edit anything under `bridge/` — only resolve and call
+assembler, and do not edit anything under `sample/hello_world/backend/runtime/bridge/` — only resolve and call
 it. `contracts/` does not exist yet in this repo; you create it as you add
 capabilities. There is no product concept and no per-application copy of the
 Bridge: one Bridge, built once, serves every capability you add.
@@ -46,7 +56,7 @@ Bridge: one Bridge, built once, serves every capability you add.
 
 Before decomposing the goal:
 
-- [ ] Confirm `bridge/MANIFEST.yaml` exists and read it, then read the
+- [ ] Confirm `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` exists and read it, then read the
       implementation and schemas it points at. This satisfies "resolve the
       canonical Bridge/Registry" (Gates 1, 2) without inventing anything
       (Gate 3).
@@ -55,10 +65,10 @@ Before decomposing the goal:
 
   ```json
   {
-    "bridge": "<resolved per bridge/MANIFEST.yaml: execution_boundary>",
-    "registry": "<resolved per bridge/MANIFEST.yaml: registry>",
-    "policy": "<resolved per bridge/MANIFEST.yaml: policy>",
-    "selector": "<resolved per bridge/MANIFEST.yaml: selector>",
+    "bridge": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: execution_boundary>",
+    "registry": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: registry>",
+    "policy": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: policy>",
+    "selector": "<resolved per sample/hello_world/backend/runtime/bridge/MANIFEST.yaml: selector>",
     "contracts_area": "contracts/",
     "root": "<repo root>"
   }
@@ -72,30 +82,27 @@ the work (tokens ran out, network dropped, the process crashed) — the fix
 isn't a fresh agent reconstructing progress by guesswork, it's checking
 first:
 
-```python
-from dep import checkpoint
+Load the checkpoint at your chosen `checkpoint_path` (e.g.
+`state/cycle-checkpoint.json`) through checkpoint's own load operation
+(`blueprint/dep/MANIFEST.yaml: checkpoint` — its exact call signature and
+language are that file's concern, not this one's, same posture as the
+Bridge above):
 
-cp = checkpoint.load_checkpoint(checkpoint_path)  # e.g. state/cycle-checkpoint.json
-if cp is not None and cp["status"] == "in_progress":
-    # Resume CHEAPLY (Gate 33) — read cp["ecosystem_resolution_ref"]
-    # directly instead of re-discovering the Bridge/Registry, and open
-    # each responsibility's cp["responsibilities"][i]["artifacts"]
-    # (contract/manifest/executor paths) directly instead of searching
-    # the project for them. Adopt cp["goal"]/cp["starting_state"]
-    # unchanged, skip any responsibility already at "integrated", and
-    # continue from cp["current_phase"] / cp["next_action"] — do not
-    # re-decide it and do not re-verify it by scanning. Only fall back to
-    # normal Phase 1/3 discovery for what the checkpoint doesn't cover.
-    # Resume cost tracks THIS checkpoint's own responsibility count, never
-    # the project's total capability count -- a project with hundreds of
-    # capabilities must resume exactly as cheaply as one with a handful.
-    ...
-else:
-    # Nothing to resume (or operator confirmed discarding it — call
-    # checkpoint.clear_checkpoint(checkpoint_path) first). Proceed with
-    # the new goal, then start saving a checkpoint from step 2 onward.
-    ...
-```
+- **If one exists and its `status` is `in_progress`**: resume CHEAPLY
+  (Gate 33) — read its `ecosystem_resolution_ref` directly instead of
+  re-discovering the Bridge/Registry, and open each responsibility's own
+  `artifacts` (contract/manifest/executor paths) directly instead of
+  searching the project for them. Adopt its `goal`/`starting_state`
+  unchanged, skip any responsibility already at `integrated`, and
+  continue from its `current_phase`/`next_action` — do not re-decide it
+  and do not re-verify it by scanning. Only fall back to normal Phase 1/3
+  discovery for what the checkpoint doesn't cover. Resume cost tracks
+  THIS checkpoint's own responsibility count, never the project's total
+  capability count — a project with hundreds of capabilities must resume
+  exactly as cheaply as one with a handful.
+- **Otherwise**: nothing to resume (or the operator confirmed discarding
+  it — clear it first, via checkpoint's own clear operation). Proceed
+  with the new goal, then start saving a checkpoint from step 2 onward.
 
 **If the checkpoint looks stale (Gate 34), reconcile — don't fall back to
 reading the whole project.** Observed for real: a checkpoint frozen at
@@ -106,11 +113,10 @@ after Phase 0. The wrong recovery is "let me read the existing code" —
 that reintroduces the full-project cost checkpoints exist to remove. The
 bounded recovery uses the same index Phase 3 discovery already reads:
 
-```python
-catalog_path = app_root / "capability-catalog.jsonl"  # already built, one line per capability
-cp = checkpoint.reconcile_with_catalog(cp, catalog_path)
-checkpoint.save_checkpoint(cp, checkpoint_path)  # persist the repair immediately
-```
+Reconcile it against `capability-catalog.jsonl` (already built, one line
+per capability) via checkpoint's own catalog-reconciliation operation,
+then save the repaired checkpoint back immediately, before doing
+anything else:
 
 This fills in each responsibility's `artifacts` and advances `status` to
 at least `code_written` wherever the catalog proves it — O(this cycle's
@@ -123,29 +129,35 @@ never paid for twice.
 **No catalog exists yet before Phase 8 first builds one.** Also observed
 for real, mid-Phase-5: a checkpoint frozen at Phase 0 while 7 contracts
 and 5 of 7 executors already existed — too early for a
-`capability-catalog.jsonl` to reconcile against. Use the convention
-instead:
+`capability-catalog.jsonl` to reconcile against. Reconcile against the
+filesystem convention instead, via checkpoint's own
+filesystem-reconciliation operation, then save the repaired checkpoint
+back the same way.
 
-```python
-cp = checkpoint.reconcile_with_filesystem(cp, contracts_dir, capabilities_dir)
-checkpoint.save_checkpoint(cp, checkpoint_path)
-```
+A bounded handful of file-existence checks per responsibility against the
+paths R1's own naming convention predicts (`contracts/<id>.contract.yaml`,
+`capabilities/<domain>/<rest>/{manifest.yaml or manifest.json}`) — a
+manifest is tried as either extension since which one applies depends on
+the runtime's own language (e.g. Node has no built-in YAML), never
+assumed to be Python/YAML specifically. Once a manifest is found, its own
+declared `executor:` field is resolved against whatever filesystem roots
+the caller supplies — never guessed as a fixed filename/extension either,
+since that locator's resolution rule is itself language/executor_kind-
+specific (a Python `module:attr` string and a plain relative JS/binary
+path resolve completely differently). Still bounded by this checkpoint's
+own responsibility count, no file contents read beyond a found manifest
+itself. It also catches what a raw status-bump would hide: a file sitting
+where a manifest would name it, before any manifest exists there at all,
+is an R7 order violation (Gate 26) — recorded as a `blocker`, never
+silently advanced past `manifest_written` as if the correct order had
+been followed.
 
-Three `Path.exists()` checks per responsibility against the paths R1's own
-naming convention predicts (`contracts/<id>.contract.yaml`,
-`capabilities/<domain>/<rest>/{manifest.yaml,executor.py}`) — no file
-contents read, still bounded by this checkpoint's own responsibility
-count. It also catches what a raw status-bump would hide: an executor
-found without its manifest is an R7 order violation (Gate 26) — recorded
-as a `blocker`, never silently advanced past `manifest_written` as if the
-correct order had been followed.
-
-`dep.checkpoint.save_checkpoint(checkpoint, checkpoint_path)` is called
-again — not once — as each responsibility's status changes through steps
+Checkpoint's own save operation (`blueprint/dep/MANIFEST.yaml: checkpoint`)
+is called again — not once — as each responsibility's status changes through steps
 2–4 below (`planned` → `decided`) and step 3 (`contract_written` →
 `manifest_written` → `code_written` → `integrated`), so the checkpoint
 always reflects what's actually on disk, not just what was true when the
-cycle started (`dep/MANIFEST.yaml`). A status change alone is not enough:
+cycle started (`blueprint/dep/MANIFEST.yaml`). A status change alone is not enough:
 each Phase 5 update also records the file just written into that
 responsibility's `artifacts.contract` / `.manifest` / `.executor`, and
 Phase 0 records `ecosystem_resolution_ref` once the resolution record
@@ -181,7 +193,7 @@ own needs:**
 - Do I define a contract, manifest, and component for it instead? **Yes.**
 - Is this code the entry point / `main` / `run`? [if yes] Does that change
   anything? **No** — should I bypass the Bridge? **No.** Resolve the Bridge
-  per `bridge/MANIFEST.yaml` and start from there. Everything passes through
+  per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` and start from there. Everything passes through
   the Bridge.
 
 ## 3. Per capability: contract → manifest → code, in that order (Phase 5, R7)
@@ -189,7 +201,7 @@ own needs:**
 For every capability from step 2:
 
 1. **Contract first** — `contracts/<domain>.<operation>.contract.yaml`,
-   valid against `schemas/component-contract.schema.json`. That schema
+   valid against `sample/schemas/component-contract.schema.json`. That schema
    sets `additionalProperties: false` at every level, so only these keys
    exist: top-level `contract:` wrapping REQUIRED `identity` (`id, name,
    version, domain, family, type` — `type` is exactly `capability`,
@@ -203,11 +215,11 @@ For every capability from step 2:
    `dependencies`, `discoverability`, `versioning`, `lineage` (`policy` and
    `runtime` are optional and may be omitted). Validate it before moving on.
 2. **Manifest second** — a capability manifest valid against
-   `schemas/capability-manifest.schema.json`: top-level
+   `sample/schemas/capability-manifest.schema.json`: top-level
    `capability_id`, `contract_version`, `implementations[]` (each:
    `implementation_id`, `version`, `operations[]`, an `executor` locator
    whose exact notation depends on the language you resolved per
-   `bridge/MANIFEST.yaml`, and `priority` — an integer with no default;
+   `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, and `priority` — an integer with no default;
    higher number means higher precedence). Do this only after the contract
    validates.
 3. **Code third** — the executor: an operation `execute` taking (operation,
@@ -224,19 +236,20 @@ pre-computed input its caller already resolved) is the one case with a
 different manifest shape: set `executor_kind: factory` on that
 implementation entry, and point `executor` at a factory — `(dependencies) ->
 executor` — instead of the executor itself, resolved from the same
-canonical Bridge per `bridge/MANIFEST.yaml`. It may only call what its own
+canonical Bridge per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. It may only call what its own
 contract declared under `dependencies.capabilities` (R4) — never invent a
 different wiring locally, and never reach the Bridge any other way.
 
 A minimal, runnable sample of this exact shape (contract → manifest →
 executor → request-construction point → entry point) lives at
-`samples/hello_world/` — its own `README.md` explains how to run it
-and what it does. It happens to print to a console purely because that is
-the smallest possible interface to demonstrate the wiring with; this
-Blueprint never constrains what interface an application presents (console,
-web, GUI, or otherwise — see step 6 for how any of them stays verifiable).
-It is one sample, not the shape every application must take: copy the
-wiring pattern, never its console-specific content, into a real capability.
+`sample/hello_world/` — its own `README.md` explains how to run it and
+what it does; this file does not restate that content, and never will,
+so this file never goes stale just because the sample's own shape
+changes. This Blueprint never constrains what interface an application
+presents (console, web, GUI, or otherwise — see step 6 for how any of
+them stays verifiable). It is one sample, not the shape every
+application must take: copy the wiring pattern, never its own domain
+content, into a real capability.
 
 ## 4. The single request-construction point (Phase 6, R6)
 
@@ -244,7 +257,7 @@ In a real application, exactly ONE module owns building requests and calling
 the Bridge's handle operation — e.g. `app/requests`. It does three things,
 in order, at load time: build a registry; assemble every capability manifest
 into it (step 5); construct the Bridge from that registry plus the policy
-and selector resolved per `bridge/MANIFEST.yaml`. It then exposes one
+and selector resolved per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. It then exposes one
 operation — call it with a capability id, an operation name, and input — that
 builds a request (a fresh id each time, plus a default policy context) and
 passes it to the Bridge's handle operation.
@@ -280,11 +293,63 @@ Bridge's own. Whatever launches it is still bound by the same duty as any
 other launched service (R5, gate 6): verify, synchronously and promptly,
 that it actually started before treating it as available, never assume.
 
+**R6 does not stop at the backend — every entry point is its own runtime,
+and every runtime needs its own Bridge.** "Every other module... calls
+through that one operation" above is about code sharing THIS Bridge's own
+runtime — a web handler included, since it still runs in the backend's own
+runtime and language. A goal's consumer surface is rarely just one runtime: a browser
+tab, a mobile app, a desktop client, a CLI shipped separately, another
+service calling in — each of these is a DIFFERENT runtime from the
+backend's, and the kind of frontend it is doesn't change the rule: the
+same discipline applies there too, never a weaker version of it just
+because it's "only the frontend" or "only a browser." One Bridge for the
+backend and one for each other entry point that needs one — same
+architecture, same enforcement, every time. Two legitimate shapes, for
+whichever entry point you're building:
+
+- **Thin client** — the entry point issues nothing but requests to the
+  backend's own single request-construction point (via whatever the
+  `web.serve`/`web.server`-style capability exposes as its API), and holds
+  no simulation/business state of its own. Every user action becomes a
+  network call; the entry point renders whatever the backend's response
+  says.
+- **A Bridge of its own** — when a round trip per interaction is the wrong
+  tradeoff (fast local feedback, offline use, a native mobile/desktop
+  client), that entry point resolves its OWN canonical Bridge: a faithful
+  port of the same architecture (Registry, Policy, Selector, executor,
+  full trace) running in whatever language/runtime that entry point is
+  built in — proven portable already in this Blueprint's own history (the
+  reference Bridge has been ported to other backend languages with zero
+  capability edits; a browser/mobile/desktop-side port is the same
+  exercise, one runtime earlier). Its own capabilities that need server
+  authority (persistence, multiplayer state, anything requiring a trusted
+  resource) declare that need as an ordinary `dependencies.capabilities`
+  entry (R4) whose executor reaches across to the backend's single
+  request-construction point over the network — never an undeclared
+  network call scattered through UI code outside any Bridge-resolved
+  capability.
+
+**What neither shape permits:** an entry point that keeps its own copy of
+game/business state and advances it directly in a click/tap/input handler,
+never resolving that advance through any Bridge — the exact anti-pattern a
+real build produced: a fully working-looking browser game with its own
+local `state` object and turn logic reimplemented entirely client-side,
+sitting next to a schema-valid contract/manifest/executor/catalog that the
+game never once called. Every
+mechanical check the Blueprint has (schema validation, catalog structure)
+passed; the product was still non-compliant, because R6/R9 bind every
+runtime the user actually interacts with, not just whichever one happens
+to be easiest to wire a Bridge into. Phase 0 resolves a canonical Bridge
+for each runtime the goal's consumer surface needs (Gate 25) — the
+backend's, and one for each other entry point, whatever kind it is; Phase
+7's harness must exercise whichever Bridge each shipped entry point
+actually uses, not just the backend capability in isolation (Gate 19).
+
 ## 5. Assemble every manifest at startup (Phase 8 mechanics, R8's indirections)
 
 As part of building the request-construction point (step 4), register every
 capability once, at load time, using the assembler resolved per
-`bridge/MANIFEST.yaml`. This is the only place assembly/registration runs.
+`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. This is the only place assembly/registration runs.
 
 For a handful of capabilities, walking `capabilities/` directly and
 assembling each manifest found is fine. It stops scaling once there are more
@@ -299,8 +364,8 @@ the same catalog.
 Lives outside the application packages, e.g. `tests/verify`. It must:
 
 - Confirm every contract validates against
-  `schemas/component-contract.schema.json` and every manifest against
-  `schemas/capability-manifest.schema.json` — a prerequisite the harness
+  `sample/schemas/component-contract.schema.json` and every manifest against
+  `sample/schemas/capability-manifest.schema.json` — a prerequisite the harness
   itself checks, not a final afterthought tacked on after the operation
   checks below.
 - Reuse the SAME Bridge the request-construction point builds — never
@@ -310,7 +375,7 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   `validated → discovered → policy_evaluated → selected → executed` — copied
   from the observed response, never hand-written.
 - Run every capability-operation check under a bounded per-stage timeout
-  resolved from the canonical Bridge (`bridge/MANIFEST.yaml`), never an
+  resolved from the canonical Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`), never an
   unbounded wait. A stage that never progresses is a hard failure (R5) —
   record it with whatever partial trace was actually observed before the
   timeout, never a reason to wait longer or retry silently. This matters
@@ -320,8 +385,8 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   fabricated or assumed status — and must never block waiting for the
   ongoing work itself to finish. If the harness itself needs to start such
   a process to test it (e.g. an HTTP server it then sends requests to),
-  use `dep.process_supervisor.start(argv, pidfile, ready_check)` /
-  `.stop(pidfile)` (`dep/MANIFEST.yaml`) rather than a bare background
+  use process_supervisor's own start/stop operations
+  (`blueprint/dep/MANIFEST.yaml: process_supervisor`) rather than a bare background
   launch — a detached shell command, PowerShell's `Start-Process -PassThru`,
   a fire-and-forget `subprocess.Popen` all leave the process running after
   the command that launched it ends, invisible and still holding its port,
@@ -334,13 +399,14 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
 - Include at least one case proving an operator decision window: a scripted
   action lands between two automatic ticks and its effect is observable.
 - Write `state/verification-record.json`, valid against
-  `schemas/verification-record.schema.json`: `verification_id`,
+  `blueprint/schemas/verification-record.schema.json`: `verification_id`,
   `state_ref`, `harness`, `checks[]` (unique `check_id` per check; a check
   with `check_type: capability_operation` MUST carry a `trace` array copied
   verbatim from the observed response), `passed`, `failed`, `status`
   (`"verified"` or `"failed"`).
-- Once every check has passed, call `dep.episode_store.save_episode(cycle_report,
-  verification_record, episodes_dir)` as the harness's own last act
+- Once every check has passed, call episode_store's own save operation
+  (`blueprint/dep/MANIFEST.yaml: episode_store`) with the cycle report,
+  verification record, and episodes directory, as the harness's own last act
   (section 7) — the harness is already the one place Gate 17 requires to
   run before anything is published, so recording the episode here, not as a
   separately-rememberable later step, is what makes 1-CYCLE.md Phase 8
@@ -358,23 +424,26 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
 
 - Confirm the registry discovers a candidate for every capability you built
   (capability id, contract version, operation).
-- Write the cycle report, valid against `schemas/agent-cycle-report.schema.json`.
-- Record the completed cycle into the episode store:
-  `dep.episode_store.save_episode(cycle_report, verification_record, episodes_dir)`
-  (`dep/MANIFEST.yaml`, 1-CYCLE.md Phase 8 Gate 31). `episodes_dir` is
-  always given explicitly, never defaulted by dep/ itself — an
+- Write the cycle report, valid against `blueprint/schemas/agent-cycle-report.schema.json`.
+- Record the completed cycle into the episode store, via episode_store's
+  own save operation with the cycle report, verification record, and
+  episodes directory
+  (`blueprint/dep/MANIFEST.yaml: episode_store`, 1-CYCLE.md Phase 8 Gate 31). `episodes_dir` is
+  always given explicitly, never defaulted by blueprint/dep/ itself — an
   application's own episodes live under its own tree (e.g.
   `state/episodes/`, alongside `state/verification-record.json`), the
   same way its own `capability-catalog.jsonl` lives under it, not inside
-  `bridge/`. A cycle is not published until this succeeds — a
+  `sample/hello_world/backend/runtime/bridge/`. A cycle is not published until this succeeds — a
   schema-invalid record or a duplicate `verification_id` must fail the
   cycle, never be caught and silently skipped. The strongest place to
   make this call is the verification harness's own last line (section
   6), once every check has passed: that way "verified" and "recorded"
   are the same event, not two separately rememberable steps — see
-  `samples/hello_world/tests/verify/verify.py` for a worked example.
-- Once `save_episode` succeeds, call
-  `dep.checkpoint.clear_checkpoint(checkpoint_path)` (`dep/MANIFEST.yaml`,
+  `sample/hello_world/backend/README.md` for a worked example (this file
+  never restates a sample's own concrete files or their language, same
+  posture as section 0 toward the Bridge).
+- Once the episode is recorded, call checkpoint's own clear operation
+  (`blueprint/dep/MANIFEST.yaml: checkpoint`,
   1-CYCLE.md Phase 8) — the episode just recorded is now the permanent
   record of this attempt, so no in-progress checkpoint should be left
   behind for a future Phase 0 to mistake for unfinished work.
@@ -397,8 +466,9 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   checkpoint — the next agent has nothing but raw filesystem state to
   reverse-engineer which responsibilities were decided, which have a
   contract but no manifest yet, which are fully wired through the Bridge.
-  `dep.checkpoint.save_checkpoint` after every responsibility-status
-  change (step 1) exists to prevent exactly this. Observed for real: an
+  Checkpoint's own save operation (`blueprint/dep/MANIFEST.yaml: checkpoint`),
+  called after every responsibility-status
+  change (step 1), exists to prevent exactly this. Observed for real: an
   agent resumed successfully but at high cost, by scanning the whole
   project — the checkpoint (or its `artifacts`/`ecosystem_resolution_ref`
   fields) either didn't exist yet or wasn't trusted. A checkpoint that
@@ -412,9 +482,10 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   reading the whole project to reconstruct progress is not — that pays
   the exact O(project) cost checkpoints exist to remove. Reconcile against
   a bounded source of truth instead — `capability-catalog.jsonl` if it
-  exists (`dep.checkpoint.reconcile_with_catalog`), or the naming
+  exists, via checkpoint's own catalog-reconciliation operation, or the naming
   convention if it doesn't yet, e.g. mid-Phase-5 before Phase 8 ever
-  builds one (`dep.checkpoint.reconcile_with_filesystem`; Gate 34) — then
+  builds one, via checkpoint's own filesystem-reconciliation operation
+  (`blueprint/dep/MANIFEST.yaml: checkpoint`; Gate 34) — then
   re-save immediately so the repair is never paid for twice.
 - Building a real service (a web server, a scheduler) directly inside the
   entry point because "it's just infrastructure." If the entry point needs a

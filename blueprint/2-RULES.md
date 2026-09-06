@@ -9,8 +9,10 @@ self-improving cycle. Every other document uses exactly these words and cites
 these rules by number; nothing else states a rule in full. If a document
 seems to redefine a term or restate a rule differently, that document is
 wrong, not this page. The cycle that applies these rules phase by phase is
-`1-CYCLE.md`; the contract/manifest/report shapes these rules govern are
-defined in `schemas/` and demonstrated in `samples/hello_world/`.
+`1-CYCLE.md`; the contract/manifest/protocol/catalog shapes these rules
+govern are defined in `sample/schemas/` (this cycle's own record shapes --
+cycle input/report, verification record, checkpoint -- live in
+`blueprint/schemas/`) and demonstrated in `sample/hello_world/`.
 
 ## Glossary
 
@@ -21,22 +23,24 @@ defined in `schemas/` and demonstrated in `samples/hello_world/`.
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
 | **contract** | The machine-readable interface of a capability: identity, version, operations (name, input, output, errors), dependencies, policy, invariants, discoverability, lineage. One contract artifact per capability (R2). |
-| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `schemas/component-contract.schema.json`; worked example: the sample's `contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
+| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `sample/schemas/component-contract.schema.json`; worked example: the sample's `contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
 | **generic component** | A small, single-task component that is reusable across cycles. "Generic" describes the component's nature (one task, reusable), never a location (R1, R4). |
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumer code. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
 | **consumer** | Any application code that invokes a capability. Reference behavior per R6: consumer code uses only capability IDs + contract operations through the single request-construction point and the Bridge, and never names components. |
 | **manifest** | A data file that binds a contract artifact to its operations and to one executor-reference entry per implementation (one contract → one capability manifest → executor entries). The contract artifact, its capability manifests, and its executors are co-located in their owning package within the single application (R3). |
 | **packaging** | How the single application is structured as normal packages: contract artifacts under `contracts/`; component executors and capability manifests co-located in their owning packages; small generic components built and composed before the specific responsibilities over them (generics → specifics, R4); entry points and the single request-construction point at the application level; tests and the verification harness live outside the application packages. |
-| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Resolved from `bridge/MANIFEST.yaml`, never hard-coded. |
-| **Bridge** | The canonical execution boundary. Routes every request through registry discovery → policy → selector → executor and returns a trace. There is exactly one canonical Bridge. |
+| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Resolved from `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded. |
+| **Bridge** | The canonical execution boundary, made of two parts: a **Bridge Adapter** (below) and a **Bridge Core** (below). Routes every request through registry discovery → policy → selector → executor and returns a trace. There is exactly one canonical Bridge **per runtime a consumer surface executes in** — the backend process is one runtime; each other entry point the goal ships (a browser tab, a mobile app, a desktop client, a CLI, another service calling in) is its own separate runtime, whatever kind it is. Never two competing Bridges within the same runtime (the parallel-Bridge prohibition, Phase 0) — but a goal whose consumer surface spans more than one runtime legitimately resolves one canonical Bridge per runtime that needs one, every one of them the same architecture (Registry + Policy + Selector + Executor + trace), never a lighter or informal substitute because of which runtime it happens to run in. |
+| **Bridge Core** | The shared four-stage pipeline every Bridge runs, in every runtime that resolves one: request validation, then discovery → policy → selection → execution (the `trace`'s five stages, in order). Naming the pipeline separately from any one runtime's Bridge makes explicit that a second runtime's Bridge (e.g. a browser's) is the SAME architecture as this repo's reference one, not a different design that happens to share a name — the Core is never reimplemented per capability, per request, or informally; it is resolved once per runtime, the same way the Bridge itself is (R8). Validation is Core-owned, not Adapter-owned, specifically so it is never duplicated or drifted per runtime (2-RULES.md "An operation's input shape is enforced once, from the contract, never per-executor"). |
+| **Bridge Adapter** | The single request-construction point (R6), for one runtime. Builds a canonical request from that runtime's own native input (an HTTP handler's parsed body, a DOM event, a CLI argument, a spawned process's stdin) and hands it to that runtime's own Bridge Core — the only runtime-specific part of an otherwise identical architecture. Every runtime that resolves its own Bridge (Bridge glossary, above) resolves an Adapter+Core pair, never a Core without an Adapter or an Adapter that skips the Core. |
 | **Registry** | The canonical discovery/index service: capability+operation → bounded implementation candidates. There is exactly one canonical Registry. |
 | **Policy** | The canonical authorization stage that evaluates each candidate against the request's policy context. |
 | **Selector** | The canonical routing stage that picks which allowed candidate executes (with failover awareness). |
 | **Executor** | A component's `execute` callable; the only code the Bridge executes. |
 | **trace** | The ordered stage list a Bridge response carries: `validated → discovered → policy_evaluated → selected → executed`. The designed evidence that a request travelled the canonical path. |
 | **resulting state** | The authoritative, discoverable state of the ecosystem after a cycle completes — code, contracts, manifests, verification record, report. The input state of the next cycle. |
-| **verification record** | The machine-readable result of the Verify phase (`schemas/verification-record.schema.json`), written into the resulting state. Green only when the harness passes. |
+| **verification record** | The machine-readable result of the Verify phase (`blueprint/schemas/verification-record.schema.json`), written into the resulting state. Green only when the harness passes. |
 | **lineage** | The discoverable history of a component: which cycle/agent created it, what changed it, and how it evolved through splits. |
 
 Dependency direction — capability contracts depend on each other from
@@ -165,9 +169,25 @@ thing such a capability may call this way; calling anything outside it is a
 violation, not just an omission (R5). The declared dependency graph MUST be
 acyclic — an ecosystem's assembler verifies this before anything is
 registered or invoked, not discovered as runtime recursion. The resolved
-assembler and Bridge (`bridge/MANIFEST.yaml`) implement this via an
+assembler and Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) implement this via an
 `executor_kind: factory` manifest entry, given resolved access to its
 declared dependencies at assembly time.
+
+Execution has exactly three shapes, and `executor_kind` names which one a
+given implementation uses — never a fourth, informal one improvised per
+capability. **Local** (`executor_kind: direct`/`factory`) is a literal
+in-process call, in the same runtime as the Bridge Core that selected it.
+**Worker** (`executor_kind: process`, below) is a spawned sibling process
+on the SAME machine, reached over loopback — a different language, but not
+a different runtime's Bridge. **Remote** (`executor_kind: remote`, below)
+is the one case those two don't cover: the implementation is resolved by
+ANOTHER runtime's own Bridge Adapter+Core entirely (Glossary) — a
+genuinely different machine or origin, with its own failure modes (network
+partition, auth, cross-origin policy) that a same-machine Worker never
+faces. Conflating Worker and Remote — treating a cross-runtime call as
+just another out-of-process executor — hides exactly the failure modes
+that make Remote different; they are documented and implemented
+separately for that reason.
 
 An executor's `execute(operation, input, policy) -> output` contract
 (Glossary) is honored either by a direct in-process call or by an
@@ -176,7 +196,7 @@ and Bridge implement the latter via an `executor_kind: process` manifest
 entry, whose `executor` names a program instead of an importable path (a
 single command, or an argv list when an interpreter and a script are
 both needed). Neither the request path, discovery, policy, nor selection
-can tell the difference; only assembly, resolved from `bridge/MANIFEST.yaml`,
+can tell the difference; only assembly, resolved from `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`,
 knows how a given implementation is actually reached, never hard-coded to
 one language. Spawning that program is launching ongoing work: R5's
 condition 6 applies exactly as it does to any other launched service —
@@ -185,7 +205,7 @@ never assumed.
 
 The out-of-process protocol itself is resolved the same way everything
 else in this Blueprint is: written down once, formally, in
-`schemas/process-executor-protocol.schema.json`, and implemented by a
+`sample/schemas/process-executor-protocol.schema.json`, and implemented by a
 reference client per language — never hand-rolled per capability. A
 worked example of one lives alongside the sample that uses it; this is
 scaffolding a real application copies the shape of, not shared
@@ -199,6 +219,33 @@ already has), never writing that loop itself. This is what keeps a
 capability's own code identical whether it runs in-process or as its
 own process: `executor_kind` is something assembly reads, not something
 the capability's code branches on or is shaped by.
+
+**`executor_kind: remote`** resolves an implementation by making a request
+into ANOTHER runtime's own Bridge Adapter — not a spawned process this
+runtime owns, but a genuinely separate Bridge with its own Registry,
+Policy, and Selector, reached over a real network boundary. Its manifest
+entry names an address (a URL, a host+port — whatever locates that
+runtime's Adapter), never a `module:attr` path or an argv/command; the
+protocol is `sample/schemas/bridge-protocol.schema.json` itself — the same
+request/response/error shape any consumer's Bridge call already uses, not
+a second, simpler protocol invented for this case the way `process` has
+its own. This is deliberate: a Worker only ever answers one
+`execute(operation, input, policy) -> output` call for the one
+implementation it was spawned for, so `process-executor-protocol.schema.json`
+never needed to carry `capability_id`/`contract_version`/`policy_context` —
+but a Remote call reaches a whole OTHER Bridge, which must run its own
+full discovery → policy → selection using exactly those fields, the same
+as it would for any of its own runtime's consumers. The calling runtime's
+Core does not need to know how the remote side resolves it, only that a
+valid `bridge-protocol` response (or error) comes back; the remote side
+runs its own genuine `validated → discovered → policy_evaluated →
+selected → executed` trace, evaluated and persisted like any other (R8,
+Gate 28) — a Remote call is never assumed to have succeeded from HTTP
+status alone. Like `process`, calling a `remote` implementation is
+launching a request to already-running, already-verified ongoing work,
+never spawning it on demand — the remote runtime's own Bootstrap (Phase 0)
+already resolved and verified its own Bridge before this runtime's request
+ever arrives.
 
 A capability implemented in another language is not limited to answering the Bridge's calls: it
 may declare `dependencies.capabilities` exactly like any other
@@ -296,6 +343,25 @@ judgment call: the single request-construction point itself — it has to
 exist before any `BridgeRequest` can be built. What the process entry point
 that calls it may and may not contain is its own rule: R9.
 
+**Every runtime, not only the backend.** This rule holds wherever
+consumer-visible code executes, not only in the process that happens to
+make enforcement easiest to see. Any other entry point the goal ships — a
+browser tab, a mobile app, a desktop client, another service calling in,
+whatever kind it is — is consumer code (R9) like any other: it may reach a
+capability only by resolving ITS OWN runtime's canonical Bridge — through
+that runtime's own single request-construction point — when this ecosystem
+resolves one for that runtime (e.g. a port of the same architecture:
+Registry, Policy, Selector, executor, full trace, running in whatever
+language/runtime that entry point is built in, instead of the backend's),
+or by calling across to another runtime's single request-construction
+point (e.g. a backend's API surface) when this runtime has none of its
+own. Both are legitimate; reimplementing a capability's own responsibility
+locally is not — an entry point that keeps its own copy of business/game
+state and advances it directly on user interaction, instead of asking a
+Bridge-resolved capability to advance it, violates this rule exactly as a
+backend shortcut would, regardless of which kind of frontend or which
+language it is.
+
 ## R7 — Contract-first creation order
 
 For every capability, construction proceeds in a strict order, and each
@@ -303,9 +369,9 @@ stage must be satisfiable before the next begins:
 
 ```text
 1. contract artifact   (the what: operations, inputs, outputs, errors)
-   -> validated against schemas/component-contract.schema.json
+   -> validated against sample/schemas/component-contract.schema.json
 2. capability manifest (the binding: id + contract + operations + executor ref)
-   -> validated against schemas/capability-manifest.schema.json;
+   -> validated against sample/schemas/capability-manifest.schema.json;
       the executor reference may name a not-yet-existing module
 3. concrete code       (the how: the registration-unaware executor)
    -> execute(operation, input, policy) -> output; never registers itself;
@@ -351,6 +417,17 @@ rule in this Blueprint's history: an entry point that builds a service
 inline (any transport, any language) instead of extracting the decision of
 what a request means into its own capability.
 
+This does not stop at the process boundary: any other entry point's own
+bootstrap/rendering code — a browser tab, a mobile app, a desktop client,
+whatever kind it is — is an entry point in exactly this sense, in its own
+runtime. It may render state and forward user interaction to a capability
+through whichever Bridge its runtime resolves (R6); it must never hold the
+capability's own decision logic itself. An entry point that maintains its
+own simulation/business state and advances it locally on a click, tap, or
+input event, instead of resolving that advance through a Bridge-reached
+capability, is this same violation — whatever language or platform it's
+built on.
+
 ## Extraction judgement (illustrates R1)
 
 Extract the generic essence and leave only truly one-off values (not logic)
@@ -391,7 +468,7 @@ implemented.
 The agent resolves and uses the ecosystem's existing canonical Bridge; the
 Blueprint never prescribes a replacement implementation, in any language.
 Verify from authoritative ecosystem artifacts — resolved via
-`bridge/MANIFEST.yaml`, never hard-coded — its identity, canonical request
+`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded — its identity, canonical request
 path, validation stage, discovery stage, policy stage, selection stage,
 execution handoff, and tracing/receipt requirements. A consumer of this path
 must not reproduce the Bridge pipeline locally.
@@ -407,17 +484,17 @@ consumer code -> request -> Bridge
 ```
 
 **Request / response / error shape.** Defined once, language-agnostically,
-in `schemas/bridge-protocol.schema.json`: a request carries
+in `sample/schemas/bridge-protocol.schema.json`: a request carries
 `request_id`, `capability_id`, `contract_version`, `operation`, `input`,
 `policy_context`; a response adds `implementation_id`, `output`, `trace`; an
 error carries `code`, `stage`, `message`, `details`. The exact
 language-level representation (a class, a struct, a plain map) is whatever
-the resolved Bridge implementation under `bridge/` uses — this Blueprint
+the resolved Bridge implementation under `sample/hello_world/backend/runtime/bridge/` uses — this Blueprint
 defines the shape, not the representation.
 
 **Usage pattern.**
 
-1. Resolve the Bridge from the ecosystem root per `bridge/MANIFEST.yaml`,
+1. Resolve the Bridge from the ecosystem root per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`,
    never construct one from consumer code.
 2. Create a request with real capability IDs from the ecosystem's
    authoritative manifests — never invented locally.
@@ -459,8 +536,8 @@ any more than the running Bridge can scan every registration. The ecosystem
 must provide a searchable, incrementally-maintained capability catalog for
 this — incrementally maintained meaning publishing one new capability
 appends to it, never requires rescanning everything already published. No
-particular format is mandated. Resolved from `bridge/MANIFEST.yaml`; one
-data shape for it is `schemas/capability-catalog.schema.json`.
+particular format is mandated. Resolved from `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`; one
+data shape for it is `sample/schemas/capability-catalog.schema.json`.
 
 **The discovery cascade.** At scale, one selective key is not enough — the
 Registry MUST support searching narrowest-to-widest and stopping at the
@@ -482,7 +559,7 @@ levels and never scanning the level below it:
 
 `family`/`domain`/`tags` are read from the capability's own contract, never
 duplicated into its manifest (R2/R3) — the reference assembler (resolved via
-`bridge/MANIFEST.yaml`) does this when given a root to resolve the
+`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) does this when given a root to resolve the
 manifest's `contract` path against. An implementation registered without
 that root is still fully discoverable at Exact/Scoped; it is simply invisible
 to Family/Domain/Cross-domain search until it is. Creation is the last
@@ -516,7 +593,7 @@ either.
 
 **An operation's input shape is enforced once, from the contract, never
 per-executor.** A contract's declared operation input (name, `type`, and
-whether it's `required` — `schemas/component-contract.schema.json`) is
+whether it's `required` — `sample/schemas/component-contract.schema.json`) is
 not just documentation: the resolved Bridge checks a request's `input`
 against it — required fields present, a present field's runtime value
 matching its declared type — before any executor runs, for direct,
@@ -598,7 +675,7 @@ an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
    implementation, the component executor that provides it:
 
    ```yaml
-   # valid against schemas/capability-manifest.schema.json
+   # valid against sample/schemas/capability-manifest.schema.json
    capability_id: <capability-a>
    contract: <path-to-contract-artifact>
    contract_version: 1.0.0
@@ -626,17 +703,17 @@ an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
 
 3. **A generic assembler performs registration from the manifest.** During
    Publish (Phase 8), the assembler reads each capability manifest
-   (validated against `schemas/capability-manifest.schema.json`), imports
+   (validated against `sample/schemas/capability-manifest.schema.json`), imports
    each entry's executor (`module:attr`), builds the implementation record,
    and registers it into the canonical Registry. Resolved from
-   `bridge/MANIFEST.yaml`, never hard-coded. Swapping a component = editing
+   `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded. Swapping a component = editing
    the manifest, never the code or any consumer.
 
 **Contract data is generic.** Inputs and outputs must be shaped by the
 capability contract, not by the implementing component:
 
-```python
-entity_a = {"<attr_k>": "<value-k>", "class": "category-1", "enabled": True}
+```json
+{"<attr_k>": "<value-k>", "class": "category-1", "enabled": true}
 ```
 
 Keys like `class`, `count`, `status`, `step` are generic attributes declared
@@ -702,7 +779,12 @@ and must answer YES to all of:
 4. **Every consumer-visible behavior** is exercised through a scripted
    command stream (`("key", name)`, `("tick", None)`, `("wait", n)` — same
    handler the real console uses) and its observable effect asserted. A dead
-   binding is a defect.
+   binding is a defect. When a consumer surface is another entry point (a
+   browser tab, a mobile app, a desktop client, or otherwise) with its own
+   resolved Bridge, this includes THAT Bridge's own resolution/execution
+   path — a harness that only proves a capability works in
+   isolation, while the shipped entry point never actually resolves it, has
+   verified a capability, not the product.
 5. **Operator decision window.** A scripted operator action can interleave
    between observable automatic transitions, and unstoppered auto-advance can
    never exhaust the result's own action space. Auto-advance is rate-bounded
@@ -726,7 +808,7 @@ and must answer YES to all of:
    next cycle needs no private memory, human or otherwise, to continue
    (Gate 11).
 8. **Record.** A machine-readable verification record
-   (`schemas/verification-record.schema.json`) is written into the
+   (`blueprint/schemas/verification-record.schema.json`) is written into the
    resulting state, referenceable from the cycle report, and green. Every
    capability operation's OBSERVED trace is persisted (`check.trace` — the
    Bridge's own `response.trace`, not invented); `check_id`s are unique.
@@ -791,7 +873,7 @@ rather than embedding a duplicate implementation:
 | Connector | canonical connector contract | direct hidden dependency |
 | Resource Exchange | canonical resource execution path when required | private resource runtime |
 | Capability binding | manifests (one entry per implementation) + generic assembler (Publish phase) binding capability→implementation(s) | registration embedded in components or consumer code |
-| Contract artifact | one materialized, versioned interface file per capability (R2; shape in `schemas/component-contract.schema.json`) | contract shapes living only implicitly in code |
+| Contract artifact | one materialized, versioned interface file per capability (R2; shape in `sample/schemas/component-contract.schema.json`) | contract shapes living only implicitly in code |
 
 Exact filesystem paths are intentionally resolved from authoritative
 manifests rather than hard-coded by this Blueprint.
