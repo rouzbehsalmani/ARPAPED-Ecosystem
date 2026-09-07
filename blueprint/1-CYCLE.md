@@ -512,13 +512,18 @@ have the entry point read it from there. A gate that only asks "does this
 decide anything?" is easy to answer yes-I-checked without ever finding
 this; checking literal-by-literal is what actually catches it.
 
-The strongest place to satisfy Phase 8's Gate 31 is
-here, as the harness's own last act once every check has passed
-(episode_store's own save operation with the cycle report, verification
-record, and episodes directory — `blueprint/dep/MANIFEST.yaml: episode_store`,
-0-WALKTHROUGH.md step 6) — that makes "verified" and "recorded" the same
-event, a harness failure rather than a step a later phase can forget,
-instead of two separately-rememberable actions.
+A green verification record here is the precondition `blueprint.dep.finish_cycle`
+(Phase 8, Gate 31) refuses to proceed without — but recording the episode
+itself now happens one phase later than earlier versions of this
+paragraph recommended: `finish_cycle`'s own acyclic-graph refusal (Gate
+30) needs this cycle's own new capabilities already reflected in
+`capability-catalog.jsonl`, which only happens once Phase 8 registers
+them. Calling `finish_cycle` from inside this harness, before that
+registration has run, would check a graph that doesn't yet include this
+cycle's own dependencies — silently weaker than Gate 30 actually asks
+for. The harness's own last act is still to make the record green;
+`finish_cycle` (`blueprint/dep/MANIFEST.yaml: finish_cycle`) is Phase 8's
+own last act, once registration is done.
 
 **Non-negotiables.** Gates 17–24, 27, 28, 36:
 
@@ -554,9 +559,17 @@ instead of two separately-rememberable actions.
 29. Does every capability-operation check run under a bounded per-stage
     timeout (never an unbounded wait), with a timeout treated as a hard
     failure rather than grounds to wait longer or retry indefinitely (R5)?
-30. For every capability that calls another one, is the declared dependency
-    graph acyclic, and does it call only what it declared under
-    `dependencies.capabilities` (R4, R5)?
+30. For every capability that calls another one: is the declared dependency
+    graph acyclic — mechanically confirmed by `blueprint.dep.finish_cycle`
+    at Phase 8 Publish, over this cycle's own already-registered
+    `capability-catalog.jsonl` (R4/R5) — and does it call only what it
+    declared under `dependencies.capabilities`, enforced separately, at
+    runtime, by the resolved Bridge itself when a factory-kind executor's
+    declared dependencies are resolved? Neither half is something a
+    reviewing agent verifies by inspection: `finish_cycle` refuses to
+    publish a cyclic graph by naming the exact cycle found (e.g.
+    `"a -> b -> a"`), and the Bridge refuses an undeclared `capability_id`
+    the moment a factory-kind executor tries to resolve it.
 36. Did I re-read every entry point's own code specifically for hardcoded
     literals that duplicate a value some capability already defines or
     computes, rather than trusting a general "does it decide anything?"
@@ -580,19 +593,24 @@ Register every capability: the capability manifests (one entry per
 implementation) + generic assembler build each implementation record and
 register it into the canonical Registry. Publish the decomposition per R3 —
 one contract per capability, referenced by its one or more capability-manifest
-entries; the Registry records the composition. Then record the cycle itself:
-call episode_store's own save operation
-(`blueprint/dep/MANIFEST.yaml: episode_store`) with the Phase 7 verification record,
-this phase's cycle report, and the episodes directory — `episodes_dir` is this application's own
+entries; the Registry records the composition. Then finish the cycle: call
+`blueprint.dep.finish_cycle` (`blueprint/dep/MANIFEST.yaml: finish_cycle`) with
+the Phase 7 verification record, this phase's cycle report, this cycle's own
+freshly-registered `capability-catalog.jsonl`, the episodes directory, and
+(if one is in use) the checkpoint path — one call, not two separately-rememberable
+ones. It refuses to do anything at all if the verification record's own
+`status` isn't `"verified"`, or if the catalog's declared dependency graph
+contains a cycle (Gate 30), naming the exact cycle found. Only past both
+refusals does it record the episode — `episodes_dir` is this application's own
 episode corpus (e.g. `state/episodes/`, alongside its
-`state/verification-record.json`; blueprint/dep/ itself has no default), and this
-call is what makes the cycle an actual entry in it, not just a record
-"written into the resulting state" and never seen again. A cycle that
-skips this is not published, regardless of what else it did. Once
-the episode is recorded, call checkpoint's own clear operation
-(`blueprint/dep/MANIFEST.yaml: checkpoint`) — the episode is now this attempt's permanent record,
-so a completed cycle leaves no lingering in-progress checkpoint behind for
-a future Phase 0 to mistake for unfinished work.
+`state/verification-record.json`; `blueprint/dep/` itself has no default) —
+and clear the checkpoint, so a completed cycle leaves no lingering
+in-progress checkpoint behind for a future Phase 0 to mistake for unfinished
+work. Call this AFTER capability registration above, never before:
+`finish_cycle`'s acyclic check inspects the catalog as it exists the moment
+it's called, and this cycle's own new capabilities are only in it once
+registration has actually appended them. A cycle that skips this call is not
+published, regardless of what else it did.
 
 **Non-negotiables.** Gates 8, 9, 14, 31:
 
@@ -601,10 +619,14 @@ a future Phase 0 to mistake for unfinished work.
 14. Is registration performed by the manifest + a generic assembler, so
     components contain no registration logic and swapping an implementation
     requires no consumer code change?
-31. Was this cycle recorded into the episode store (`blueprint.dep.episode_store.save_episode`),
-    so its decision record and verification record accumulate in this
-    application's own episode corpus for `blueprint.dep.dataset_builder` — not left
-    unrecorded because nothing in this phase's own output required it?
+31. Was this cycle published through `blueprint.dep.finish_cycle`
+    (`blueprint/dep/MANIFEST.yaml: finish_cycle`) — the one call that refuses
+    an unverified record, refuses a cyclic dependency graph (Gate 30),
+    records the cycle into the episode store, and clears the checkpoint, as
+    one act? This is now the ONLY way to satisfy this gate: calling
+    `episode_store.save_episode` on its own, without the paired checkpoint
+    clear and without `finish_cycle`'s own refusals, is exactly the partial
+    compliance that left this gate unenforced before `finish_cycle` existed.
 
 **Produces.** A discoverable, registered, verified resulting state, recorded
 as one episode in the DEP corpus.

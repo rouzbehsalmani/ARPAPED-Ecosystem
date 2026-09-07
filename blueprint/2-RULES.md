@@ -175,9 +175,22 @@ selected, executed, with its own genuine trace — never a raw executor-to-
 executor call. The declared `dependencies.capabilities` list is the only
 thing such a capability may call this way; calling anything outside it is a
 violation, not just an omission (R5). The declared dependency graph MUST be
-acyclic — an ecosystem's assembler verifies this before anything is
-registered or invoked, not discovered as runtime recursion. The resolved
-assembler and Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) implement this via an
+acyclic. The mechanical backstop for this is `blueprint.dep.finish_cycle`
+(`blueprint/dep/MANIFEST.yaml: finish_cycle`), run once per cycle at Phase 8
+Publish, over that cycle's own freshly-registered `capability-catalog.jsonl`
+— checked once, from the published catalog artifact every runtime's
+assembler already produces, rather than requiring each per-language
+assembler to reimplement graph-cycle detection itself. This is a narrower,
+honester claim than "before anything is registered": the check runs once
+this cycle's own new capabilities are already registered and appended to
+the catalog, not before it — the earliest point a language-agnostic
+artifact exists to check the WHOLE graph, new capabilities included,
+against. An ecosystem's own per-language assembler is free to additionally
+verify this earlier, before registering, as a stronger check layered on
+top — but no such assembler-level check exists anywhere in this Blueprint
+today; `finish_cycle` is what is actually implemented and enforced, and
+this rule must never be read as claiming more than that. The resolved
+assembler and Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) implement dependency injection via an
 `executor_kind: factory` manifest entry, given resolved access to its
 declared dependencies at assembly time.
 
@@ -323,7 +336,11 @@ A Verify pass (Phase 7) MUST fail when:
 7. a capability's declared dependency graph (`dependencies.capabilities`,
    R4) contains a cycle, or a capability's executor invokes a capability it
    did not declare there — the declared list is an enforced boundary, not
-   documentation.
+   documentation. The cycle half of this is the same `finish_cycle`
+   backstop R4 describes, checked once at Phase 8 Publish; the
+   undeclared-call half is enforced separately, at runtime, by the
+   resolved Bridge itself when a factory-kind executor's injected
+   dependencies are resolved (R4).
 
 ## R6 — Request-path discipline
 

@@ -453,13 +453,21 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   with `check_type: capability_operation` MUST carry a `trace` array copied
   verbatim from the observed response), `passed`, `failed`, `status`
   (`"verified"` or `"failed"`).
-- Once every check has passed, call episode_store's own save operation
-  (`blueprint/dep/MANIFEST.yaml: episode_store`) with the cycle report,
-  verification record, and episodes directory, as the harness's own last act
-  (section 7) — the harness is already the one place Gate 17 requires to
-  run before anything is published, so recording the episode here, not as a
-  separately-rememberable later step, is what makes 1-CYCLE.md Phase 8
-  Gate 31 a structural consequence of this gate passing.
+- Once every check has passed, write `state/verification-record.json` as
+  green (above) and stop there — this harness's own job is done. Do NOT call
+  `episode_store.save_episode` from inside this harness: recording the
+  episode is now `blueprint.dep.finish_cycle`'s job (section 7, 1-CYCLE.md
+  Phase 8 Gate 31), and it needs this cycle's own new capabilities already
+  registered into `capability-catalog.jsonl` before it can check Gate 30's
+  acyclic-graph requirement against the real, complete graph — registration
+  hasn't happened yet at this point in the harness. Observed for real: the
+  one harness in this repo that ever called `save_episode` did so from
+  exactly this point, and never called the paired `clear_checkpoint` at all
+  — two separately-rememberable steps, one of which was simply forgotten
+  every time it mattered. `finish_cycle` exists so that can't happen again:
+  one call, from any language via its CLI, does both, with the
+  acyclic-graph refusal as a hard prerequisite instead of an unenforced
+  claim.
 
 **Before the loop below is considered done, re-read your own entry point
 code once more, on purpose (Gate 36).** The harness above proves every
@@ -492,30 +500,36 @@ would have silently drifted the moment either one changed.
 ## 7. Publish and return state (Phase 8–9)
 
 - Confirm the registry discovers a candidate for every capability you built
-  (capability id, contract version, operation).
+  (capability id, contract version, operation), then rebuild/append
+  `capability-catalog.jsonl` so it reflects this cycle's own new
+  capabilities — this must happen BEFORE the bullet below, since
+  `finish_cycle`'s acyclic check reads exactly this file.
 - Write the cycle report, valid against `blueprint/schemas/agent-cycle-report.schema.json`.
-- Record the completed cycle into the episode store, via episode_store's
-  own save operation with the cycle report, verification record, and
-  episodes directory
-  (`blueprint/dep/MANIFEST.yaml: episode_store`, 1-CYCLE.md Phase 8 Gate 31). `episodes_dir` is
-  always given explicitly, never defaulted by blueprint/dep/ itself — an
-  application's own episodes live under its own tree (e.g.
-  `state/episodes/`, alongside `state/verification-record.json`), the
-  same way its own `capability-catalog.jsonl` lives under it, not inside
-  `sample/hello_world/backend/runtime/bridge/`. A cycle is not published until this succeeds — a
-  schema-invalid record or a duplicate `verification_id` must fail the
-  cycle, never be caught and silently skipped. The strongest place to
-  make this call is the verification harness's own last line (section
-  6), once every check has passed: that way "verified" and "recorded"
-  are the same event, not two separately rememberable steps — see
-  `sample/hello_world/backend/README.md` for a worked example (this file
-  never restates a sample's own concrete files or their language, same
-  posture as section 0 toward the Bridge).
-- Once the episode is recorded, call checkpoint's own clear operation
-  (`blueprint/dep/MANIFEST.yaml: checkpoint`,
-  1-CYCLE.md Phase 8) — the episode just recorded is now the permanent
-  record of this attempt, so no in-progress checkpoint should be left
-  behind for a future Phase 0 to mistake for unfinished work.
+- Finish the cycle: call `blueprint.dep.finish_cycle`
+  (`blueprint/dep/MANIFEST.yaml: finish_cycle`, 1-CYCLE.md Phase 8 Gate 31)
+  with the cycle report, verification record, this cycle's own
+  freshly-rebuilt `capability-catalog.jsonl`, the episodes directory, and
+  the checkpoint path if one is in use. `episodes_dir`/`catalog_path`/
+  `checkpoint_path` are always given explicitly, never defaulted by
+  `blueprint/dep/` itself — an application's own episodes live under its
+  own tree (e.g. `state/episodes/`, alongside `state/verification-record.json`),
+  the same way its own `capability-catalog.jsonl` already does, not inside
+  `sample/hello_world/backend/runtime/bridge/`. This ONE call refuses to
+  record anything at all if the verification record's own `status` isn't
+  `"verified"`, or if the catalog's declared dependency graph contains a
+  cycle (Gate 30) — naming the exact cycle found (e.g. `"a -> b -> a"`)
+  rather than a bare pass/fail. Only past both refusals does it record the
+  episode (a schema-invalid record or a duplicate `verification_id` still
+  fails the cycle, exactly as before) and clear the checkpoint (idempotent
+  — already cleared, or never started, is a clean no-op) in the same call.
+  A harness written in a language other than Python invokes exactly the
+  same guarantee via `python -m blueprint.dep.finish_cycle --cycle-report ...
+  --verification-record ... --catalog ... --episodes-dir ... [--checkpoint ...]`
+  as a subprocess call — the one thing that makes Gate 31 satisfiable from
+  a JS frontend's own `verify.js` (Gate 19) or any other non-Python
+  harness, not just a Python one. See `sample/hello_world/backend/README.md`
+  for a worked example (this file never restates a sample's own concrete
+  files or their language, same posture as section 0 toward the Bridge).
 - The resulting state — `contracts/`, `capabilities/`, `app/`, `tests/`,
   `state/verification-record.json`, the report, and the recorded episode
   in `state/episodes/` — is everything the next cycle needs. No private
@@ -567,3 +581,11 @@ would have silently drifted the moment either one changed.
   through the Bridge (R6/R9). Invisible to a "does it decide anything?"
   skim; only checking the entry point's own literals one by one, against
   what each capability already defines, catches it (Gate 36).
+- Recording an episode without clearing the paired checkpoint, or having no
+  way at all to record one from a non-Python harness — observed for real:
+  the one harness that ever called `save_episode` never called
+  `clear_checkpoint`, and every harness in any other language had nothing
+  to call either function with, since neither was ever ported.
+  `finish_cycle`'s own CLI is a subprocess call any language can make; the
+  checkpoint clear is no longer a step a harness has to separately
+  remember.

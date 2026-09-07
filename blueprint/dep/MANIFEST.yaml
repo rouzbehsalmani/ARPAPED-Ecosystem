@@ -167,6 +167,61 @@ dep:
       is what was missing for "historical episodes" to be more than a
       phrase in 1-CYCLE.md Phase 9 -- somewhere they actually accumulate
       across cycles, not just within one.
+  finish_cycle:
+    location: blueprint/dep/finish_cycle.py
+    role: >
+      The single publish-time gate that closes two confirmed enforcement
+      gaps at once, because they were never really two separate problems:
+      Gate 31 (1-CYCLE.md Phase 8) had no automated enforcement connecting
+      a schema-valid verification_record to an actual episode --
+      episode_store's own save operation was called from exactly one file
+      in this repo's entire sample/ tree, and even that caller never
+      called checkpoint's own clear operation either, leaving two
+      separately-rememberable steps where one was reliably forgotten --
+      and Gate 30/R4's acyclic dependency-graph claim (2-RULES.md) had no
+      implementation anywhere, in blueprint/dep/ or in any sample's own
+      assembler. `finish_cycle(cycle_report, verification_record,
+      catalog_path, episodes_dir, checkpoint_path=None)` refuses to do
+      anything at all unless verification_record["status"] == "verified"
+      (an unverified state is never published, 2-RULES.md "Fail closed" --
+      not a new invariant, just finally enforced at the one place a cycle
+      is actually published from) and unless the dependency graph declared
+      across catalog_path's own `dependencies` edges (the same
+      capability-catalog.jsonl shape checkpoint's own
+      catalog-reconciliation operation already reads) is acyclic --
+      naming the exact cycle found (e.g. "a -> b -> a") rather than a bare
+      pass/fail, since Gate 30 asks an agent to go fix a specific cycle,
+      not just learn one exists. Only past both refusals does it call
+      episode_store's own save operation, then checkpoint's own clear
+      operation if a checkpoint_path was given -- unchanged, still the
+      same two underlying operations, just no longer two
+      separately-callable, separately-forgettable ones.
+      `finish_cycle_from_paths(cycle_report_path, verification_record_path,
+      catalog_path, episodes_dir, checkpoint_path=None)` is the same
+      contract for a caller with these two records as files rather than
+      already-loaded dicts, and `python -m blueprint.dep.finish_cycle
+      --cycle-report PATH --verification-record PATH --catalog PATH
+      --episodes-dir PATH [--checkpoint PATH]` is its CLI, exit 0 with
+      the new episode directory on stdout or exit 1 with why not on
+      stderr -- the part that actually closes the second half of the
+      Gate 31 gap: a harness written in any language other than Python
+      (a frontend's own verify.js, Gate 19) has no way to import a
+      Python module, but can always shell out to this CLI as a
+      subprocess, the same way it already has to invoke anything else
+      outside its own language. Deliberately the one place in
+      blueprint/dep/ that DOES require its catalog_path to already exist
+      and be parseable (raises FinishCycleError otherwise) rather than
+      treating a missing catalog as "nothing to check" the way
+      checkpoint's own catalog-reconciliation operation does for its
+      different, best-effort, mid-cycle purpose -- by the time
+      finish_cycle is called (Phase 8, after this cycle's own
+      capabilities are already registered and the catalog rebuilt to
+      include them), a missing catalog is a caller error, not a normal
+      state to tolerate silently. Called from Phase 8 (1-CYCLE.md), after
+      registration, never from the Phase 7 harness itself
+      (0-WALKTHROUGH.md section 6) -- the acyclic check needs this
+      cycle's own new capabilities' edges already in the catalog, which
+      registration is what puts there.
   dataset_builder:
     location: blueprint/dep/dataset_builder.py
     role: >
