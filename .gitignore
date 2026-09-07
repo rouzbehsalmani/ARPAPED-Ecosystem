@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.venv/
 
 # Locally-built, platform-specific process executors (executor_kind:
 # process) -- not committed, same posture as any other build artifact.
