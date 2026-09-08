@@ -118,9 +118,17 @@ def check_capability_operations() -> list[dict[str, Any]]:
     """Gate: every declared capability operation, called through the SAME
     request-construction point app/main.py uses, under a bounded
     per-stage timeout (R5), with its full observed trace reaching
-    executed -- copied from the real response, never hand-written."""
+    executed -- copied from the real response, never hand-written.
+
+    Also folds in the Bridge's own observed `selection` (2-RULES.md
+    glossary -- Decision Context, distinct from this harness's own
+    decisions[] entries in the cycle report) and, for a process-kind
+    operation, `evidence` -- both copied verbatim from `response`, the
+    same authenticity discipline `trace` already gets (R8, Gate 28/37),
+    never invented or reconstructed here."""
 
     checks = []
+    console_write_response = None
     for i, (name, operation, input_) in enumerate(CALLS, start=1):
         check_id = f"call:{i}:{name}"
         description = f"{name}.{operation} (call {i}) reaches every stage"
@@ -135,14 +143,66 @@ def check_capability_operations() -> list[dict[str, Any]]:
                 "status": status,
                 "check_type": "capability_operation",
                 "trace": list(trace),
+                "selection": response.selection,
             }
+            if response.evidence is not None:
+                check["evidence"] = response.evidence
             if status == "failed":
                 check["observed"] = f"expected {list(EXPECTED_TRACE)}, got {list(trace)}"
             checks.append(check)
+            if i == 1:
+                console_write_response = response
         except Exception as exc:
             checks.append({"check_id": check_id, "description": description, "status": "failed", "observed": str(exc)})
 
+    if console_write_response is not None:
+        checks.append(_check_console_write_implementation_pinning(console_write_response))
+
     return checks
+
+
+def _check_console_write_implementation_pinning(response: Any) -> dict[str, Any]:
+    """Permanent regression check (regression_for
+    "console-write-priority-flip-2026-09"): `app/dependencies.yaml`'s
+    unpinned `console_write` name (contract_version `>=2.0.0,<3.0.0`, no
+    `implementation_id`) must keep resolving to `console.write.v2`, its
+    highest-priority (200) implementation -- not `console.write.process`
+    (priority 150), a SECOND, equally version-compatible implementation
+    the Bridge genuinely discovers and policy-allows for this exact call
+    (see `response.selection.candidates`, always 2 entries for this
+    call). Nothing else in this harness asserts which `implementation_id`
+    an unpinned name resolves to; this is the one check that would have
+    caught the real regression observed while this check itself was
+    being built: bumping `console.write.process`'s own manifest priority
+    above 200 silently flips which of two live, competing implementations
+    answers every unpinned `console_write` call, while every trace still
+    reaches `executed` and every other check here still passes -- a
+    silent default (2-RULES.md "No silent defaults on what resolution
+    depends on") this harness had no way to notice before `selection` was
+    a real, observed field to assert against."""
+
+    expected_implementation_id = "console.write.v2"
+    actual_implementation_id = response.implementation_id
+    status = "passed" if actual_implementation_id == expected_implementation_id else "failed"
+    check = {
+        "check_id": "call:1:console_write:implementation-pinning-regression",
+        "description": (
+            "The unpinned 'console_write' name (app/dependencies.yaml) keeps resolving to "
+            "console.write.v2, its highest-priority policy-allowed candidate"
+        ),
+        "status": status,
+        "check_type": "regression",
+        "regression_for": "console-write-priority-flip-2026-09",
+        "expected": expected_implementation_id,
+        "actual": actual_implementation_id,
+        "selection": response.selection,
+    }
+    if status == "failed":
+        check["observed"] = (
+            f"expected {expected_implementation_id!r}, got {actual_implementation_id!r} -- "
+            f"{response.selection['reason']}"
+        )
+    return check
 
 
 def check_frontend_bridge() -> list[dict[str, Any]]:
@@ -224,6 +284,64 @@ def main() -> None:
         if name not in seen_names:
             seen_names.append(name)
 
+    # check_ids per responsibility (dataset_builder.py's own join key --
+    # never guessed by matching a responsibility name against a check's
+    # description string): every reused capability links to the call(s)
+    # that exercised it this cycle, by the same "call:{i}:{name}" ids
+    # check_capability_operations() already assigns.
+    check_ids_by_name: dict[str, list[str]] = {}
+    for i, (name, _, _) in enumerate(CALLS, start=1):
+        check_ids_by_name.setdefault(name, []).append(f"call:{i}:{name}")
+    check_ids_by_name["console_write"].append("call:1:console_write:implementation-pinning-regression")
+
+    reused_decisions = [
+        {
+            "responsibility": name,
+            "decision": "reuse",
+            "reason": f"{name!r} already implemented and registered; unchanged by this cycle.",
+            "check_ids": check_ids_by_name[name],
+        }
+        for name in seen_names
+    ]
+    # console_write's own decision additionally carries a real, observed
+    # failure/correction pair (2-RULES.md glossary), not a narrated
+    # after-the-fact summary: while building the permanent regression
+    # check above, console.write.process's own manifest priority was
+    # actually bumped from 150 to 250, the harness re-run for real (RED),
+    # then reverted and re-run again (GREEN) -- these are the two real
+    # `selection.reason` strings the Bridge itself produced for those two
+    # runs, quoted verbatim, not reconstructed.
+    for decision in reused_decisions:
+        if decision["responsibility"] == "console_write":
+            decision["failure"] = {
+                "summary": "console-write-priority-flip-2026-09: unpinned console_write silently resolved to console.write.process instead of console.write.v2",
+                "detail": (
+                    "console.write.process's own manifest priority was raised from 150 to 250 "
+                    "(above console.write.v2's 200) to prove no existing check would notice. It "
+                    "didn't: every trace still reached executed and every check but the new "
+                    "regression check still passed. Real observed Bridge selection for that run: "
+                    "capability_id=console.write, candidates=[console.write.process@250, "
+                    "console.write.v2@200], selected=console.write.process, "
+                    "reason=\"highest priority (250) among 2 policy-allowed candidates\" -- "
+                    "check call:1:console_write:implementation-pinning-regression failed with "
+                    "observed=\"expected 'console.write.v2', got 'console.write.process' -- "
+                    "highest priority (250) among 2 policy-allowed candidates\"."
+                ),
+            }
+            decision["correction"] = {
+                "summary": "Reverted console.write.process's manifest priority to 150",
+                "detail": (
+                    "Priority reverted 250 -> 150, catalog rebuilt, harness re-run. Real observed "
+                    "Bridge selection for the corrected run: candidates=[console.write.process@150, "
+                    "console.write.v2@200], selected=console.write.v2, reason=\"highest priority "
+                    "(200) among 2 policy-allowed candidates\" -- "
+                    "call:1:console_write:implementation-pinning-regression now passes, and stays "
+                    "in the harness permanently so this exact regression is caught immediately if "
+                    "it ever recurs, rather than staying invisible to every other check the way it "
+                    "was before this check existed."
+                ),
+            }
+
     cycle_report = {
         "goal": {
             "description": (
@@ -238,14 +356,7 @@ def main() -> None:
             )
         },
         "starting_state": _HELLO_WORLD_ROOT.relative_to(_REPO_ROOT).as_posix(),
-        "decisions": [
-            {
-                "responsibility": name,
-                "decision": "reuse",
-                "reason": f"{name!r} already implemented and registered; unchanged by this cycle.",
-            }
-            for name in seen_names
-        ] + [
+        "decisions": reused_decisions + [
             {
                 "responsibility": "web.serve",
                 "decision": "create",

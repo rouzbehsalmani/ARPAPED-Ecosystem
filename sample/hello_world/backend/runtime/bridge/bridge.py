@@ -54,6 +54,8 @@ class BridgeResponse:
     implementation_id: str
     output: dict[str, Any]
     trace: tuple[str, ...]
+    selection: dict[str, Any]
+    evidence: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -392,6 +394,47 @@ class Bridge:
                 "All allowed and selectable implementations failed", failures,
             )
         _reached("executed")
+
+        # Decision Context (2-RULES.md glossary "selection", distinct from
+        # the agent-level decisions[] in agent-cycle-report.schema.json):
+        # which candidates this request actually discovered and cleared
+        # policy for, and why THIS one, of those, is the one that ran --
+        # observed and reported the same way `trace` already is (R8, Gate
+        # 28/37), never invented after the fact. `allowed`/`ranked`/
+        # `selected`/`failures` are exactly the locals the selection and
+        # execution loop above already computed; nothing here re-derives
+        # or re-evaluates anything.
+        if selected.implementation_id == ranked[0].implementation_id:
+            reason = (
+                f"highest priority ({selected.priority}) among {len(allowed)} "
+                f"policy-allowed candidate{'s' if len(allowed) != 1 else ''}"
+            )
+        else:
+            reason = (
+                f"priority {selected.priority} selected after {', '.join(failures)} "
+                f"failed over, among {len(allowed)} policy-allowed candidates"
+            )
+        selection_report = {
+            "capability_id": request.capability_id,
+            "operation": request.operation,
+            "contract_version": request.contract_version,
+            "candidates": [
+                {"implementation_id": c.implementation_id, "priority": c.priority}
+                for c in sorted(allowed, key=lambda c: (-c.priority, c.implementation_id))
+            ],
+            "selected": selected.implementation_id,
+            "reason": reason,
+        }
+
+        # Evidence: process-kind (executor_kind: process) execution
+        # evidence, duck-typed so this stays uncoupled from
+        # ProcessExecutorPool by type -- the same idiom this method already
+        # uses for `hasattr(self.selector, "record_failure"/"record_success")`.
+        # None for direct/factory/remote-kind executors, which have no
+        # analogous out-of-process evidence to report.
+        last_evidence = getattr(selected.executor, "last_call_evidence", None)
+        evidence = last_evidence() if callable(last_evidence) else None
+
         return BridgeResponse(
             request_id=request.request_id,
             capability_id=request.capability_id,
@@ -399,6 +442,8 @@ class Bridge:
             implementation_id=selected.implementation_id,
             output=output,
             trace=tuple(trace),
+            selection=selection_report,
+            evidence=evidence,
         )
 
     def handle_with_timeout(

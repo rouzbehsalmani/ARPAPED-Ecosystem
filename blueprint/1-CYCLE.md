@@ -29,7 +29,7 @@ goal
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 36 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 36, 37 |
 | 8 — Publish | 8, 9, 14, 31 |
 | 9 — Return state | 11 |
 
@@ -525,7 +525,7 @@ for. The harness's own last act is still to make the record green;
 `finish_cycle` (`blueprint/dep/MANIFEST.yaml: finish_cycle`) is Phase 8's
 own last act, once registration is done.
 
-**Non-negotiables.** Gates 17–24, 27, 28, 36:
+**Non-negotiables.** Gates 17–24, 27, 28, 36, 37:
 
 17. Did I run the result through a verification harness — headlessly, no
     real terminal required?
@@ -576,6 +576,13 @@ own last act, once registration is done.
     impression? A literal that happens to match a capability's own constant
     is exactly the reimplementation Gate 27 prohibits, just easy to miss
     without checking value-by-value.
+37. When a check's `selection` or `evidence` object is present, does it
+    equal the Bridge's own observed `response.selection`/`response.evidence`
+    for that call — copied, never invented or bypassed, the same
+    authenticity Gate 28 requires of `trace`? A `selection.candidates` list
+    naming only the actually-selected implementation, when the Bridge
+    itself discovered and policy-allowed more than one, is under-reporting
+    exactly like a truncated trace would be.
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or
 split/reuse per Phase 4), re-run the harness, and only then proceed. An

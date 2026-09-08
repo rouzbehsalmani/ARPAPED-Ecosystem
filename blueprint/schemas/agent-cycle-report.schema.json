@@ -40,7 +40,33 @@
             "type": "string",
             "enum": ["reuse", "compose", "split_refactor", "create", "structural_floor"]
           },
-          "reason": {"type": "string"}
+          "reason": {"type": "string"},
+          "failure": {
+            "type": "object",
+            "required": ["summary", "detail"],
+            "properties": {
+              "summary": {"type": "string", "minLength": 1},
+              "detail": {"type": "string", "minLength": 1}
+            },
+            "description": "What broke while pursuing this responsibility's decision, if anything -- scoped to exactly this responsibility, never a cycle-wide narrative. 'summary' is the short, greppable label (an error code, a check_id); 'detail' is the fuller account. Optional: most decisions in a green cycle carry neither this nor 'correction'."
+          },
+          "correction": {
+            "type": "object",
+            "required": ["summary", "detail"],
+            "properties": {
+              "summary": {"type": "string", "minLength": 1},
+              "detail": {"type": "string", "minLength": 1}
+            },
+            "description": "What fixed the stated 'failure', if it was fixed within this same cycle. Requires 'failure' to be present too (dependentRequired below) -- a correction with nothing on record to correct is not a correction. The reverse is NOT required: a 'failure' with no 'correction' is a real, valid outcome (verification.status ended 'failed' and the cycle stopped before a fix landed) -- exactly the unresolved-failure signal a future learning agent needs, not something the schema should force into a fabricated correction just to validate."
+          },
+          "check_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "check_id(s), from this cycle's own verification-record.json, that exercised this responsibility's capability operation(s) -- the explicit link blueprint.dep.dataset_builder needs to fold a check's selection/evidence/trace onto this decision's row without guessing by string-matching responsibility against description (2-RULES.md \"No silent defaults on what resolution depends on\" applies here too). Optional -- absent for a decision with no directly-testable operation (e.g. a split/refactor decision)."
+          }
+        },
+        "dependentRequired": {
+          "correction": ["failure"]
         }
       }
     },
@@ -74,7 +100,7 @@
       "properties": {
         "harness": {"type": "string", "description": "Path/identity of the verification harness in the resulting state."},
         "trace_evaluation": {"type": "string", "description": "Summary of observed Bridge traces for every capability operation."},
-        "failures_and_fixes": {"type": "string", "description": "Failures observed and fixes applied; regression re-run status."},
+        "failures_and_fixes": {"type": "string", "description": "Failures observed and fixes applied; regression re-run status. Should roll up / summarize the structured failure/correction pairs recorded in decisions[], when any exist; may also record failures that don't map to one specific decision (harness infrastructure flakiness, an ecosystem-resolution ambiguity). The structured per-decision fields are the primary record for anything decision-scoped -- this field is the overflow, not the only place a failure can be recorded."},
         "verification_record_ref": {"type": "string", "description": "Path to the verification-record.schema.json instance this cycle produced."},
         "status": {"type": "string", "enum": ["verified", "failed"]}
       }

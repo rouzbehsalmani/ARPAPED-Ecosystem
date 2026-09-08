@@ -39,6 +39,8 @@ cycle input/report, verification record, checkpoint -- live in
 | **Selector** | The canonical routing stage that picks which allowed candidate executes (with failover awareness), per runtime (same scoping as Bridge). |
 | **Executor** | A component's `execute` callable; the only code the Bridge executes. |
 | **trace** | The ordered stage list a Bridge response carries: `validated → discovered → policy_evaluated → selected → executed`. The designed evidence that a request travelled the canonical path. |
+| **selection** | The Bridge's own Decision Context for one call, alongside its `trace`: which implementations it discovered and policy-allowed (`candidates`, each with its `implementation_id`/`priority`), which one it actually selected, and why (a deterministic, honest reason string — e.g. "highest priority (N) among M policy-allowed candidates"). Distinct from an agent's own Phase-4 decisions (build-time, per-responsibility, "reuse vs. create") — `selection` is call-time, observed live from the resolved Bridge, never invented, same authenticity discipline as `trace` (Gate 28/37). A single-candidate `selection` is honest and expected, not evidence of a bug. |
+| **evidence** | Process-kind (`executor_kind: process`) execution evidence for one call: the worker's actual returned output, and, when the implementation genuinely writes to its own OS-level stdout/stderr, that raw captured text — plus a live process-health snapshot. Absent for direct/factory/remote-kind operations, which have nothing analogous to capture. Copied from what the worker actually did, never fabricated or assumed empty. |
 | **resulting state** | The authoritative, discoverable state of the ecosystem after a cycle completes — code, contracts, manifests, verification record, report. The input state of the next cycle. |
 | **verification record** | The machine-readable result of the Verify phase (`blueprint/schemas/verification-record.schema.json`), written into the resulting state. Green only when the harness passes. |
 | **lineage** | The discoverable history of a component: which cycle/agent created it, what changed it, and how it evolved through splits. |
@@ -800,7 +802,9 @@ and must answer YES to all of:
    response is contract-shaped, and the FULL ordered trace is asserted from
    the Bridge's own `response.trace` (missing stage, wrong order, or no
    `executed` = fail). The trace is observed, never constructed by the
-   harness (Gate 28).
+   harness (Gate 28). When the response's own `selection`/`evidence` are
+   recorded too (glossary), they are copied verbatim the same way — never
+   reconstructed or invented (Gate 37).
 4. **Every consumer-visible behavior** is exercised through a scripted
    command stream (`("key", name)`, `("tick", None)`, `("wait", n)` — same
    handler the real console uses) and its observable effect asserted. A dead
@@ -859,6 +863,15 @@ Bridge's own `response.trace` for that request. A "verification" that does
 not execute the capability through the canonical Bridge, or that constructs
 its own trace, is NOT verification (R8, Gate 27/28) — its record, however
 green, does not prove the result and the state is not published.
+
+**Selection/evidence authenticity.** The same rule extends to `selection`
+and `evidence` (glossary) whenever a check records them: valid only if they
+equal the Bridge's own observed `response.selection`/`response.evidence`
+for that request — never invented, never reconstructed after the fact, and
+never under-reported (a `selection.candidates` list naming only the
+implementation that happened to be selected, when the Bridge itself
+discovered and policy-allowed more than one, is exactly this violation,
+just quieter than a truncated trace) (Gate 37).
 
 **Regression discipline.** Every defect reported by a previous cycle MUST be
 reproduced as a failing-check-first test: write it failing (red), fix the

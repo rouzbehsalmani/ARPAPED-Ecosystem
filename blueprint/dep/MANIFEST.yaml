@@ -231,7 +231,14 @@ dep:
       `decision`/`reason` are what a future predictor is meant to
       predict, given goal/starting_state/responsibility, with the
       episode's verification_status/resulting_state carried on every row
-      as the outcome that decision led to. Generic, same posture as
+      as the outcome that decision led to. Also pulls a decision's own
+      structured `failure`/`correction` (agent-cycle-report.schema.json)
+      when present, and, via the decision's own `check_ids`, the
+      `selection`/`evidence`/`trace` objects (2-RULES.md glossary) the
+      matching verification-record.json checks actually observed --
+      real Bridge-level Decision Context and Evidence, joined explicitly
+      by id, never guessed by matching a responsibility name against a
+      check's description string. Generic, same posture as
       episode_store: no default `episodes_dir`/`output_path` here --
       see sample/hello_world/backend/README.md for a worked example, the
       same relationship it has to a sample's own assembler's rebuild_catalog.

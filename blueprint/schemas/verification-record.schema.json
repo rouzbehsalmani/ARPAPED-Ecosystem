@@ -60,7 +60,76 @@
           "regression_for": {
             "type": "string",
             "description": "Previous defect id this check protects against, when applicable."
+          },
+          "expected": {
+            "description": "The value this check asserted against, structured rather than interpolated into a string (contrast the older pattern of writing 'observed': \"expected X, got Y\"). Any JSON type -- a trace array, a response.output object, an implementation_id string, a scalar count. Present together with 'actual' or not at all (see dependentRequired below) -- 'observed' remains the right field for a check with no natural expected/actual split (e.g. contract/manifest schema validation)."
+          },
+          "actual": {
+            "description": "The value actually observed for this check, structured the same way as 'expected'. A lone 'actual' with no stated 'expected' is not a comparison; a lone 'expected' proves nothing was actually observed -- both or neither."
+          },
+          "selection": {
+            "type": "object",
+            "description": "Bridge-level Decision Context for this check's capability operation -- distinct from the agent-level Phase-4 decisions[] in agent-cycle-report.schema.json (2-RULES.md glossary). Copied from the Bridge's own observed response.selection, never invented -- the same authenticity 'trace' already requires (R8, Gate 28/37).",
+            "required": ["capability_id", "operation", "contract_version", "candidates", "selected", "reason"],
+            "properties": {
+              "capability_id": {"type": "string"},
+              "operation": {"type": "string"},
+              "contract_version": {"type": "string"},
+              "candidates": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["implementation_id", "priority"],
+                  "properties": {
+                    "implementation_id": {"type": "string"},
+                    "priority": {"type": "integer"}
+                  }
+                },
+                "description": "Every candidate discovered AND policy-allowed for this request (the Bridge's own post-policy_evaluated, pre-selected list). A single-candidate array is honest and expected when only one implementation exists or is policy-allowed for this request -- it is not evidence of a bug."
+              },
+              "selected": {
+                "type": "string",
+                "description": "implementation_id that actually executed."
+              },
+              "reason": {
+                "type": "string",
+                "description": "Deterministic, honest wording, e.g. \"highest priority (200) among 2 policy-allowed candidates\", or, after a failover, \"priority 150 selected after console.write.v2 failed over, among 2 policy-allowed candidates\". Never a vague 'best match'."
+              }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "description": "Process-kind (executor_kind: process) execution evidence -- populated only when the selected implementation ran out-of-process (R4 Worker). Absent for direct/factory/remote-kind operations: there is nothing analogous to capture for an in-process call sharing the Bridge's own stdout, or a Remote call whose own runtime already records its own genuine trace.",
+            "required": ["executor_kind", "response_output"],
+            "properties": {
+              "executor_kind": {"type": "string", "const": "process"},
+              "response_output": {
+                "type": "object",
+                "description": "The structured {'output': {...}} payload the worker actually returned over process-executor-protocol.schema.json for this call -- already produced in memory today, persisted here rather than discarded."
+              },
+              "stdout": {
+                "type": "string",
+                "description": "Raw bytes (UTF-8, errors='replace') the worker wrote to its own OS-level stdout during the span this invocation exclusively held its worker connection. Genuinely empty for an implementation whose responsibility never prints (e.g. greeting.compose.process, which only makes a nested Bridge call) and genuinely non-empty for one whose responsibility IS to print (e.g. console.write.process) -- never assumed empty."
+              },
+              "stderr": {
+                "type": "string",
+                "description": "Same capture, for the worker's own stderr, over the same invocation span."
+              },
+              "worker_alive": {
+                "type": "boolean",
+                "description": "Whether the worker's TCP connection was still usable immediately after this call."
+              },
+              "process_exit_code": {
+                "type": ["integer", "null"],
+                "description": "A non-blocking Popen.poll() snapshot taken right after this call -- null while the pooled worker is still running (the normal case), an integer only if it had already exited/crashed. Not 'the' exit code of one request -- a pooled process outlives any single call."
+              }
+            }
           }
+        },
+        "dependentRequired": {
+          "actual": ["expected"],
+          "expected": ["actual"]
         },
         "allOf": [
           {
@@ -74,6 +143,19 @@
             },
             "then": {
               "required": ["trace"]
+            }
+          },
+          {
+            "if": {
+              "required": ["evidence"]
+            },
+            "then": {
+              "required": ["check_type"],
+              "properties": {
+                "check_type": {
+                  "const": "capability_operation"
+                }
+              }
             }
           }
         ]
