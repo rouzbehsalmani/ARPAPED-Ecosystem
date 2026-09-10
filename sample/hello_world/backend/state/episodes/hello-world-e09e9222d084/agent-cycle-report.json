@@ -1,0 +1,92 @@
+{
+  "goal": {
+    "task": "Add a minimal hello-counter capability to the existing hello_world backend",
+    "behavior": "accepts a single word; returns the word together with a running per-word count",
+    "state_scope": "per-word counters must survive repeated invocations within the same runtime process; nothing is required across separate program runs",
+    "test_required": "include a minimal verification test exercising the counter",
+    "integration_required": "route it through the existing ARPAPED Bridge (sample/hello_world/backend/runtime/bridge) without modifying the Bridge's architecture"
+  },
+  "starting_state": "verified-green baseline: git HEAD, hello_world backend harness 17/17 checks green (incl. C# greeting.compose.process and frontend Remote bridge); capability catalog for backend (6 impls) and frontend (2 impls) regenerated; compose_process binary rebuilt; no state/ artifacts committed (gitignored)",
+  "reusable_discovery": [
+    "sample/hello_world/backend/runtime/bridge/MANIFEST.yaml (execution_boundary/registry/policy/selector/assembler)",
+    "sample/hello_world/backend/runtime/app/requests.py (single request-construction point, R6/R8)",
+    "sample/hello_world/backend/implementation/build_catalog.py (catalog rebuild, Phase 8)",
+    "sample/hello_world/backend/implementation/capabilities/greeting/compose_process/manifest.yaml (dotnet build command for the C# process executor)"
+  ],
+  "decisions": [
+    {
+      "responsibility": "counter.count",
+      "decision": "create",
+      "reason": "No existing registered capability provides per-word counting (Phase 3 discovery over the generated capability catalog: zero candidates under counter/*). A single small generic task per R1 (domain.operation => counter.count); the consumer-facing 'hello-counter' flavor is carried by the app-level binding name hello_counter in app/dependencies.yaml, not by the capability identity (R9).",
+      "check_ids": [
+        "call:7:hello_counter",
+        "call:8:hello_counter",
+        "call:9:hello_counter",
+        "call:7-9:hello_counter:in-process-persistence"
+      ]
+    },
+    {
+      "responsibility": "console.write",
+      "decision": "reuse",
+      "reason": "Already implemented (1.0.0, 2.0.0 in-process and process) and registered; unchanged by this cycle; re-verified including its permanent priority-pinning regression check.",
+      "check_ids": [
+        "call:1:console_write",
+        "call:2:console_write",
+        "call:4:console_write_legacy",
+        "call:6:console_write_process",
+        "call:1:console_write:implementation-pinning-regression"
+      ]
+    },
+    {
+      "responsibility": "greeting.compose",
+      "decision": "reuse",
+      "reason": "Already implemented (in-process factory and C# process) and registered; unchanged by this cycle; re-verified.",
+      "check_ids": [
+        "call:3:greeting_compose",
+        "call:5:greeting_compose_process"
+      ]
+    },
+    {
+      "responsibility": "web.serve",
+      "decision": "reuse",
+      "reason": "Already implemented and registered; unchanged by this cycle; re-verified by the frontend Bridge check, which boots it for real via the same resolve()."
+    },
+    {
+      "responsibility": "greeting.render (frontend)",
+      "decision": "reuse",
+      "reason": "Frontend's own capability, unchanged by this cycle; re-verified through its own Bridge.",
+      "check_ids": [
+        "call:1:greeting_render (frontend)"
+      ]
+    }
+  ],
+  "new_capabilities": [
+    "counter.count"
+  ],
+  "reused_capabilities": [
+    "console.write",
+    "greeting.compose",
+    "greeting.render (frontend)",
+    "web.serve"
+  ],
+  "registry_changes": "capability-catalog.jsonl rebuilt via build_catalog: 6 implementation records before, 7 after -- counter.count.default (priority 100, executor_kind direct) registered under counter.count 1.0.0; assemble_from_catalog registers it into the canonical Registry at requests.py import time.",
+  "bridge_integration": "Every backend call (the existing six plus hello_counter.count x3) resolved through app/requests.py's single request-construction point and the same canonical Bridge app/main.py uses (R6/R8). The frontend greeting_render check still boots web.serve via that same resolve() and exercises the frontend's own Bridge over web.serve's /bridge endpoint. No Bridge component (bridge.py/registry.py/policy.py/selector.py/assembler.py) was modified.",
+  "verification": {
+    "harness": "sample/hello_world/backend/implementation/tests/verify/verify.py",
+    "trace_evaluation": "All 9 backend capability-operation calls observed full Bridge traces validated -> discovered -> policy_evaluated -> selected -> executed (copied verbatim from responses); the frontend's greeting_render observed the same through its own Bridge. counter.count's three calls observed running counts [1, 2, 1], asserting in-process persistence (call:7-9:hello_counter:in-process-persistence).",
+    "failures_and_fixes": "No failures in capability code. One harness-infrastructure correction: this harness previously called episode_store.save_episode itself (and never cleared the checkpoint); per blueprint/0-WALKTHROUGH.md step 6 it now stops after writing state/verification-record.json, with episode recording deferred to blueprint.dep.finish_cycle. Harness re-run green after the change: 23/23 (was 17/17 at baseline, +6 counter checks).",
+    "verification_record_ref": "sample/hello_world/backend/state/verification-record.json",
+    "status": "verified"
+  },
+  "resulting_state": "sample/hello_world/backend",
+  "resulting_state_ref": {
+    "content_hash": "sha256:c6140dbfa415487c39567575908069fc70a97f226913021d13a5402ea54d4e1b",
+    "vcs": {
+      "system": "git",
+      "commit": "8c5514f9771ae8dcc1dc84d7b1476f8d2667511f",
+      "branch": "main",
+      "dirty": true
+    }
+  },
+  "next_cycle_readiness": "capability-catalog.jsonl (7 records including counter.count.default), app/dependencies.yaml (hello_counter binding), runtime capabilities/counter/count/executor.py, and the green state/verification-record.json fully describe the resulting state; no private session memory is required -- the checkpoint gates resume, and the Phase 7 harness re-runs everything."
+}

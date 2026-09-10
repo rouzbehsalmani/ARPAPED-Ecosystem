@@ -4,24 +4,31 @@ blueprint/2-RULES.md "Verification contract"; blueprint/0-WALKTHROUGH.md step 6)
 Lives outside app/ and capabilities/ (blueprint/0-WALKTHROUGH.md step 6: "Lives
 outside the application packages"). Confirms every contract and manifest
 under this sample validates against its schema, reuses the SAME Bridge
-app/requests.py builds (never a second one), drives the same six calls
+app/requests.py builds (never a second one), drives the same nine calls
 app/main.py does through the same request-construction point, and
 asserts every observed trace equals validated -> discovered ->
 policy_evaluated -> selected -> executed -- copied verbatim from the
 response, never hand-written. Each call runs under a bounded per-stage
 timeout (`call_with_timeout`, R5) instead of an unbounded wait.
 
+The three counter calls (calls 7-9, hello/hello/world) additionally carry
+a deterministic invariant: in ONE fresh process the observed running
+counts must be [1, 2, 1] -- proof that counter.count's per-word state
+survives repeated invocations within a single runtime, its contract's
+entire state_scope.
+
 No operator-decision-window case: that requirement (blueprint/0-WALKTHROUGH.md
 step 6) is for a reactive/ongoing system where a scripted action must
-land between two automatic ticks -- this sample has no such loop (six
+land between two automatic ticks -- this sample has no such loop (nine
 sequential calls, then done), so there is nothing to interleave. Not
 applicable here, not silently skipped either.
 
-On every check passing, writes state/verification-record.json and
-records the completed cycle into the DEP episode store as its own last
-act (blueprint/0-WALKTHROUGH.md step 6/7, blueprint/1-CYCLE.md Phase 8 Gate 31) -- so
-"verified" and "recorded" are the same event: a harness failure, not a
-step a later phase could forget.
+On every check passing, writes state/verification-record.json and stops
+there -- this harness's own job is done. Recording the completed cycle as
+an episode is Phase 8's `blueprint.dep.finish_cycle` task, not this
+harness's (blueprint/0-WALKTHROUGH.md step 6): it must run AFTER the
+capability catalog is rebuilt, so it can refuse to record on a cyclic
+dependency graph (1-CYCLE.md Phase 8 Gate 30/31).
 
 Run from anywhere (sys.path is set up below):
     python -m sample.hello_world.backend.implementation.tests.verify.verify
@@ -54,8 +61,6 @@ import jsonschema  # noqa: E402
 import yaml  # noqa: E402
 
 from sample.hello_world.backend.runtime.app.requests import resolve  # noqa: E402
-from blueprint.dep.episode_store import save_episode  # noqa: E402
-from blueprint.dep.state_ref import capture_state_ref  # noqa: E402
 
 
 def _load_schema(schemas_dir: Path, name: str) -> dict[str, Any]:
@@ -68,9 +73,12 @@ _VERIFICATION_RECORD_SCHEMA = _load_schema(_BLUEPRINT_SCHEMAS_DIR, "verification
 
 EXPECTED_TRACE = ("validated", "discovered", "policy_evaluated", "selected", "executed")
 
-# Mirrors app/main.py's six calls exactly -- the harness drives the same
+# Mirrors app/main.py's nine calls exactly -- the harness drives the same
 # consumer-visible interactions the real entry point does, through the
-# same dispatcher (app/requests.py's resolve), never a shortcut.
+# same dispatcher (app/requests.py's resolve), never a shortcut. The
+# counter sequence (7,8,9: hello, hello, world) is deliberate -- in one
+# process it must observe running counts [1, 2, 1], the invariant check
+# below asserts exactly that.
 CALLS = [
     ("console_write", "write", {"message": "This is a test of the Bridge's console.write capability."}),
     ("console_write", "write", {"message": "Hello, world!", "format": "uppercase"}),
@@ -78,6 +86,9 @@ CALLS = [
     ("console_write_legacy", "write", {"text": "console.write 1.0.0 is real and independently callable."}),
     ("greeting_compose_process", "compose", {"name": "ARPAPED (via C#)"}),
     ("console_write_process", "write", {"message": "This line is printed by a second Python process, through the Bridge."}),
+    ("hello_counter", "count", {"word": "hello"}),
+    ("hello_counter", "count", {"word": "hello"}),
+    ("hello_counter", "count", {"word": "world"}),
 ]
 
 
@@ -131,6 +142,7 @@ def check_capability_operations() -> list[dict[str, Any]]:
 
     checks = []
     console_write_response = None
+    counter_responses = []
     for i, (name, operation, input_) in enumerate(CALLS, start=1):
         check_id = f"call:{i}:{name}"
         description = f"{name}.{operation} (call {i}) reaches every stage"
@@ -155,11 +167,15 @@ def check_capability_operations() -> list[dict[str, Any]]:
             checks.append(check)
             if i == 1:
                 console_write_response = response
+            if name == "hello_counter":
+                counter_responses.append(response)
         except Exception as exc:
             checks.append({"check_id": check_id, "description": description, "status": "failed", "observed": str(exc)})
 
     if console_write_response is not None:
         checks.append(_check_console_write_implementation_pinning(console_write_response))
+    if len(counter_responses) == 3:
+        checks.append(_check_hello_counter_in_process_persistence(counter_responses))
 
     return checks
 
@@ -206,6 +222,36 @@ def _check_console_write_implementation_pinning(response: Any) -> dict[str, Any]
             f"expected {expected_implementation_id!r}, got {actual_implementation_id!r} -- "
             f"{response.selection['reason']}"
         )
+    return check
+
+
+def _check_hello_counter_in_process_persistence(responses: list[Any]) -> dict[str, Any]:
+    """Invariant check (Gate 37) unique to counter.count: the contract's
+    entire state_scope is per-word counts surviving repeated invocations
+    within ONE runtime process -- nothing about that persistence is
+    observable from any single call's return value, so the harness drives
+    the exact word sequence app/main.py uses (hello, hello, world) and
+    asserts the three observed running counts are [1, 2, 1]. All three
+    calls run in this one fresh harness process, so broken persistence
+    (e.g. an executor resetting state per call) fails this check even
+    though every individual capability_operation trace still reaches
+    executed."""
+
+    observed = [response.output["count"] for response in responses]
+    words = [response.output["word"] for response in responses]
+    expected = [1, 2, 1]
+    status = "passed" if observed == expected else "failed"
+    check = {
+        "check_id": "call:7-9:hello_counter:in-process-persistence",
+        "input": [{"word": word} for word in words],
+        "description": "hello, hello, world counted through one process observe running counts [1, 2, 1]",
+        "status": status,
+        "check_type": "invariant",
+        "expected": expected,
+        "actual": observed,
+    }
+    if status == "failed":
+        check["observed"] = f"expected {expected}, got {observed}"
     return check
 
 
@@ -286,134 +332,12 @@ def main() -> None:
     print(f"\n{passed} passed, {failed} failed -- {status}")
 
     if status != "verified":
-        print("\nNot recording an episode for a failed cycle.")
+        print("\nNot publishing an unverified state (R5, Gate 20).")
         raise SystemExit(1)
 
-    seen_names: list[str] = []
-    for name, _, _ in CALLS:
-        if name not in seen_names:
-            seen_names.append(name)
-
-    # check_ids per responsibility (dataset_builder.py's own join key --
-    # never guessed by matching a responsibility name against a check's
-    # description string): every reused capability links to the call(s)
-    # that exercised it this cycle, by the same "call:{i}:{name}" ids
-    # check_capability_operations() already assigns.
-    check_ids_by_name: dict[str, list[str]] = {}
-    for i, (name, _, _) in enumerate(CALLS, start=1):
-        check_ids_by_name.setdefault(name, []).append(f"call:{i}:{name}")
-    check_ids_by_name["console_write"].append("call:1:console_write:implementation-pinning-regression")
-
-    reused_decisions = [
-        {
-            "responsibility": name,
-            "decision": "reuse",
-            "reason": f"{name!r} already implemented and registered; unchanged by this cycle.",
-            "check_ids": check_ids_by_name[name],
-        }
-        for name in seen_names
-    ]
-    # console_write's own decision additionally carries a real, observed
-    # failure/correction pair (2-RULES.md glossary), not a narrated
-    # after-the-fact summary: while building the permanent regression
-    # check above, console.write.process's own manifest priority was
-    # actually bumped from 150 to 250, the harness re-run for real (RED),
-    # then reverted and re-run again (GREEN) -- these are the two real
-    # `selection.reason` strings the Bridge itself produced for those two
-    # runs, quoted verbatim, not reconstructed.
-    for decision in reused_decisions:
-        if decision["responsibility"] == "console_write":
-            decision["failure"] = {
-                "summary": "console-write-priority-flip-2026-09: unpinned console_write silently resolved to console.write.process instead of console.write.v2",
-                "detail": (
-                    "console.write.process's own manifest priority was raised from 150 to 250 "
-                    "(above console.write.v2's 200) to prove no existing check would notice. It "
-                    "didn't: every trace still reached executed and every check but the new "
-                    "regression check still passed. Real observed Bridge selection for that run: "
-                    "capability_id=console.write, candidates=[console.write.process@250, "
-                    "console.write.v2@200], selected=console.write.process, "
-                    "reason=\"highest priority (250) among 2 policy-allowed candidates\" -- "
-                    "check call:1:console_write:implementation-pinning-regression failed with "
-                    "observed=\"expected 'console.write.v2', got 'console.write.process' -- "
-                    "highest priority (250) among 2 policy-allowed candidates\"."
-                ),
-            }
-            decision["correction"] = {
-                "summary": "Reverted console.write.process's manifest priority to 150",
-                "detail": (
-                    "Priority reverted 250 -> 150, catalog rebuilt, harness re-run. Real observed "
-                    "Bridge selection for the corrected run: candidates=[console.write.process@150, "
-                    "console.write.v2@200], selected=console.write.v2, reason=\"highest priority "
-                    "(200) among 2 policy-allowed candidates\" -- "
-                    "call:1:console_write:implementation-pinning-regression now passes, and stays "
-                    "in the harness permanently so this exact regression is caught immediately if "
-                    "it ever recurs, rather than staying invisible to every other check the way it "
-                    "was before this check existed."
-                ),
-            }
-
-    cycle_report = {
-        "goal": {
-            "description": (
-                "Turn hello_world into a web app proving the per-runtime Bridge principle "
-                "(blueprint/2-RULES.md Bridge/Bridge Core/Bridge Adapter glossary, R4 Local/"
-                "Worker/Remote taxonomy): a Python backend (unchanged capabilities) plus a new "
-                "web.serve capability exposing it over sample/schemas/bridge-protocol.schema.json, "
-                "and a genuine JavaScript frontend Bridge whose OWN greeting.render capability runs "
-                "Local and depends on backend's console.write via executor_kind: remote -- two "
-                "independently-owned contracts (backend/implementation/contracts/, frontend/implementation/contracts/), never a "
-                "shared one, referenced across the boundary only by capability ID (R4)."
-            )
-        },
-        "starting_state": _HELLO_WORLD_ROOT.relative_to(_REPO_ROOT).as_posix(),
-        "decisions": reused_decisions + [
-            {
-                "responsibility": "web.serve",
-                "decision": "create",
-                "reason": "Nothing exposed the backend Bridge over a network boundary; needed so a different runtime's own Bridge Adapter (the frontend's) can reach it as executor_kind: remote (R4).",
-            },
-            {
-                "responsibility": "greeting.render (frontend)",
-                "decision": "create",
-                "reason": "Frontend's own capability, not a second implementation of backend's greeting.compose -- a real app's frontend-facing and backend-facing shapes rarely turn out identical, so this one has its own contract (frontend/implementation/contracts/greeting.render.contract.yaml) and its own output shape (returns the composed text for display), while still depending on backend's console.write by ID (R4), proving a specific capability can run Local in one runtime while composing a dependency that only exists Remote from it.",
-            },
-        ],
-        "new_capabilities": ["web.serve", "greeting.render (frontend/runtime/capabilities/greeting/render)"],
-        "reused_capabilities": seen_names,
-        "bridge_integration": (
-            "Backend: every call above resolved through app/requests.py's single "
-            "request-construction point and the same canonical Bridge app/main.py uses (R6/R8). "
-            "Frontend: greeting_render resolved through frontend/runtime/app.js's own Bridge Adapter and "
-            "Bridge Core (frontend/runtime/bridge/core.js), whose console.write dependency (declared by ID, "
-            "not by sharing backend's contract) resolved as executor_kind: remote to the SAME "
-            "backend Bridge over web.serve's /bridge endpoint -- every observed trace, in both "
-            "runtimes, reached executed."
-        ),
-        "verification": {
-            "harness": verification_record["harness"],
-            "verification_record_ref": record_path.relative_to(_REPO_ROOT).as_posix(),
-            "status": status,
-        },
-        "resulting_state": _HELLO_WORLD_ROOT.relative_to(_REPO_ROOT).as_posix(),
-        "resulting_state_ref": capture_state_ref(
-            [
-                _BACKEND_IMPLEMENTATION_ROOT / "contracts",
-                _BACKEND_IMPLEMENTATION_ROOT / "capabilities",
-                _BACKEND_ROOT / "runtime" / "capability-catalog.jsonl",
-                _HELLO_WORLD_ROOT / "frontend" / "implementation" / "contracts",
-                _HELLO_WORLD_ROOT / "frontend" / "implementation" / "capabilities",
-                _HELLO_WORLD_ROOT / "frontend" / "runtime" / "capability-catalog.jsonl",
-            ],
-            repo_root=_REPO_ROOT,
-        ),
-        "next_cycle_readiness": (
-            "capability-catalog.jsonl, dependencies.yaml, and this verification record are "
-            "everything the next cycle needs; no private memory of this run is required."
-        ),
-    }
-
-    episode_dir = save_episode(cycle_report, verification_record, episodes_dir=_STATE_DIR / "episodes")
-    print(f"Recorded episode: {episode_dir.relative_to(_REPO_ROOT).as_posix()}")
+    # Green record written; this harness's job stops here. The episode for
+    # this cycle is recorded by blueprint.dep.finish_cycle (Phase 8), which
+    # needs the freshly-rebuilt catalog to refuse on a cyclic graph first.
 
 
 if __name__ == "__main__":

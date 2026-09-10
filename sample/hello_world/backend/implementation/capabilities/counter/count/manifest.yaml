@@ -1,0 +1,19 @@
+# Sample capability manifest, valid against sample/schemas/capability-manifest.schema.json.
+# The hello_world sample's single counter capability (contract:
+# ../../../contracts/counter.count.contract.yaml), added as a self-development
+# cycle. executor_kind is the default 'direct': the executor IS the
+# registration-unaware execute(operation, input, policy) callable, imported
+# once at assembly time and called in-process by the Bridge. Its module-level
+# dict of per-word counts is exactly the point -- imported once, it survives
+# every subsequent call within this runtime process (the whole state_scope
+# the contract promises), while the capability itself never registers with
+# anything.
+capability_id: counter.count
+contract: sample/hello_world/backend/implementation/contracts/counter.count.contract.yaml
+contract_version: "1.0.0"
+implementations:
+  - implementation_id: counter.count.default
+    version: "1.0.0"
+    operations: [count]
+    executor: sample.hello_world.backend.runtime.capabilities.counter.count.executor:execute
+    priority: 100

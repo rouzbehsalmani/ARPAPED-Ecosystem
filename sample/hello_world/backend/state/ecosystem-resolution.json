@@ -1,0 +1,10 @@
+{
+  "bridge": "sample/hello_world/backend/runtime/bridge/bridge.py",
+  "registry": "sample/hello_world/backend/runtime/bridge/registry.py",
+  "policy": "sample/hello_world/backend/runtime/bridge/policy.py",
+  "selector": "sample/hello_world/backend/runtime/bridge/selector.py",
+  "assembler": "sample/hello_world/backend/runtime/bridge/assembler.py",
+  "catalog": "sample/hello_world/backend/runtime/capability-catalog.jsonl",
+  "contracts_area": "sample/hello_world/backend/implementation/contracts/",
+  "root": "sample/hello_world/backend"
+}

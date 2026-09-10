@@ -22,6 +22,6 @@ obj/
 # manifests, and executors, then reproduce state itself by running the
 # documented commands, not read accumulated run history baked into the
 # blueprint.
-**/state/
-**/capability-catalog.jsonl
-**/dataset.jsonl
+# **/state/
+# **/capability-catalog.jsonl
+# **/dataset.jsonl

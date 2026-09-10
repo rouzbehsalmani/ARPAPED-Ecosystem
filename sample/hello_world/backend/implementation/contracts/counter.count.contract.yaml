@@ -1,0 +1,61 @@
+# Sample contract artifact, valid against sample/schemas/component-contract.schema.json.
+# Part of the hello-world sample's backend (../../README.md), following
+# blueprint/0-WALKTHROUGH.md step 3's layout. Scaffolding -- copy the shape, not
+# the domain content.
+#
+# counter.count: a generic per-word counter capability (R1 domain.operation),
+# added as a self-development cycle on the hello_world sample. Guarantees
+# nothing across separate program runs by design -- the whole contract is
+# scoped to one runtime process's lifetime (see responsibility.invariants).
+# Matching-by-value is exact-string: "Hello" and "hello" are distinct keys.
+contract:
+  identity:
+    id: counter.count
+    name: Counter Count
+    version: "1.0.0"
+    domain: counter
+    family: counter
+    type: capability
+  responsibility:
+    # Version-neutral: describes the capability as a whole, never a
+    # specific version's field names (see `versions` below for those).
+    description: >-
+      Maintains a running per-word count within a single runtime: each
+      invocation returns the submitted word together with how many times that
+      exact word has been seen since this runtime process started. No state is
+      guaranteed to survive across separate program runs.
+    invariants:
+      - does not modify its input
+      - for any single word, the returned count is monotonically increasing across calls within one runtime
+  versions:
+    "1.0.0":
+      operations:
+        - name: count
+          description: Accepts a word and returns it together with the running number of times that exact word has been submitted in this runtime's lifetime.
+          input:
+            - name: word
+              type: string
+              required: true
+              pattern: '\S'
+              description: The word to count. Must contain at least one non-whitespace character.
+          output:
+            type: object
+            description: >-
+              An object with the submitted `word` and its current `count`
+              (the number of times that word has been seen so far, including
+              this call).
+          errors: []
+  dependencies:
+    capabilities: []
+    components: []
+    resources: []
+  discoverability:
+    tags: [counter]
+    metadata: {}
+  versioning:
+    compatibility: backward
+    deprecation_policy: none
+  lineage:
+    created_by: arpaped-cycle
+    changed_by: arpaped-cycle
+    history: []
