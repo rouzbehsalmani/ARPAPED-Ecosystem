@@ -16,9 +16,11 @@ never a restated contract_version/implementation_id:
      out-of-process implementation (Python this time), over the same
      protocol #5 uses -- proves the protocol isn't a non-Python escape
      hatch.
-  7-9. hello_counter (counter.count 1.0.0) -- counts "hello" twice and
+  7-9. hello_counter (counter.count 1.1.0) -- counts "hello" twice and
      "world" once, proving the per-word counter's in-process persistence
      (hello -> 1, hello -> 2, world -> 1).
+  10. hello_counter (counter.count 1.1.0) -- reset, clearing all counts
+     (count -> 0); the next "hello" count starts over at 1 again.
 
 Then starts web.serve -- an API endpoint ONLY (/bridge), never static
 files: the frontend is served separately, by its own static host, not by
@@ -54,11 +56,16 @@ def main():
     writer_process = resolve("console_write_process", "write")
     writer_process.call({"message": "This line is printed by a second Python process, through the Bridge."})
 
-    counter = resolve("hello_counter", "count")
-    counted_hello = counter.call({"word": "hello"}).output["count"]
-    counted_hello_again = counter.call({"word": "hello"}).output["count"]
-    counted_world = counter.call({"word": "world"}).output["count"]
+    counters = resolve("hello_counter", "count")
+    counted_hello = counters.call({"word": "hello"}).output["count"]
+    counted_hello_again = counters.call({"word": "hello"}).output["count"]
+    counted_world = counters.call({"word": "world"}).output["count"]
     print(f"hello counter: hello -> {counted_hello}, hello -> {counted_hello_again}, world -> {counted_world}")
+
+    counters_reset = resolve("hello_counter", "reset")
+    reset_result = counters_reset.call({}).output["count"]
+    counted_hello_after = counters.call({"word": "hello"}).output["count"]
+    print(f"after reset (count={reset_result}): hello -> {counted_hello_after}")
 
     server = resolve("web_serve", "start")
     result = server.call({"host": "127.0.0.1", "port": 8420})

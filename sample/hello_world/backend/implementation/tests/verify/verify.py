@@ -4,22 +4,22 @@ blueprint/2-RULES.md "Verification contract"; blueprint/0-WALKTHROUGH.md step 6)
 Lives outside app/ and capabilities/ (blueprint/0-WALKTHROUGH.md step 6: "Lives
 outside the application packages"). Confirms every contract and manifest
 under this sample validates against its schema, reuses the SAME Bridge
-app/requests.py builds (never a second one), drives the same nine calls
+app/requests.py builds (never a second one), drives the same calls
 app/main.py does through the same request-construction point, and
 asserts every observed trace equals validated -> discovered ->
 policy_evaluated -> selected -> executed -- copied verbatim from the
 response, never hand-written. Each call runs under a bounded per-stage
 timeout (`call_with_timeout`, R5) instead of an unbounded wait.
 
-The three counter calls (calls 7-9, hello/hello/world) additionally carry
-a deterministic invariant: in ONE fresh process the observed running
-counts must be [1, 2, 1] -- proof that counter.count's per-word state
-survives repeated invocations within a single runtime, its contract's
-entire state_scope.
+The counter calls (7-12, hello/hello/world/reset/hello/world) additionally
+carry a deterministic invariant: in ONE fresh process the observed running
+counts must be [1, 2, 1, 0, 1, 1] -- proof that counter.count's per-word
+state survives repeated invocations within a single runtime (its contract's
+entire state_scope), and that reset clears it so counts restart from 1.
 
 No operator-decision-window case: that requirement (blueprint/0-WALKTHROUGH.md
 step 6) is for a reactive/ongoing system where a scripted action must
-land between two automatic ticks -- this sample has no such loop (nine
+land between two automatic ticks -- this sample has no such loop (twelve
 sequential calls, then done), so there is nothing to interleave. Not
 applicable here, not silently skipped either.
 
@@ -73,12 +73,12 @@ _VERIFICATION_RECORD_SCHEMA = _load_schema(_BLUEPRINT_SCHEMAS_DIR, "verification
 
 EXPECTED_TRACE = ("validated", "discovered", "policy_evaluated", "selected", "executed")
 
-# Mirrors app/main.py's nine calls exactly -- the harness drives the same
+# Mirrors app/main.py's calls exactly -- the harness drives the same
 # consumer-visible interactions the real entry point does, through the
 # same dispatcher (app/requests.py's resolve), never a shortcut. The
-# counter sequence (7,8,9: hello, hello, world) is deliberate -- in one
-# process it must observe running counts [1, 2, 1], the invariant check
-# below asserts exactly that.
+# counter sequence (7-12: hello, hello, world, reset, hello, world) is
+# deliberate -- in one process it must observe running counts
+# [1, 2, 1, 0, 1, 1], the invariant check below asserts exactly that.
 CALLS = [
     ("console_write", "write", {"message": "This is a test of the Bridge's console.write capability."}),
     ("console_write", "write", {"message": "Hello, world!", "format": "uppercase"}),
@@ -87,6 +87,9 @@ CALLS = [
     ("greeting_compose_process", "compose", {"name": "ARPAPED (via C#)"}),
     ("console_write_process", "write", {"message": "This line is printed by a second Python process, through the Bridge."}),
     ("hello_counter", "count", {"word": "hello"}),
+    ("hello_counter", "count", {"word": "hello"}),
+    ("hello_counter", "count", {"word": "world"}),
+    ("hello_counter", "reset", {}),
     ("hello_counter", "count", {"word": "hello"}),
     ("hello_counter", "count", {"word": "world"}),
 ]
@@ -142,7 +145,7 @@ def check_capability_operations() -> list[dict[str, Any]]:
 
     checks = []
     console_write_response = None
-    counter_responses = []
+    counter_calls = []
     for i, (name, operation, input_) in enumerate(CALLS, start=1):
         check_id = f"call:{i}:{name}"
         description = f"{name}.{operation} (call {i}) reaches every stage"
@@ -168,14 +171,14 @@ def check_capability_operations() -> list[dict[str, Any]]:
             if i == 1:
                 console_write_response = response
             if name == "hello_counter":
-                counter_responses.append(response)
+                counter_calls.append((input_, response))
         except Exception as exc:
             checks.append({"check_id": check_id, "description": description, "status": "failed", "observed": str(exc)})
 
     if console_write_response is not None:
         checks.append(_check_console_write_implementation_pinning(console_write_response))
-    if len(counter_responses) == 3:
-        checks.append(_check_hello_counter_in_process_persistence(counter_responses))
+    if len(counter_calls) == 6:
+        checks.append(_check_hello_counter_in_process_persistence_and_reset(counter_calls))
 
     return checks
 
@@ -225,26 +228,29 @@ def _check_console_write_implementation_pinning(response: Any) -> dict[str, Any]
     return check
 
 
-def _check_hello_counter_in_process_persistence(responses: list[Any]) -> dict[str, Any]:
+def _check_hello_counter_in_process_persistence_and_reset(
+    counter_calls: list[tuple[dict[str, Any], Any]],
+) -> dict[str, Any]:
     """Invariant check (Gate 37) unique to counter.count: the contract's
     entire state_scope is per-word counts surviving repeated invocations
-    within ONE runtime process -- nothing about that persistence is
-    observable from any single call's return value, so the harness drives
-    the exact word sequence app/main.py uses (hello, hello, world) and
-    asserts the three observed running counts are [1, 2, 1]. All three
-    calls run in this one fresh harness process, so broken persistence
-    (e.g. an executor resetting state per call) fails this check even
+    within ONE runtime process, plus reset clearing them so the next count
+    restarts at 1 -- none of that persistence is observable from any single
+    call's return value, so the harness drives the exact word sequence
+    app/main.py uses (hello, hello, world, reset, hello, world) and asserts
+    the six observed running counts are [1, 2, 1, 0, 1, 1]. All six calls
+    run in this one fresh harness process, so broken persistence or a broken
+    reset (e.g. an executor resetting state per call) fails this check even
     though every individual capability_operation trace still reaches
     executed."""
 
-    observed = [response.output["count"] for response in responses]
-    words = [response.output["word"] for response in responses]
-    expected = [1, 2, 1]
+    observed = [response.output["count"] for _, response in counter_calls]
+    inputs = [input_ for input_, _ in counter_calls]
+    expected = [1, 2, 1, 0, 1, 1]
     status = "passed" if observed == expected else "failed"
     check = {
-        "check_id": "call:7-9:hello_counter:in-process-persistence",
-        "input": [{"word": word} for word in words],
-        "description": "hello, hello, world counted through one process observe running counts [1, 2, 1]",
+        "check_id": "call:7-12:hello_counter:in-process-persistence-and-reset",
+        "input": inputs,
+        "description": "hello, hello, world, reset, hello, world through one process observe running counts [1, 2, 1, 0, 1, 1]",
         "status": status,
         "check_type": "invariant",
         "expected": expected,

@@ -37,9 +37,10 @@ capabilities:
     # The generic per-word counter added by this cycle (counter.count).
     # The capability itself is generic (R1); only THIS app-level name is
     # "hello-counter" flavored, per R9 (the entry point is ordinary
-    # consumer code).
+    # consumer code). Pinned to 1.1.0 for the reset operation added by a
+    # later cycle (backward-compatible; 1.0.0 stays a supported peer).
     capability_id: counter.count
-    contract_version: "1.0.0"
+    contract_version: "1.1.0"
   web_serve:
     capability_id: web.serve
     contract_version: "1.0.0"

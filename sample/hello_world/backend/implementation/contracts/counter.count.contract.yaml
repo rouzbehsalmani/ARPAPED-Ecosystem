@@ -8,11 +8,17 @@
 # nothing across separate program runs by design -- the whole contract is
 # scoped to one runtime process's lifetime (see responsibility.invariants).
 # Matching-by-value is exact-string: "Hello" and "hello" are distinct keys.
+#
+# 1.1.0 (added by a later cycle) is a backward-compatible addition: the
+# `reset` operation, clearing every per-word count. 1.0.0 stays a supported
+# peer with count only, since R2 keeps every live version's exact interface
+# recorded; compatibility is `backward`, so a consumer pinned to 1.0.0 is
+# unaffected by 1.1.0 existing.
 contract:
   identity:
     id: counter.count
     name: Counter Count
-    version: "1.0.0"
+    version: "1.1.0"
     domain: counter
     family: counter
     type: capability
@@ -27,6 +33,7 @@ contract:
     invariants:
       - does not modify its input
       - for any single word, the returned count is monotonically increasing across calls within one runtime
+      - reset clears every word's count; the very next count of any word is 1 again
   versions:
     "1.0.0":
       operations:
@@ -45,6 +52,32 @@ contract:
               (the number of times that word has been seen so far, including
               this call).
           errors: []
+    "1.1.0":
+      operations:
+        - name: count
+          description: Accepts a word and returns it together with the running number of times that exact word has been submitted in this runtime's lifetime.
+          input:
+            - name: word
+              type: string
+              required: true
+              pattern: '\S'
+              description: The word to count. Must contain at least one non-whitespace character.
+          output:
+            type: object
+            description: >-
+              An object with the submitted `word` and its current `count`
+              (the number of times that word has been seen so far, including
+              this call).
+          errors: []
+        - name: reset
+          description: Clears every per-word count accumulated by this counter so far. The output reports the state after the reset, not before.
+          input: []
+          output:
+            type: object
+            description: >-
+              An object with `count`, the number of words with any count
+              retained after the reset -- always 0.
+          errors: []
   dependencies:
     capabilities: []
     components: []
@@ -57,5 +90,5 @@ contract:
     deprecation_policy: none
   lineage:
     created_by: arpaped-cycle
-    changed_by: arpaped-cycle
+    changed_by: arpaped-cycle-reset
     history: []

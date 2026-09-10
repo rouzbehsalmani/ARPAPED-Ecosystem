@@ -10,10 +10,10 @@
 # anything.
 capability_id: counter.count
 contract: sample/hello_world/backend/implementation/contracts/counter.count.contract.yaml
-contract_version: "1.0.0"
+contract_version: "1.1.0"
 implementations:
   - implementation_id: counter.count.default
-    version: "1.0.0"
-    operations: [count]
+    version: "1.1.0"
+    operations: [count, reset]
     executor: sample.hello_world.backend.runtime.capabilities.counter.count.executor:execute
     priority: 100
