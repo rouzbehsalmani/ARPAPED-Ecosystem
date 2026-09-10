@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import functools
 import json
+import platform
 import subprocess
 import sys
 import threading
@@ -54,6 +55,7 @@ import yaml  # noqa: E402
 
 from sample.hello_world.backend.runtime.app.requests import resolve  # noqa: E402
 from blueprint.dep.episode_store import save_episode  # noqa: E402
+from blueprint.dep.state_ref import capture_state_ref  # noqa: E402
 
 
 def _load_schema(schemas_dir: Path, name: str) -> dict[str, Any]:
@@ -139,6 +141,7 @@ def check_capability_operations() -> list[dict[str, Any]]:
             status = "passed" if trace == EXPECTED_TRACE else "failed"
             check = {
                 "check_id": check_id,
+                "input": input_,
                 "description": f"{description} through {response.implementation_id}",
                 "status": status,
                 "check_type": "capability_operation",
@@ -186,6 +189,7 @@ def _check_console_write_implementation_pinning(response: Any) -> dict[str, Any]
     status = "passed" if actual_implementation_id == expected_implementation_id else "failed"
     check = {
         "check_id": "call:1:console_write:implementation-pinning-regression",
+        "input": CALLS[0][2],
         "description": (
             "The unpinned 'console_write' name (app/dependencies.yaml) keeps resolving to "
             "console.write.v2, its highest-priority policy-allowed candidate"
@@ -259,6 +263,12 @@ def main() -> None:
         "verification_id": f"hello-world-{uuid.uuid4().hex[:12]}",
         "state_ref": _HELLO_WORLD_ROOT.relative_to(_REPO_ROOT).as_posix(),
         "harness": Path(__file__).resolve().relative_to(_REPO_ROOT).as_posix(),
+        "environment": {
+            "os": platform.system(),
+            "os_release": platform.release(),
+            "arch": platform.machine(),
+            "runtime": f"CPython {platform.python_version()}",
+        },
         "checks": checks,
         "passed": passed,
         "failed": failed,
@@ -385,6 +395,17 @@ def main() -> None:
             "status": status,
         },
         "resulting_state": _HELLO_WORLD_ROOT.relative_to(_REPO_ROOT).as_posix(),
+        "resulting_state_ref": capture_state_ref(
+            [
+                _BACKEND_IMPLEMENTATION_ROOT / "contracts",
+                _BACKEND_IMPLEMENTATION_ROOT / "capabilities",
+                _BACKEND_ROOT / "runtime" / "capability-catalog.jsonl",
+                _HELLO_WORLD_ROOT / "frontend" / "implementation" / "contracts",
+                _HELLO_WORLD_ROOT / "frontend" / "implementation" / "capabilities",
+                _HELLO_WORLD_ROOT / "frontend" / "runtime" / "capability-catalog.jsonl",
+            ],
+            repo_root=_REPO_ROOT,
+        ),
         "next_cycle_readiness": (
             "capability-catalog.jsonl, dependencies.yaml, and this verification record are "
             "everything the next cycle needs; no private memory of this run is required."

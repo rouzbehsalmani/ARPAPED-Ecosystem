@@ -41,7 +41,10 @@ cycle input/report, verification record, checkpoint -- live in
 | **trace** | The ordered stage list a Bridge response carries: `validated → discovered → policy_evaluated → selected → executed`. The designed evidence that a request travelled the canonical path. |
 | **selection** | The Bridge's own Decision Context for one call, alongside its `trace`: which implementations it discovered and policy-allowed (`candidates`, each with its `implementation_id`/`priority`), which one it actually selected, and why (a deterministic, honest reason string — e.g. "highest priority (N) among M policy-allowed candidates"). Distinct from an agent's own Phase-4 decisions (build-time, per-responsibility, "reuse vs. create") — `selection` is call-time, observed live from the resolved Bridge, never invented, same authenticity discipline as `trace` (Gate 28/37). A single-candidate `selection` is honest and expected, not evidence of a bug. |
 | **evidence** | Process-kind (`executor_kind: process`) execution evidence for one call: the worker's actual returned output, and, when the implementation genuinely writes to its own OS-level stdout/stderr, that raw captured text — plus a live process-health snapshot. Absent for direct/factory/remote-kind operations, which have nothing analogous to capture. Copied from what the worker actually did, never fabricated or assumed empty. |
+| **check input** | A check's own `input` field (`checks[].input`, verification-record.schema.json): the actual value that check's capability operation was called with — what produced its recorded `trace`/`selection`/`evidence`/`expected`/`actual`. Without it, reconstructing "what call produced this observation" from the record alone is impossible; it would require re-reading the harness's own source instead. |
+| **environment** | The platform a verification run actually executed on (`environment`, verification-record.schema.json) — OS, arch, and optionally OS release/runtime — captured ONCE per run, never per-check, since it's constant for the whole run. Makes a platform-specific failure (e.g. a Windows-only pipe-buffering bug, observed for real) diagnosable from the record alone, never requiring an after-the-fact "what OS was this run on?" |
 | **resulting state** | The authoritative, discoverable state of the ecosystem after a cycle completes — code, contracts, manifests, verification record, report. The input state of the next cycle. |
+| **resulting state ref** | An immutable, content-addressed identifier for `resulting state`'s own content at the moment a cycle completes (`resulting_state_ref`, agent-cycle-report.schema.json; `blueprint.dep.state_ref.capture_state_ref`). `resulting state` is a live, discoverable path that LATER cycles go on to mutate — without this, an OLD episode's own historical state is not reconstructable from the episode alone. Two parts: `content_hash`, a sha256 over the caller-given paths' own bytes, ALWAYS computable, no external tool required; and an OPTIONAL `vcs` sub-object (git commit/branch/dirty), populated only by a real, non-fatal `git rev-parse` probe when the state actually lived in a git working tree. DEP references git when relevant but never depends on it as its storage model — `content_hash` alone carries the reconstruction guarantee; `vcs` is a convenience layered on top. |
 | **verification record** | The machine-readable result of the Verify phase (`blueprint/schemas/verification-record.schema.json`), written into the resulting state. Green only when the harness passes. |
 | **lineage** | The discoverable history of a component: which cycle/agent created it, what changed it, and how it evolved through splits. |
 
@@ -872,6 +875,20 @@ never under-reported (a `selection.candidates` list naming only the
 implementation that happened to be selected, when the Bridge itself
 discovered and policy-allowed more than one, is exactly this violation,
 just quieter than a truncated trace) (Gate 37).
+
+**Check input / environment / resulting-state-ref authenticity.** The same
+copy-never-invent discipline extends to the three fields that round out a
+check's own reproducibility (glossary: check input, environment, resulting
+state ref) — none is optional cosmetic detail, each closes a specific
+reconstruction gap: a check's `input` must equal the actual value passed to
+the capability operation for that call, never a value reconstructed
+after the fact from `CALLS`/fixture tables that could have drifted;
+`environment` must equal the platform the harness itself actually ran on
+(`platform.system()`/`.machine()`/etc., or the equivalent for whatever
+language the harness runs in), never a hardcoded assumption; and
+`resulting_state_ref.content_hash` must be computed from `resulting_state`'s
+own files at THIS cycle's completion, never from a stale or predicted
+snapshot (Gate 38).
 
 **Regression discipline.** Every defect reported by a previous cycle MUST be
 reproduced as a failing-check-first test: write it failing (red), fix the

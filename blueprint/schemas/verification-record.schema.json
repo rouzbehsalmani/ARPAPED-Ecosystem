@@ -23,6 +23,28 @@
       "type": "string",
       "description": "Path or identity of the verification harness in the resulting state."
     },
+    "environment": {
+      "type": "object",
+      "description": "The platform this harness run actually executed on -- captured ONCE per verification run (constant for the whole run, never per-check, since the OS/arch/runtime don't change mid-run) so a platform-specific failure (e.g. a Windows-only pipe-buffering bug, observed for real) is diagnosable from the record alone, never requiring an after-the-fact 'what OS was this run on?'.",
+      "required": ["os", "arch"],
+      "properties": {
+        "os": {
+          "type": "string",
+          "description": "e.g. 'Windows', 'Linux', 'Darwin' (Python's platform.system(), or the equivalent for whatever language the harness runs in)."
+        },
+        "os_release": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string",
+          "description": "e.g. 'AMD64', 'x86_64' (platform.machine())."
+        },
+        "runtime": {
+          "type": "string",
+          "description": "e.g. 'CPython 3.9.6', 'Node 20.11.0' -- language-agnostic, whatever runtime actually executed this harness, never assumed to be Python."
+        }
+      }
+    },
     "checks": {
       "type": "array",
       "items": {
@@ -32,6 +54,9 @@
           "check_id": {
             "type": "string",
             "description": "Unique across the entire record so an audit can reference exactly one check."
+          },
+          "input": {
+            "description": "The actual input this check's capability operation was called with -- what produced the recorded trace/selection/evidence/expected/actual. Any JSON type, matching whatever the operation's own contract-declared input shape is. Without this, a check's observations are unreproducible from the record alone: reconstructing 'what call produced this trace' would require re-reading the harness's own source rather than the record it wrote."
           },
           "description": {
             "type": "string"

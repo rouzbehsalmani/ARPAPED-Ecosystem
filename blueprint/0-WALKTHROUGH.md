@@ -449,10 +449,15 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   action lands between two automatic ticks and its effect is observable.
 - Write `state/verification-record.json`, valid against
   `blueprint/schemas/verification-record.schema.json`: `verification_id`,
-  `state_ref`, `harness`, `checks[]` (unique `check_id` per check; a check
-  with `check_type: capability_operation` MUST carry a `trace` array copied
-  verbatim from the observed response), `passed`, `failed`, `status`
-  (`"verified"` or `"failed"`).
+  `state_ref`, `harness`, `environment` (the platform this harness run
+  actually executed on — `os`/`arch` required, e.g. Python's
+  `platform.system()`/`.machine()` or the equivalent for whatever language
+  the harness runs in — captured once for the whole run, never per-check,
+  never hardcoded), `checks[]` (unique `check_id` per check; a check with
+  `check_type: capability_operation` MUST carry a `trace` array copied
+  verbatim from the observed response, and its own `input` — the actual
+  value that call was made with, never reconstructed after the fact),
+  `passed`, `failed`, `status` (`"verified"` or `"failed"`) (Gate 38).
 - Once every check has passed, write `state/verification-record.json` as
   green (above) and stop there — this harness's own job is done. Do NOT call
   `episode_store.save_episode` from inside this harness: recording the
@@ -505,6 +510,18 @@ would have silently drifted the moment either one changed.
   capabilities — this must happen BEFORE the bullet below, since
   `finish_cycle`'s acyclic check reads exactly this file.
 - Write the cycle report, valid against `blueprint/schemas/agent-cycle-report.schema.json`.
+  Optionally attach `resulting_state_ref`
+  (`blueprint/dep/MANIFEST.yaml: state_ref`,
+  `blueprint.dep.state_ref.capture_state_ref(paths, repo_root=...)`) — an
+  immutable content hash over `resulting_state`'s own files (contracts,
+  capabilities, the generated catalog — whatever paths this application's
+  own harness names, never a default that walks the whole tree) as they
+  actually are at THIS cycle's completion, since `resulting_state` itself
+  is a live path a LATER cycle goes on to mutate. `repo_root`, when given,
+  adds an OPTIONAL supplementary `vcs` (git commit/branch/dirty) via a
+  real, non-fatal probe — DEP references git when relevant but never
+  depends on it: a `resulting_state` outside any git working tree still
+  gets a real `content_hash`, just no `vcs` (Gate 38).
 - Finish the cycle: call `blueprint.dep.finish_cycle`
   (`blueprint/dep/MANIFEST.yaml: finish_cycle`, 1-CYCLE.md Phase 8 Gate 31)
   with the cycle report, verification record, this cycle's own

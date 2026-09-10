@@ -42,14 +42,26 @@ dep:
       (reuse/compose/split_refactor/create + reason, Phase 2/4), the
       capabilities created or reused (Phase 5), and the verification
       outcome and resulting state the next cycle starts from (Phase 7-9).
-      This is what a "historical episode" concretely is.
+      This is what a "historical episode" concretely is. `resulting_state`
+      is the live, discoverable path the next cycle starts from; the
+      OPTIONAL sibling `resulting_state_ref` (state_ref below) is an
+      immutable identifier for that same state's content at THIS cycle's
+      completion, so an old episode's own historical state stays
+      reconstructable after later cycles go on to mutate `resulting_state`'s
+      own path.
   verification_record:
     location: blueprint/schemas/verification-record.schema.json
     role: >
       Real execution evidence, not a self-report: every capability-operation
       check carries the Bridge's own observed response.trace, copied never
       invented (2-RULES.md R8, Gate 28) -- the point where this pillar's
-      own record and the Runtime pillar's actual execution meet.
+      own record and the Runtime pillar's actual execution meet. Also
+      carries `environment` (the platform this run actually executed on,
+      captured once per run -- OS/arch/runtime, never assumed) and, per
+      check, `input` (the actual value that check's capability operation
+      was called with) -- without both, a check's own observations
+      (trace/selection/evidence/expected/actual) are unreproducible from
+      the record alone.
   process_supervisor:
     location: blueprint/dep/process_supervisor.py
     role: >
@@ -222,6 +234,33 @@ dep:
       (0-WALKTHROUGH.md section 6) -- the acyclic check needs this
       cycle's own new capabilities' edges already in the catalog, which
       registration is what puts there.
+  state_ref:
+    location: blueprint/dep/state_ref.py
+    role: >
+      An immutable identifier for `resulting_state`'s own content at the
+      moment a cycle completes (agent-cycle-report.schema.json's
+      `resulting_state_ref`) -- fixes `resulting_state` being a live path
+      string that LATER cycles go on to mutate, which otherwise makes an
+      old episode's own historical state unreconstructable from the
+      episode alone. `capture_state_ref(paths, repo_root=None)` returns
+      `{"content_hash": "sha256:...", "vcs": {...}?}`: `content_hash` is a
+      deterministic sha256 over every file reachable from the given
+      `paths` (caller-supplied, e.g. this cycle's own contracts/
+      capabilities/generated catalog -- never a default that walks an
+      entire application tree, and never `state/episodes/` itself, which
+      would make the hash depend on its own prior output), sensitive to
+      added/removed/renamed files, not just changed bytes -- ALWAYS
+      computable, no external tool required. `vcs` is OPTIONAL
+      supplementary git identity (commit/branch/dirty), populated only by
+      a real, non-fatal `git rev-parse HEAD` probe against `repo_root`
+      when one is given and actually resolves to a real git working
+      tree -- silently omitted, never raised, otherwise. This is the
+      concrete form of the operator's own instruction: DEP may reference
+      Git commits/branches when relevant, but must never DEPEND on Git as
+      its storage model -- `content_hash` alone is what makes historical
+      reconstruction work for every episode, `vcs` is a convenience
+      layered on top for the ones that happened to run inside a git
+      working tree.
   dataset_builder:
     location: blueprint/dep/dataset_builder.py
     role: >
@@ -234,15 +273,19 @@ dep:
       as the outcome that decision led to. Also pulls a decision's own
       structured `failure`/`correction` (agent-cycle-report.schema.json)
       when present, and, via the decision's own `check_ids`, the
-      `selection`/`evidence`/`trace` objects (2-RULES.md glossary) the
-      matching verification-record.json checks actually observed --
-      real Bridge-level Decision Context and Evidence, joined explicitly
-      by id, never guessed by matching a responsibility name against a
-      check's description string. Generic, same posture as
-      episode_store: no default `episodes_dir`/`output_path` here --
-      see sample/hello_world/backend/README.md for a worked example, the
-      same relationship it has to a sample's own assembler's rebuild_catalog.
-      Regenerable from the corpus at any time.
+      `selection`/`evidence`/`trace`/`input` objects (2-RULES.md glossary)
+      the matching verification-record.json checks actually observed --
+      real Bridge-level Decision Context, Evidence, and per-check input,
+      joined explicitly by id, never guessed by matching a responsibility
+      name against a check's description string. Also carries
+      `environment` (verification-record.schema.json, once per row) and
+      `resulting_state_ref` (state_ref above) when the episode's harness
+      captured them -- both optional, since an episode recorded before
+      either field existed in the schema simply omits them. Generic, same
+      posture as episode_store: no default `episodes_dir`/`output_path`
+      here -- see sample/hello_world/backend/README.md for a worked
+      example, the same relationship it has to a sample's own assembler's
+      rebuild_catalog. Regenerable from the corpus at any time.
   jepa:
     role: >
       NOT YET BUILT. The agent that does the implementation job (Phase 5

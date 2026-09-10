@@ -29,7 +29,7 @@ goal
 | 4 — Decide | 6 |
 | 5 — Implement | 7, 15, 16, 26 |
 | 6 — Integrate | 10, 13, 24, 27 |
-| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 36, 37 |
+| 7 — Verify | 17, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30, 36, 37, 38 |
 | 8 — Publish | 8, 9, 14, 31 |
 | 9 — Return state | 11 |
 
@@ -525,7 +525,7 @@ for. The harness's own last act is still to make the record green;
 `finish_cycle` (`blueprint/dep/MANIFEST.yaml: finish_cycle`) is Phase 8's
 own last act, once registration is done.
 
-**Non-negotiables.** Gates 17–24, 27, 28, 36, 37:
+**Non-negotiables.** Gates 17–24, 27, 28, 36, 37, 38:
 
 17. Did I run the result through a verification harness — headlessly, no
     real terminal required?
@@ -583,6 +583,16 @@ own last act, once registration is done.
     naming only the actually-selected implementation, when the Bridge
     itself discovered and policy-allowed more than one, is under-reporting
     exactly like a truncated trace would be.
+38. Does the verification record carry `environment` (the platform the
+    harness itself actually ran on, captured once, never a hardcoded
+    assumption) and does each capability-operation check carry its own
+    `input` (the actual value that call was made with, never reconstructed
+    after the fact)? Does the cycle report's `resulting_state_ref`
+    (`blueprint.dep.state_ref`), when present, reflect `resulting_state`'s
+    own files as they actually are at THIS cycle's completion — an
+    immutable identifier a later cycle's mutations cannot silently
+    invalidate, never depending on git to exist (glossary: check input,
+    environment, resulting state ref)?
 
 **Fail closed.** Any of the above failing stops the cycle: fix (or
 split/reuse per Phase 4), re-run the harness, and only then proceed. An

@@ -14,17 +14,25 @@ evaluated by whether the episode it was part of verified.
 
 Also pulls a decision's own structured `failure`/`correction`
 (agent-cycle-report.schema.json) when present, and, via `check_ids`, the
-`selection`/`evidence`/`trace` objects the matching verification-record.json
-checks actually observed (verification-record.schema.json) -- the exact
-gap this module used to have even for the ONE failure-adjacent field that
-already existed (`verification.failures_and_fixes`, still pulled below,
-was never read here before this was added): a schema can carry rich
-per-decision signal and it still never reaches a training row unless
-something here actually reads it. The join is always by the explicit
-`check_ids` a decision names, never guessed by matching `responsibility`
-against a check's `description` string -- an unstated link is not
-implicitly "the check with a similar name" (2-RULES.md "No silent
-defaults on what resolution depends on" applies here too).
+`selection`/`evidence`/`trace`/`input` objects the matching
+verification-record.json checks actually observed
+(verification-record.schema.json) -- the exact gap this module used to
+have even for the ONE failure-adjacent field that already existed
+(`verification.failures_and_fixes`, still pulled below, was never read
+here before this was added): a schema can carry rich per-decision signal
+and it still never reaches a training row unless something here actually
+reads it. The join is always by the explicit `check_ids` a decision
+names, never guessed by matching `responsibility` against a check's
+`description` string -- an unstated link is not implicitly "the check
+with a similar name" (2-RULES.md "No silent defaults on what resolution
+depends on" applies here too).
+
+Also carries `environment` (verification-record.schema.json, once per
+row -- constant for the whole run, same posture as `verification_status`/
+`resulting_state`) and `resulting_state_ref` (agent-cycle-report.schema.json,
+blueprint.dep.state_ref) when the episode's harness captured them --
+both optional, since an episode recorded before either field existed in
+the schema simply omits them, never a fabricated placeholder.
 
 Not a capability, same posture as episode_store and a sample's own
 catalog-building tooling (blueprint/dep/MANIFEST.yaml): Evolution-phase
@@ -66,6 +74,10 @@ def build_rows(episodes_dir: Path) -> Iterator[dict[str, Any]]:
                 "resulting_state": report["resulting_state"],
                 "failures_and_fixes": report["verification"].get("failures_and_fixes"),
             }
+            if "environment" in episode["verification_record"]:
+                row["environment"] = episode["verification_record"]["environment"]
+            if "resulting_state_ref" in report:
+                row["resulting_state_ref"] = report["resulting_state_ref"]
             if "failure" in decision:
                 row["failure"] = decision["failure"]
             if "correction" in decision:
@@ -79,12 +91,15 @@ def build_rows(episodes_dir: Path) -> Iterator[dict[str, Any]]:
             selections = [check["selection"] for check in matched if "selection" in check]
             evidences = [check["evidence"] for check in matched if "evidence" in check]
             traces = [check["trace"] for check in matched if "trace" in check]
+            inputs = [check["input"] for check in matched if "input" in check]
             if selections:
                 row["bridge_selection"] = selections
             if evidences:
                 row["bridge_evidence"] = evidences
             if traces:
                 row["bridge_trace"] = traces
+            if inputs:
+                row["bridge_input"] = inputs
 
             yield row
 

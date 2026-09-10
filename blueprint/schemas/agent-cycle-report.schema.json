@@ -109,6 +109,28 @@
       "type": "string",
       "description": "The authoritative discoverable state this cycle produced — the next cycle's current_state."
     },
+    "resulting_state_ref": {
+      "type": "object",
+      "required": ["content_hash"],
+      "properties": {
+        "content_hash": {
+          "type": "string",
+          "description": "sha256 over resulting_state's own relevant files' bytes (blueprint.dep.state_ref), sorted for determinism -- an immutable identifier that never depends on git, always computable, always present when this object exists at all."
+        },
+        "vcs": {
+          "type": "object",
+          "required": ["system", "commit"],
+          "properties": {
+            "system": {"type": "string", "const": "git"},
+            "commit": {"type": "string"},
+            "branch": {"type": "string"},
+            "dirty": {"type": "boolean"}
+          },
+          "description": "OPTIONAL supplementary git identity, present only when resulting_state actually lived in a git working tree at capture time -- never required; DEP's own historical-reconstruction story stands on content_hash alone, git is a convenience layered on top, never a dependency."
+        }
+      },
+      "description": "An immutable identifier for resulting_state's own content at the moment this cycle completed -- resulting_state itself is a live path that LATER cycles go on to mutate, so without this, an OLD episode's own historical state is not reconstructable from the episode alone, only from archaeology entirely outside DEP. Optional: a cycle whose harness doesn't yet call blueprint.dep.state_ref simply omits it."
+    },
     "next_cycle_readiness": {
       "type": "string",
       "description": "How the resulting state is discoverable without private agent memory (Gate 11)."

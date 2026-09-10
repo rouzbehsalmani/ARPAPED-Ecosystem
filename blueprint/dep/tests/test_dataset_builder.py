@@ -18,7 +18,11 @@ from pathlib import Path
 from blueprint.dep import dataset_builder, episode_store
 
 
-def _cycle_report(decisions: list[dict], failures_and_fixes: str | None = None) -> dict:
+def _cycle_report(
+    decisions: list[dict],
+    failures_and_fixes: str | None = None,
+    resulting_state_ref: dict | None = None,
+) -> dict:
     verification: dict = {
         "harness": "test-harness",
         "verification_record_ref": "state/verification-record.json",
@@ -26,7 +30,7 @@ def _cycle_report(decisions: list[dict], failures_and_fixes: str | None = None) 
     }
     if failures_and_fixes is not None:
         verification["failures_and_fixes"] = failures_and_fixes
-    return {
+    report = {
         "goal": {"description": "test goal"},
         "starting_state": "test starting state",
         "decisions": decisions,
@@ -37,10 +41,13 @@ def _cycle_report(decisions: list[dict], failures_and_fixes: str | None = None) 
         "resulting_state": "test resulting state",
         "next_cycle_readiness": "everything needed is in state/",
     }
+    if resulting_state_ref is not None:
+        report["resulting_state_ref"] = resulting_state_ref
+    return report
 
 
-def _verification_record(verification_id: str, checks: list[dict]) -> dict:
-    return {
+def _verification_record(verification_id: str, checks: list[dict], environment: dict | None = None) -> dict:
+    record = {
         "verification_id": verification_id,
         "state_ref": "test/state",
         "harness": "test-harness",
@@ -49,6 +56,9 @@ def _verification_record(verification_id: str, checks: list[dict]) -> dict:
         "failed": sum(1 for c in checks if c["status"] == "failed"),
         "status": "verified",
     }
+    if environment is not None:
+        record["environment"] = environment
+    return record
 
 
 class DatasetBuilderTests(unittest.TestCase):
@@ -136,6 +146,46 @@ class DatasetBuilderTests(unittest.TestCase):
         self.assertNotIn("bridge_selection", rows[0])
         self.assertNotIn("bridge_evidence", rows[0])
         self.assertNotIn("bridge_trace", rows[0])
+
+    def test_check_ids_join_folds_in_input(self):
+        decision = {
+            "responsibility": "console.write", "decision": "reuse", "reason": "x",
+            "check_ids": ["call:1:console_write"],
+        }
+        report = _cycle_report([decision])
+        checks = [{
+            "check_id": "call:1:console_write", "description": "d", "status": "passed",
+            "check_type": "capability_operation",
+            "trace": ["validated", "discovered", "policy_evaluated", "selected", "executed"],
+            "input": {"message": "hi"},
+        }]
+        record = _verification_record("ds-input-0001", checks)
+        episode_store.save_episode(report, record, self.episodes_dir)
+
+        rows = list(dataset_builder.build_rows(self.episodes_dir))
+        self.assertEqual(rows[0]["bridge_input"], [{"message": "hi"}])
+
+    def test_environment_and_resulting_state_ref_pulled_through(self):
+        decision = {"responsibility": "grid.cell", "decision": "reuse", "reason": "x"}
+        state_ref = {"content_hash": "sha256:deadbeef", "vcs": {"system": "git", "commit": "a" * 40}}
+        report = _cycle_report([decision], resulting_state_ref=state_ref)
+        environment = {"os": "Linux", "arch": "x86_64"}
+        record = _verification_record("ds-env-0001", [], environment=environment)
+        episode_store.save_episode(report, record, self.episodes_dir)
+
+        rows = list(dataset_builder.build_rows(self.episodes_dir))
+        self.assertEqual(rows[0]["environment"], environment)
+        self.assertEqual(rows[0]["resulting_state_ref"], state_ref)
+
+    def test_absent_environment_and_resulting_state_ref_omitted(self):
+        decision = {"responsibility": "grid.cell", "decision": "reuse", "reason": "x"}
+        report = _cycle_report([decision])
+        record = _verification_record("ds-noenv-0001", [])
+        episode_store.save_episode(report, record, self.episodes_dir)
+
+        rows = list(dataset_builder.build_rows(self.episodes_dir))
+        self.assertNotIn("environment", rows[0])
+        self.assertNotIn("resulting_state_ref", rows[0])
 
     def test_build_dataset_writes_jsonl(self):
         decision = {"responsibility": "grid.cell", "decision": "reuse", "reason": "x"}
