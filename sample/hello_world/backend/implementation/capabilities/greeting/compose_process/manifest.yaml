@@ -6,7 +6,7 @@
 # ANOTHER capability through the Bridge too (R4/R5 nested-call
 # protocol), not just answer the Bridge's own calls. Inherits the
 # contract's dependencies.capabilities (console.write) automatically.
-# Written in Rust for this worked example (see README "A capability in
+# Written in C# for this worked example (see README "A capability in
 # another language"), but the name identifies the mechanism
 # (out-of-process), not the language.
 #
@@ -14,12 +14,11 @@
 # via its own declared name (app/dependencies.yaml's
 # greeting_compose_process), never silently becoming the default.
 #
-# A real Cargo crate (Cargo.toml, src/main.rs), depending on serde_json
-# and bridge_client (clients/rust/, a path dependency). NOT built
-# automatically -- from this directory:
-#   cargo build
-# places the binary at target/debug/greeting_compose_process[.exe],
-# gitignored.
+# A real .NET console-app project (GreetingComposeProcess.csproj,
+# Program.cs), referencing BridgeClient (clients/csharp/, a
+# ProjectReference). NOT built automatically -- from this directory:
+#   dotnet build --output ../../../../runtime/capabilities/greeting/compose_process/bin
+# places the binary at bin/greeting_compose_process[.exe], gitignored.
 capability_id: greeting.compose
 contract: sample/hello_world/backend/implementation/contracts/greeting.compose.contract.yaml
 contract_version: "1.0.0"
@@ -28,5 +27,5 @@ implementations:
     version: "1.0.0"
     operations: [compose]
     executor_kind: process
-    executor: sample/hello_world/backend/runtime/capabilities/greeting/compose_process/target/debug/greeting_compose_process.exe
+    executor: sample/hello_world/backend/runtime/capabilities/greeting/compose_process/bin/greeting_compose_process.exe
     priority: 50

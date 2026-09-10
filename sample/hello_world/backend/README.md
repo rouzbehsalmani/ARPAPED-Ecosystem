@@ -32,7 +32,7 @@ implementation/                   never read by anything under runtime/ below
     greeting.compose.contract.yaml  declares console.write as a dependency (<2.0.0)
     web.serve.contract.yaml         also declares console.write as a dependency
   capabilities/                   manifest.yaml per implementation — see "Capability-to-capability calls" etc.
-  clients/rust/                   Cargo library crate SOURCE — compiled once, the binary ships in runtime/, not this
+  clients/csharp/                 .NET library project SOURCE — compiled once, the binary ships in runtime/, not this
   build_catalog.py                generates ../runtime/capability-catalog.jsonl (Phase 8, Publish)
   tests/verify/verify.py          the harness — both runtimes' checks, one verification record
 runtime/                          everything a real deployment needs; nothing here reads implementation/
@@ -40,7 +40,7 @@ runtime/                          everything a real deployment needs; nothing he
     bridge.py, registry.py, policy.py, selector.py, assembler.py, process_executor.py
     MANIFEST.yaml                  authoritative descriptor, this runtime's own
   capabilities/                   executor.py per implementation ONLY — no manifest.yaml here
-    greeting/compose_process/target/  the COMPILED Rust binary — its source lives in implementation/, not here
+    greeting/compose_process/bin/     the COMPILED C# binary — its source lives in implementation/, not here
   capability-catalog.jsonl        generated — the ONE thing assemble_from_catalog reads at process startup
   app/
     dependencies.yaml, requests.py, main.py
@@ -50,9 +50,9 @@ runtime/                          everything a real deployment needs; nothing he
 The two process-kind executors below don't hand-write their own
 connect/frame/dispatch logic -- they depend on a reference client from
 this runtime's own `clients/` directories (not part of `runtime/bridge/`;
-see "A capability in another language"): `implementation/clients/rust/`
-(a Cargo library crate, SOURCE, depended on via a path dependency -- only
-needed to compile the Rust executor, never at runtime) and
+see "A capability in another language"): `implementation/clients/csharp/`
+(a .NET library project, SOURCE, depended on via a ProjectReference -- only
+needed to compile the C# executor, never at runtime) and
 `runtime/clients/python/bridge_client.py` (needed at runtime -- the
 Python process-kind executor imports it directly), both implementing
 `sample/schemas/process-executor-protocol.schema.json`. Each `clients/`
@@ -194,10 +194,10 @@ claims, not merely a version number (blueprint/2-RULES.md R2).
 
 ## A capability in another language
 
-`greeting.compose.process` (Cargo source at
+`greeting.compose.process` (.NET project source at
 `implementation/capabilities/greeting/compose_process/`, compiled
-binary at `runtime/capabilities/greeting/compose_process/target/`,
-written in Rust for this worked example — its name identifies what it
+binary at `runtime/capabilities/greeting/compose_process/bin/`,
+written in C# for this worked example — its name identifies what it
 proves, out-of-process vs. in-process, not the language) is a SECOND,
 real implementation of `greeting.compose` — same contract, same
 `contract_version`, but its manifest sets `executor_kind: process` and
@@ -239,23 +239,26 @@ one the Python composer already reaches, since both implementations
 share the one contract-declared pin.
 
 `implementation/capabilities/greeting/compose_process/` is a real
-Cargo crate (`Cargo.toml` + `src/main.rs`), not a single file compiled by
-bare `rustc` — it depends on `serde_json` for real JSON parsing (see
-"Neither client hand-rolls its own connect/frame/dispatch logic", below)
-and on `implementation/clients/rust/` via a path dependency. NOT
+.NET console-app project (`GreetingComposeProcess.csproj` +
+`Program.cs`), not a single file compiled by bare `csc` — it depends on
+`System.Text.Json` for real JSON parsing (see "Neither client hand-rolls
+its own connect/frame/dispatch logic", below), already part of the
+SDK/runtime with nothing extra to pin, and on
+`implementation/clients/csharp/` via a ProjectReference. NOT
 built automatically; build it once, from this directory:
 
 ```
-cargo build --target-dir ../../../../runtime/capabilities/greeting/compose_process/target
+dotnet build --output ../../../../runtime/capabilities/greeting/compose_process/bin
 ```
 
-`--target-dir` is not optional here, unlike a normal Cargo project: this
-crate's SOURCE lives in `implementation/` but its compiled OUTPUT is a
+`--output` is not optional here, unlike a normal .NET project: this
+project's SOURCE lives in `implementation/` but its compiled OUTPUT is a
 runtime artifact (this runtime's own `implementation/`↔`runtime/`
-split, "Layout" above) — a bare `cargo build` would place `target/` next
-to `Cargo.toml`, in `implementation/`, where the manifest's `executor:`
-path (below) would never find it. `target/` is gitignored, `Cargo.lock`
-is committed (reproducible builds, standard practice for a binary crate).
+split, "Layout" above) — a bare `dotnet build` would place `bin/`/`obj/`
+next to `.csproj`, in `implementation/`, where the manifest's `executor:`
+path (below) would never find it. `bin/`/`obj/` are gitignored; the
+`.csproj` itself is committed (reproducible builds, standard practice for
+a .NET project — there is no external package dependency here to lock).
 
 Its `priority` (50) is below `greeting.compose.default`'s (100), so it's
 reached only by its own declared name, `greeting_compose_process`, which
@@ -266,22 +269,25 @@ declared pin, the same posture `console_write_legacy` already has toward
 
 ### Neither client hand-rolls its own connect/frame/dispatch logic
 
-`src/main.rs` doesn't contain any of the connect/frame/dispatch code
-above — it depends on the `bridge_client` crate (`implementation/clients/rust/`, a
-Cargo path dependency in its own `Cargo.toml`) and reduces to just its
-own operation logic: an `execute(operation, input, conn) ->
-Result<Value, CallError>` function, handed to the crate's `serve`, which
-owns connecting, reading, dispatching, and sending the reply. A second
-Rust capability reuses the same client instead of copying that machinery
-again, and can't quietly implement the framing or error handling
-differently. `implementation/clients/rust/` uses `serde_json` (a real JSON library, not
-hand-written field extraction) — precisely what lets `execute` write
-`input["name"].as_str().expect(...)` and actually trust it, the same way
-a Python executor trusts `input["name"]`: the Bridge's own guarantee
+`Program.cs` doesn't contain any of the connect/frame/dispatch code
+above — it depends on the `BridgeClient` project (`implementation/clients/csharp/`, a
+ProjectReference in its own `.csproj`) and reduces to just its
+own operation logic: an `Execute(operation, input, conn) -> object`
+function, handed to the project's `Connection.Serve`, which owns
+connecting, reading, dispatching, and sending the reply (a capability
+fails its own call by throwing `CallError`, the idiomatic C# equivalent
+of the Rust client's `Result<Value, CallError>` this project replaced).
+A second C# capability reuses the same client instead of copying that
+machinery again, and can't quietly implement the framing or error
+handling differently. `implementation/clients/csharp/` uses
+`System.Text.Json` (a real JSON library, not hand-written field
+extraction) — precisely what lets `Execute` write
+`input.GetProperty("name").GetString()` and actually trust it, the same
+way a Python executor trusts `input["name"]`: the Bridge's own guarantee
 (required fields present, declared types honored) is only worth
 something if the client parsing it is trustworthy too.
 
-Because `serve` owns the loop and `execute` is just a plain function,
+Because `Serve` owns the loop and `Execute` is just a plain function,
 this capability's code would be identical if `greeting.compose` were
 ever reachable in-process instead — nothing about it depends on
 `executor_kind: process` specifically, only on being handed input and a
@@ -368,7 +374,7 @@ From the repository root:
 python -m sample.hello_world.backend.runtime.app.main
 ```
 
-(Build the Rust executor first — see "A capability in another language" —
+(Build the C# executor first — see "A capability in another language" —
 or the fifth call below will fail assembly with a clear error naming the
 missing program, rather than a confusing one. The sixth call needs no
 build step; it runs a Python script directly.)
@@ -385,7 +391,7 @@ This is a test of the Bridge's console.write capability.
 HELLO, WORLD!
 Greetings, ARPAPED!
 console.write 1.0.0 is real and independently callable.
-Greetings, ARPAPED (via Rust)!
+Greetings, ARPAPED (via C#)!
 This line is printed by a second Python process, through the Bridge.
 ```
 
@@ -394,7 +400,7 @@ The second line is uppercase because that call passes `format: "uppercase"`
 looks like the third (both printed by `console.write.default`, via a
 nested Bridge call), but that nested call was made from
 `greeting.compose.process` — a genuinely separate process (written in
-Rust for this worked example), calling back into the Bridge mid-request
+C# for this worked example), calling back into the Bridge mid-request
 — not from `greeting.compose`'s Python factory. The sixth line is
 printed by `console.write.process` — a second Python process, not the
 interpreter running `runtime/app/main.py`, and not the same mechanism

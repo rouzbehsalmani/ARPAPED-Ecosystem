@@ -11,7 +11,7 @@ never a restated contract_version/implementation_id:
      1.0.0 is still alive alongside 2.0.0 (blueprint/2-RULES.md R2).
   5. greeting_compose_process -- same nested-call mechanism as #3, from
      an out-of-process implementation (executor_kind: process, written
-     in Rust for this example; named for that, not the language).
+     in C# for this example; named for that, not the language).
   6. console_write_process -- console.write 2.0.0 again, from a second
      out-of-process implementation (Python this time), over the same
      protocol #5 uses -- proves the protocol isn't a non-Python escape
@@ -26,7 +26,7 @@ the Bridge it exists to bootstrap). See ../../README.md "Run" for this
 half's own build/run steps, and ../../../README.md "Two servers, not
 one" for the two commands together. Ctrl+C stops the API server cleanly.
 
-Run from the repository root (build the Rust executor first -- see
+Run from the repository root (build the C# executor first -- see
 capabilities/greeting/compose_process/manifest.yaml):
     python -m sample.hello_world.backend.runtime.app.main
 """
@@ -46,7 +46,7 @@ def main():
     writer_v1.call({"text": "console.write 1.0.0 is real and independently callable."})
 
     composer_process = resolve("greeting_compose_process", "compose")
-    composer_process.call({"name": "ARPAPED (via Rust)"})
+    composer_process.call({"name": "ARPAPED (via C#)"})
 
     writer_process = resolve("console_write_process", "write")
     writer_process.call({"message": "This line is printed by a second Python process, through the Bridge."})

@@ -2,9 +2,12 @@
 (sample/schemas/process-executor-protocol.schema.json) -- what a process-kind
 executor (executor_kind: process, blueprint/2-RULES.md R4/R5) exchanges with the
 Bridge. A Python capability running as its own separate process uses
-this instead of hand-writing connect/frame/dispatch -- the same role
-clients/rust/ plays for Rust, proving the protocol isn't a non-Python
-escape hatch (see ../../capabilities/console/write_process/executor.py).
+this instead of hand-writing connect/frame/dispatch -- the same role the
+other language's own reference client plays for it (whichever language
+that currently is; see ../../capabilities/greeting/compose_process/manifest.yaml,
+never named here so this comment doesn't go stale when it changes),
+proving the protocol isn't a non-Python escape hatch (see
+../../capabilities/console/write_process/executor.py).
 
 `serve_direct`/`serve_factory` are the intended entry points, not
 `Connection` directly: they take the exact same native shape a
@@ -21,9 +24,10 @@ separate implementation of the same idea.
 Lives inside this sample, not under sample/hello_world/backend/runtime/bridge/ (not part of the Bridge
 implementation) and not at the repo root (not shared, ecosystem-level
 infrastructure -- every consumer is a capability inside this one
-sample). Uses the standard library's real JSON parser -- clients/rust/
-uses a real one too (serde_json), just an external dependency there
-since Rust's stdlib doesn't include one.
+sample). Uses the standard library's real JSON parser -- the other
+language's own reference client uses a real one too, whatever that
+language ships or pulls in for it; not named here for the same reason
+above.
 """
 
 from __future__ import annotations

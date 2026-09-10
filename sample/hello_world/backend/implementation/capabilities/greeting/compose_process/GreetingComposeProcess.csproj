@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A SECOND implementation of greeting.compose, running out-of-process
+       (executor_kind: process) instead of in-process, see ../compose/executor.py
+       and ../../../../README.md "A capability in another language". A real
+       console-app project (this .csproj + Program.cs), not a single file
+       compiled by bare `csc`; it references BridgeClient (../../../clients/csharp/,
+       a ProjectReference) for all connect/frame/dispatch/nested-call
+       machinery, so this project's own code is just its operation logic. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>greeting_compose_process</AssemblyName>
+    <RootNamespace>GreetingComposeProcess</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../clients/csharp/BridgeClient.csproj" />
+  </ItemGroup>
+
+</Project>

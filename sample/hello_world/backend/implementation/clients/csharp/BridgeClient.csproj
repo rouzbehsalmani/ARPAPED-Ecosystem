@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Reference client for the process executor protocol
+       (sample/schemas/process-executor-protocol.schema.json): library
+       SOURCE only, compiled as part of whatever capability project
+       references it (a ProjectReference, not a published NuGet package,
+       the C# analogue of a Cargo path dependency). No external package
+       reference: System.Text.Json ships in the SDK/runtime itself, so
+       there is nothing to pin for reproducible builds beyond this
+       source file. -->
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>BridgeClient</RootNamespace>
+  </PropertyGroup>
+
+</Project>

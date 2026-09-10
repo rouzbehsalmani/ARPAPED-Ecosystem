@@ -76,7 +76,7 @@ CALLS = [
     ("console_write", "write", {"message": "Hello, world!", "format": "uppercase"}),
     ("greeting_compose", "compose", {"name": "ARPAPED"}),
     ("console_write_legacy", "write", {"text": "console.write 1.0.0 is real and independently callable."}),
-    ("greeting_compose_process", "compose", {"name": "ARPAPED (via Rust)"}),
+    ("greeting_compose_process", "compose", {"name": "ARPAPED (via C#)"}),
     ("console_write_process", "write", {"message": "This line is printed by a second Python process, through the Bridge."}),
 ]
 

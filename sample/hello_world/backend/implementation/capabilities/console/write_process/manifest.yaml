@@ -5,9 +5,12 @@
 # (executor_kind: process) instead of in-process -- proves the process
 # executor protocol is language-neutral even for Python itself. Written
 # in Python for this example, but the name identifies the mechanism
-# (out-of-process), not the language -- see the Rust sibling proving the
-# same thing, ../../greeting/compose_process/. Uses
-# clients/python/bridge_client.py, the same role clients/rust/ plays there.
+# (out-of-process), not the language -- see ../../greeting/compose_process/
+# for the same proof in a different language (whichever one it happens to
+# be implemented in; that choice is that manifest's own business, not
+# named here, so this comment never goes stale when it changes). Uses
+# clients/python/bridge_client.py -- that sibling's own client library
+# plays the same role for it.
 #
 # `executor:` is an argv list, not a single command string, since an
 # interpreted language needs an interpreter AND a script
