@@ -83,7 +83,18 @@ dep:
       keeps running after the command that launched it ends, invisible,
       still holding its port -- the next restart then talks to whichever
       orphaned process happens to still be listening, not the one just
-      started.
+      started. `tcp_ready_check(host, port)` is the ready-made
+      `ready_check` for the common case (a server on a fixed TCP port),
+      so a caller never hand-writes the same connect-and-catch-OSError
+      snippet. A second, chained failure mode, also observed for real:
+      `pidfile`'s own live-process guard only catches an orphan THIS
+      module started; it can't see one started any other way that
+      happens to be sitting on whatever `ready_check` watches. `start()`
+      now calls `ready_check` once BEFORE spawning anything and refuses
+      (ProcessSupervisorError) if it already passes -- occupied-before-we-
+      started is never treated as "ready," closed generically in the
+      tool itself rather than left as something every caller has to
+      remember to guard against.
   checkpoint:
     location: blueprint/dep/checkpoint.py
     role: >

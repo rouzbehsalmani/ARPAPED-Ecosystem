@@ -416,6 +416,43 @@ prints its URL plus the command needed to serve the frontend separately.
 See `../README.md` "Two servers, not one" for why, and
 `../frontend/README.md` "Run" to bring the frontend up against this API.
 
+### Run (agent-driven / automated)
+
+The command above is for a human at a terminal: it never returns on its
+own (that's the point — `main.py` keeps `web.serve` up until Ctrl+C), so
+a human watches the six lines print, then Ctrl+C's it when done. An
+agent or script starting this backend to test against it, then continue
+doing OTHER work, must NOT invoke it the same way: waiting on that
+command to finish is waiting on something that runs forever, which reads
+as "stuck" no matter how long you wait — an orphaned, healthy process
+mistaken for a hang, observed for real. Use `process_supervisor`
+(`blueprint/dep/MANIFEST.yaml: process_supervisor`) instead — it returns
+as soon as `ready_check` passes, never once the process exits, and
+refuses up front (rather than reporting a false "ready") if something
+NOT tracked by `pidfile` already occupies whatever `ready_check` watches
+— see that module's own docstring for why this specific protection
+exists, observed for real in this exact sequence:
+
+```python
+from pathlib import Path
+from blueprint.dep import process_supervisor
+
+pidfile = Path("sample/hello_world/backend/state/backend.pid")
+process_supervisor.start(
+    ["python", "-m", "sample.hello_world.backend.runtime.app.main"],
+    pidfile=pidfile,
+    ready_check=process_supervisor.tcp_ready_check("127.0.0.1", 8420),
+)
+# start() has already returned -- the backend is confirmed listening on
+# 8420. Do whatever testing needed it running, then:
+process_supervisor.stop(pidfile)
+```
+
+`stop()` is idempotent and safe to call even if you're not sure it's
+still running. Never a bare `subprocess.Popen`/`Start-Process -PassThru`
+with no corresponding stop step — that's exactly how an orphaned backend
+(still holding port 8420) outlives the session that started it.
+
 ## Runtime events
 
 Every one of the six calls above (and the seventh, `web.serve`'s own

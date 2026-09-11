@@ -158,6 +158,36 @@ browser can load the page, which is a static-hosting concern (see
 `../README.md` "Two servers, not one") the Blueprint deliberately doesn't
 model as a capability, and this harness inherits that same boundary.
 
+### Run (agent-driven / automated)
+
+`python -m sample.hello_world.frontend.runtime.host.serve` never returns
+on its own either (same as `../backend/README.md` "Run (agent-driven /
+automated)" — it's a real server, `serve_forever()`, waiting until
+killed). An agent starting it to test against, then continuing other
+work, must use `process_supervisor` (`blueprint/dep/MANIFEST.yaml:
+process_supervisor`), never wait on the bare command directly — the same
+"healthy process mistaken for a hang" trap as the backend, just on port
+8421 instead of 8420, and the same built-in protection against a stale,
+untracked orphan already squatting that port (see the backend section
+and `process_supervisor.py`'s own docstring):
+
+```python
+from pathlib import Path
+from blueprint.dep import process_supervisor
+
+pidfile = Path("sample/hello_world/frontend/state/frontend.pid")
+process_supervisor.start(
+    ["python", "-m", "sample.hello_world.frontend.runtime.host.serve"],
+    pidfile=pidfile,
+    ready_check=process_supervisor.tcp_ready_check("127.0.0.1", 8421),
+)
+# ... test against it ...
+process_supervisor.stop(pidfile)
+```
+
+Start the backend the same way first (its own README section) — this
+runtime's `console.write` dependency is Remote and needs it up.
+
 Then open `http://127.0.0.1:8421`. The page (`runtime/index.html`) runs
 its OWN Bridge Core, entirely in your browser's JavaScript — not a
 simulation, the actual `runtime/bridge/core.js` described above. It has

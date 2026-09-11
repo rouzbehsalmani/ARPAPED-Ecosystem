@@ -443,6 +443,15 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   listening, not the one just started. `ready_check` and `argv` are always
   supplied by the caller, never assumed by the tool — it works the same
   way regardless of what language or framework the process under test is.
+  A server reached over TCP (the common case) never needs a hand-written
+  `ready_check`: `process_supervisor.tcp_ready_check(host, port)` returns
+  one. `start()` itself refuses (loudly, before spawning anything) if
+  `ready_check` already passes before it's called — observed for real: a
+  stale orphan from an earlier ad hoc launch, started outside
+  process_supervisor entirely, can already be occupying the very port a
+  NEW `start()` call is about to check readiness against; without this
+  refusal, that call would report success against the wrong process
+  while the one it actually just spawned might never even bind.
 - Drive every consumer-visible interaction through a scripted command
   stream using the same dispatcher the real interface uses.
 - Include at least one case proving an operator decision window: a scripted

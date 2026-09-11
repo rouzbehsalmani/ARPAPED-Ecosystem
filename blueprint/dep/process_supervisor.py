@@ -33,11 +33,33 @@ mechanism, but were verified empirically to be unreliable on Windows
 here (a real `taskkill` that genuinely terminated a process was still
 reported alive by `os.kill(pid, 0)` afterward) -- Windows uses
 `tasklist`/`taskkill` instead, the tools actually proven to work.
+
+A second failure mode, also found empirically, chained directly off the
+first: `pidfile`'s own live-process guard only catches an orphan THIS
+module started (its PID is what's in the pidfile) -- it has no way to
+see an orphan started by anything else (a bare `Start-Process`, a
+different session, a previous ad hoc launch) that happens to be sitting
+on the same port/file/whatever `ready_check` watches. `start()` used to
+trust a passing `ready_check` unconditionally; if one of those untracked
+orphans was already occupying it, `ready_check` would pass immediately
+against the WRONG process, and `start()` would report success while the
+process it actually just spawned may never have bound at all (address
+already in use). Closed generically here, not left as a caller
+responsibility to remember: `start()` now calls `ready_check` once
+BEFORE spawning anything, and refuses (ProcessSupervisorError) if it
+already passes -- occupied-before-we-started is never treated as
+"ready," for anyone who uses this module. `tcp_ready_check(host, port)`
+below is the ready-made `ready_check` for the common case (a server on a
+fixed TCP port); a capability with a different readiness signal (a log
+line, a file, a different protocol) writes its own, but gets this same
+protection either way, since the pre-check is in `start()`, not in any
+one `ready_check`.
 """
 
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -104,6 +126,16 @@ def start(
             )
         pidfile.unlink()
 
+    if ready_check is not None and ready_check():
+        raise ProcessSupervisorError(
+            f"ready_check already passes before starting anything for {argv} -- whatever it's "
+            "watching (a port, a file, a log line) is already occupied by something NOT tracked "
+            "by this pidfile (observed for real: a stale orphan from an earlier ad hoc launch, "
+            "started outside process_supervisor, so the pidfile guard above never saw it). "
+            "Starting anyway would report success against the WRONG process while the one just "
+            "spawned may never even bind. Stop whatever that is first, then call start() again."
+        )
+
     process = subprocess.Popen(argv)
     pidfile.parent.mkdir(parents=True, exist_ok=True)
     pidfile.write_text(str(process.pid), encoding="utf-8")
@@ -145,3 +177,30 @@ def stop(pidfile: Path) -> bool:
             return True
         time.sleep(0.1)
     return not _pid_is_alive(pid)
+
+
+def tcp_ready_check(host: str, port: int, timeout: float = 0.5) -> Callable[[], bool]:
+    """The ready-made `ready_check` for the common case: a process that
+    listens on a fixed TCP port (an HTTP server, or anything else
+    speaking TCP). Returns a zero-argument callable -- pass it straight
+    to `start(..., ready_check=tcp_ready_check(host, port))` -- rather
+    than every caller hand-writing the same connect-and-catch-OSError
+    snippet. Generic across every sample/application that needs this,
+    same posture as everything else in this module: no default
+    `host`/`port` baked in, always given explicitly by the caller.
+
+    A capability whose readiness isn't "accepts a TCP connection" (a log
+    line, a file appearing, a different protocol) writes its own
+    `ready_check` instead -- it still gets `start()`'s own
+    already-occupied-before-we-started protection either way, since that
+    check lives in `start()` itself, not in this helper.
+    """
+
+    def _check() -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    return _check
