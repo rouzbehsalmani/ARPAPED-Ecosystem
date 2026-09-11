@@ -1,0 +1,306 @@
+{
+  "verification_id": "hello-world-1a836a147e28",
+  "state_ref": "sample/hello_world",
+  "harness": "sample/hello_world/backend/implementation/tests/verify/verify.py",
+  "environment": {
+    "os": "Windows",
+    "os_release": "10",
+    "arch": "AMD64",
+    "runtime": "CPython 3.9.6"
+  },
+  "checks": [
+    {
+      "check_id": "contract-valid:console.write.contract.yaml",
+      "description": "console.write.contract.yaml validates against component-contract.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "contract-valid:greeting.compose.contract.yaml",
+      "description": "greeting.compose.contract.yaml validates against component-contract.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "contract-valid:web.serve.contract.yaml",
+      "description": "web.serve.contract.yaml validates against component-contract.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/console/write/manifest.yaml",
+      "description": "backend/implementation/capabilities/console/write/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/console/write_process/manifest.yaml",
+      "description": "backend/implementation/capabilities/console/write_process/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/console/write_v2/manifest.yaml",
+      "description": "backend/implementation/capabilities/console/write_v2/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/greeting/compose/manifest.yaml",
+      "description": "backend/implementation/capabilities/greeting/compose/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/greeting/compose_process/manifest.yaml",
+      "description": "backend/implementation/capabilities/greeting/compose_process/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "manifest-valid:backend/implementation/capabilities/web/serve/manifest.yaml",
+      "description": "backend/implementation/capabilities/web/serve/manifest.yaml validates against capability-manifest.schema.json",
+      "status": "passed"
+    },
+    {
+      "check_id": "call:1:console_write",
+      "input": {
+        "message": "This is a test of the Bridge's console.write capability."
+      },
+      "description": "console_write.write (call 1) reaches every stage through console.write.v2",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "console.write",
+        "operation": "write",
+        "contract_version": ">=2.0.0,<3.0.0",
+        "candidates": [
+          {
+            "implementation_id": "console.write.v2",
+            "priority": 200
+          },
+          {
+            "implementation_id": "console.write.process",
+            "priority": 150
+          }
+        ],
+        "selected": "console.write.v2",
+        "reason": "highest priority (200) among 2 policy-allowed candidates"
+      }
+    },
+    {
+      "check_id": "call:2:console_write",
+      "input": {
+        "message": "Hello, world!",
+        "format": "uppercase"
+      },
+      "description": "console_write.write (call 2) reaches every stage through console.write.v2",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "console.write",
+        "operation": "write",
+        "contract_version": ">=2.0.0,<3.0.0",
+        "candidates": [
+          {
+            "implementation_id": "console.write.v2",
+            "priority": 200
+          },
+          {
+            "implementation_id": "console.write.process",
+            "priority": 150
+          }
+        ],
+        "selected": "console.write.v2",
+        "reason": "highest priority (200) among 2 policy-allowed candidates"
+      }
+    },
+    {
+      "check_id": "call:3:greeting_compose",
+      "input": {
+        "name": "ARPAPED"
+      },
+      "description": "greeting_compose.compose (call 3) reaches every stage through greeting.compose.default",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "greeting.compose",
+        "operation": "compose",
+        "contract_version": "1.0.0",
+        "candidates": [
+          {
+            "implementation_id": "greeting.compose.default",
+            "priority": 100
+          },
+          {
+            "implementation_id": "greeting.compose.process",
+            "priority": 50
+          }
+        ],
+        "selected": "greeting.compose.default",
+        "reason": "highest priority (100) among 2 policy-allowed candidates"
+      }
+    },
+    {
+      "check_id": "call:4:console_write_legacy",
+      "input": {
+        "text": "console.write 1.0.0 is real and independently callable."
+      },
+      "description": "console_write_legacy.write (call 4) reaches every stage through console.write.default",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "console.write",
+        "operation": "write",
+        "contract_version": "<2.0.0",
+        "candidates": [
+          {
+            "implementation_id": "console.write.default",
+            "priority": 100
+          }
+        ],
+        "selected": "console.write.default",
+        "reason": "highest priority (100) among 1 policy-allowed candidate"
+      }
+    },
+    {
+      "check_id": "call:5:greeting_compose_process",
+      "input": {
+        "name": "ARPAPED (via C#)"
+      },
+      "description": "greeting_compose_process.compose (call 5) reaches every stage through greeting.compose.process",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "greeting.compose",
+        "operation": "compose",
+        "contract_version": "1.0.0",
+        "candidates": [
+          {
+            "implementation_id": "greeting.compose.process",
+            "priority": 50
+          }
+        ],
+        "selected": "greeting.compose.process",
+        "reason": "highest priority (50) among 1 policy-allowed candidate"
+      },
+      "evidence": {
+        "executor_kind": "process",
+        "response_output": {},
+        "stdout": "",
+        "stderr": "",
+        "worker_alive": true,
+        "process_exit_code": null
+      }
+    },
+    {
+      "check_id": "call:6:console_write_process",
+      "input": {
+        "message": "This line is printed by a second Python process, through the Bridge."
+      },
+      "description": "console_write_process.write (call 6) reaches every stage through console.write.process",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ],
+      "selection": {
+        "capability_id": "console.write",
+        "operation": "write",
+        "contract_version": ">=2.0.0,<3.0.0",
+        "candidates": [
+          {
+            "implementation_id": "console.write.process",
+            "priority": 150
+          }
+        ],
+        "selected": "console.write.process",
+        "reason": "highest priority (150) among 1 policy-allowed candidate"
+      },
+      "evidence": {
+        "executor_kind": "process",
+        "response_output": {},
+        "stdout": "This line is printed by a second Python process, through the Bridge.\r\n",
+        "stderr": "",
+        "worker_alive": true,
+        "process_exit_code": null
+      }
+    },
+    {
+      "check_id": "call:1:console_write:implementation-pinning-regression",
+      "input": {
+        "message": "This is a test of the Bridge's console.write capability."
+      },
+      "description": "The unpinned 'console_write' name (app/dependencies.yaml) keeps resolving to console.write.v2, its highest-priority policy-allowed candidate",
+      "status": "passed",
+      "check_type": "regression",
+      "regression_for": "console-write-priority-flip-2026-09",
+      "expected": "console.write.v2",
+      "actual": "console.write.v2",
+      "selection": {
+        "capability_id": "console.write",
+        "operation": "write",
+        "contract_version": ">=2.0.0,<3.0.0",
+        "candidates": [
+          {
+            "implementation_id": "console.write.v2",
+            "priority": 200
+          },
+          {
+            "implementation_id": "console.write.process",
+            "priority": 150
+          }
+        ],
+        "selected": "console.write.v2",
+        "reason": "highest priority (200) among 2 policy-allowed candidates"
+      }
+    },
+    {
+      "check_id": "call:1:greeting_render (frontend)",
+      "description": "greeting_render.render reaches every stage through greeting.render.frontend, composing a Remote console.write call",
+      "status": "passed",
+      "check_type": "capability_operation",
+      "trace": [
+        "validated",
+        "discovered",
+        "policy_evaluated",
+        "selected",
+        "executed"
+      ]
+    }
+  ],
+  "passed": 17,
+  "failed": 0,
+  "status": "verified"
+}

@@ -1,0 +1,96 @@
+{
+  "goal": {
+    "description": "Turn hello_world into a web app proving the per-runtime Bridge principle (blueprint/2-RULES.md Bridge/Bridge Core/Bridge Adapter glossary, R4 Local/Worker/Remote taxonomy): a Python backend (unchanged capabilities) plus a new web.serve capability exposing it over sample/schemas/bridge-protocol.schema.json, and a genuine JavaScript frontend Bridge whose OWN greeting.render capability runs Local and depends on backend's console.write via executor_kind: remote -- two independently-owned contracts (backend/implementation/contracts/, frontend/implementation/contracts/), never a shared one, referenced across the boundary only by capability ID (R4)."
+  },
+  "starting_state": "sample/hello_world",
+  "decisions": [
+    {
+      "responsibility": "console_write",
+      "decision": "reuse",
+      "reason": "'console_write' already implemented and registered; unchanged by this cycle.",
+      "check_ids": [
+        "call:1:console_write",
+        "call:2:console_write",
+        "call:1:console_write:implementation-pinning-regression"
+      ],
+      "failure": {
+        "summary": "console-write-priority-flip-2026-09: unpinned console_write silently resolved to console.write.process instead of console.write.v2",
+        "detail": "console.write.process's own manifest priority was raised from 150 to 250 (above console.write.v2's 200) to prove no existing check would notice. It didn't: every trace still reached executed and every check but the new regression check still passed. Real observed Bridge selection for that run: capability_id=console.write, candidates=[console.write.process@250, console.write.v2@200], selected=console.write.process, reason=\"highest priority (250) among 2 policy-allowed candidates\" -- check call:1:console_write:implementation-pinning-regression failed with observed=\"expected 'console.write.v2', got 'console.write.process' -- highest priority (250) among 2 policy-allowed candidates\"."
+      },
+      "correction": {
+        "summary": "Reverted console.write.process's manifest priority to 150",
+        "detail": "Priority reverted 250 -> 150, catalog rebuilt, harness re-run. Real observed Bridge selection for the corrected run: candidates=[console.write.process@150, console.write.v2@200], selected=console.write.v2, reason=\"highest priority (200) among 2 policy-allowed candidates\" -- call:1:console_write:implementation-pinning-regression now passes, and stays in the harness permanently so this exact regression is caught immediately if it ever recurs, rather than staying invisible to every other check the way it was before this check existed."
+      }
+    },
+    {
+      "responsibility": "greeting_compose",
+      "decision": "reuse",
+      "reason": "'greeting_compose' already implemented and registered; unchanged by this cycle.",
+      "check_ids": [
+        "call:3:greeting_compose"
+      ]
+    },
+    {
+      "responsibility": "console_write_legacy",
+      "decision": "reuse",
+      "reason": "'console_write_legacy' already implemented and registered; unchanged by this cycle.",
+      "check_ids": [
+        "call:4:console_write_legacy"
+      ]
+    },
+    {
+      "responsibility": "greeting_compose_process",
+      "decision": "reuse",
+      "reason": "'greeting_compose_process' already implemented and registered; unchanged by this cycle.",
+      "check_ids": [
+        "call:5:greeting_compose_process"
+      ]
+    },
+    {
+      "responsibility": "console_write_process",
+      "decision": "reuse",
+      "reason": "'console_write_process' already implemented and registered; unchanged by this cycle.",
+      "check_ids": [
+        "call:6:console_write_process"
+      ]
+    },
+    {
+      "responsibility": "web.serve",
+      "decision": "create",
+      "reason": "Nothing exposed the backend Bridge over a network boundary; needed so a different runtime's own Bridge Adapter (the frontend's) can reach it as executor_kind: remote (R4)."
+    },
+    {
+      "responsibility": "greeting.render (frontend)",
+      "decision": "create",
+      "reason": "Frontend's own capability, not a second implementation of backend's greeting.compose -- a real app's frontend-facing and backend-facing shapes rarely turn out identical, so this one has its own contract (frontend/implementation/contracts/greeting.render.contract.yaml) and its own output shape (returns the composed text for display), while still depending on backend's console.write by ID (R4), proving a specific capability can run Local in one runtime while composing a dependency that only exists Remote from it."
+    }
+  ],
+  "new_capabilities": [
+    "web.serve",
+    "greeting.render (frontend/runtime/capabilities/greeting/render)"
+  ],
+  "reused_capabilities": [
+    "console_write",
+    "greeting_compose",
+    "console_write_legacy",
+    "greeting_compose_process",
+    "console_write_process"
+  ],
+  "bridge_integration": "Backend: every call above resolved through app/requests.py's single request-construction point and the same canonical Bridge app/main.py uses (R6/R8). Frontend: greeting_render resolved through frontend/runtime/app.js's own Bridge Adapter and Bridge Core (frontend/runtime/bridge/core.js), whose console.write dependency (declared by ID, not by sharing backend's contract) resolved as executor_kind: remote to the SAME backend Bridge over web.serve's /bridge endpoint -- every observed trace, in both runtimes, reached executed.",
+  "verification": {
+    "harness": "sample/hello_world/backend/implementation/tests/verify/verify.py",
+    "verification_record_ref": "sample/hello_world/backend/state/verification-record.json",
+    "status": "verified"
+  },
+  "resulting_state": "sample/hello_world",
+  "resulting_state_ref": {
+    "content_hash": "sha256:4dbacdf6554a128d91e56ca95847da5ac6b2563cdf9eccf3f7dd857a8b8cf157",
+    "vcs": {
+      "system": "git",
+      "commit": "8c5514f9771ae8dcc1dc84d7b1476f8d2667511f",
+      "branch": "deep-dep",
+      "dirty": true
+    }
+  },
+  "next_cycle_readiness": "capability-catalog.jsonl, dependencies.yaml, and this verification record are everything the next cycle needs; no private memory of this run is required."
+}
