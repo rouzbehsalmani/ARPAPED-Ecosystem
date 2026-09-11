@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Runtime Event",
+  "description": "One real Bridge call, success or failure -- written by blueprint.dep.runtime_log, hooked into a Bridge's own handle() (2-RULES.md glossary: runtime event). Distinct from verification-record.schema.json: that record is written once per verified CYCLE, by a harness; this event is written once per CALL, by the Bridge itself, for every real call it ever handles -- harness-scripted or genuine production traffic alike.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "timestamp",
+    "request_id",
+    "capability_id",
+    "operation",
+    "contract_version",
+    "input",
+    "trace",
+    "outcome"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601, UTC -- when the Bridge finished handling this call (success or failure)."
+    },
+    "request_id": {
+      "type": "string",
+      "description": "The BridgeRequest's own request_id."
+    },
+    "capability_id": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "contract_version": {
+      "type": "string"
+    },
+    "input": {
+      "description": "Copied from BridgeRequest.input verbatim -- same authenticity discipline as verification-record.schema.json's checks[].input."
+    },
+    "trace": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Whatever stages were actually reached -- validated -> discovered -> policy_evaluated -> selected -> executed. Partial (even empty, for a call that failed BridgeRequest.validate() before reaching any stage) on failure -- the same OBSERVED, never-constructed trace verification-record.schema.json's checks[].trace already requires (R8, Gate 28); an empty array here is an honest report of zero stages reached, never padded to look like more happened."
+    },
+    "implementation_id": {
+      "type": "string",
+      "description": "Present once the 'selected' stage was reached; absent for a call that failed before selection."
+    },
+    "selection": {
+      "type": "object",
+      "description": "Bridge-level Decision Context (2-RULES.md glossary) -- present only on a call that reached 'selected'. Same shape as verification-record.schema.json's checks[].selection, copied from the Bridge's own observed response.selection, never invented.",
+      "required": ["capability_id", "operation", "contract_version", "candidates", "selected", "reason"],
+      "properties": {
+        "capability_id": {"type": "string"},
+        "operation": {"type": "string"},
+        "contract_version": {"type": "string"},
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["implementation_id", "priority"],
+            "properties": {
+              "implementation_id": {"type": "string"},
+              "priority": {"type": "integer"}
+            }
+          }
+        },
+        "selected": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Process-kind (executor_kind: process) execution evidence -- present only when the selected implementation ran out-of-process. Same shape as verification-record.schema.json's checks[].evidence.",
+      "required": ["executor_kind", "response_output"],
+      "properties": {
+        "executor_kind": {"type": "string", "const": "process"},
+        "response_output": {"type": "object"},
+        "stdout": {"type": "string"},
+        "stderr": {"type": "string"},
+        "worker_alive": {"type": "boolean"},
+        "process_exit_code": {"type": ["integer", "null"]}
+      }
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "failure"]
+    },
+    "error": {
+      "type": "object",
+      "description": "Present only when outcome is 'failure' -- the Bridge's own BridgeError code/stage/message/details, copied verbatim, never reworded.",
+      "required": ["code", "stage", "message"],
+      "properties": {
+        "code": {"type": "string"},
+        "stage": {"type": "string"},
+        "message": {"type": "string"},
+        "details": {"type": "object"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"outcome": {"const": "failure"}}, "required": ["outcome"]},
+      "then": {"required": ["error"]}
+    },
+    {
+      "if": {"properties": {"outcome": {"const": "success"}}, "required": ["outcome"]},
+      "then": {"required": ["implementation_id", "selection"]}
+    }
+  ]
+}

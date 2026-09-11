@@ -31,12 +31,21 @@ from sample.hello_world.backend.runtime.bridge.bridge import Bridge, BridgeError
 from sample.hello_world.backend.runtime.bridge.policy import StaticPolicyEngine
 from sample.hello_world.backend.runtime.bridge.registry import CapabilityRegistry
 from sample.hello_world.backend.runtime.bridge.selector import DeterministicSelector
+from blueprint.dep.runtime_log import RuntimeEventLog
 
 _APP_ROOT = Path(__file__).resolve().parent.parent
 _APP_DIR = Path(__file__).resolve().parent
 
 _registry = CapabilityRegistry()
-_bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector())
+# event_sink: every real call through this Bridge -- harness-scripted or
+# genuine traffic alike -- is recorded as its own runtime event
+# (blueprint/dep/MANIFEST.yaml's runtime_log), not just the ones a
+# verification harness happens to capture into a check dict. Bridge
+# itself never imports blueprint.dep (bridge.py stays decoupled); this
+# is the one place that wires the two together, the same way it's the
+# one place that wires registry/policy/selector together.
+_event_log = RuntimeEventLog(_APP_ROOT.parent / "state" / "runtime-events.jsonl")
+_bridge = Bridge(_registry, StaticPolicyEngine(), DeterministicSelector(), event_sink=_event_log.record)
 assemble_from_catalog(_APP_ROOT / "capability-catalog.jsonl", _registry, bridge=_bridge)
 
 
