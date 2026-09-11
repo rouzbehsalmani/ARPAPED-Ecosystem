@@ -286,6 +286,64 @@ dep:
       here -- see sample/hello_world/backend/README.md for a worked
       example, the same relationship it has to a sample's own assembler's
       rebuild_catalog. Regenerable from the corpus at any time.
+  runtime_log:
+    location: blueprint/dep/runtime_log.py
+    role: >
+      The one blueprint/dep/ piece scoped to REAL RUNTIME OPERATION, not
+      to one agent development cycle -- every other tool above
+      (episode_store, finish_cycle, checkpoint) records one thing per
+      verified cycle (1-CYCLE.md Phase 0-9). Confirmed directly:
+      bridge.py/registry.py/policy.py/selector.py write nothing to
+      disk -- a real production call computes trace/selection/evidence
+      in Bridge.handle and discards it unless a caller explicitly
+      captures it, and before this, only a verification harness ever
+      did. `RuntimeEventLog(path).record(event)` -- validated against
+      runtime-event.schema.json, appended as JSONL (not
+      episode_store's one-directory-per-event shape: a cycle is rare, a
+      Bridge's calls are continuous, so this has to be cheap to append
+      to, the same posture capability-catalog.jsonl's own append writer
+      already has), thread-safe under concurrent callers (confirmed for
+      real: sample/hello_world/backend/runtime/capabilities/web/serve/executor.py
+      runs a ThreadingHTTPServer, one thread per request). Meant to be
+      passed as a Bridge's own `event_sink` constructor argument
+      (sample/hello_world/backend/runtime/bridge/bridge.py) -- `bridge.py`
+      itself never imports this module, the same decoupling posture it
+      already has toward ProcessExecutorPool (hasattr/getattr, never an
+      import); an application's own request-construction point is what
+      wires the two together (proven for real in
+      sample/hello_world/backend/runtime/app/requests.py -- every real
+      call through `main.py`/`web.serve`, AND every nested nested-call a
+      factory/process executor makes through the same Bridge, lands in
+      `state/runtime-events.jsonl` as its own independent event, not
+      just the top-level ones a script happens to make). `read_events(path)`
+      is the read-side counterpart, for anything that later consumes
+      this log.
+  git_commit_event:
+    location: blueprint/dep/git_commit_event.py
+    role: >
+      Records the fact that a commit was made as its own DEP event --
+      independent of runtime_log above, sharing no code or schema with
+      it (a commit is an agent/operator action, not a capability's
+      Bridge call). The concrete mechanism behind the operator's own
+      instruction: DEP should reference git commits/branches/tags where
+      relevant, but must never depend on git as its storage model --
+      every other blueprint/dep/ tool works with zero git involvement
+      (state_ref.py's own `vcs` probe is optional, silently omitted on
+      failure); this module's entire job, by contrast, IS to record
+      that a real git action happened, so it fails loudly
+      (`GitCommitEventError`) rather than silently when there's nothing
+      real to record -- the deliberate inverse of state_ref's posture.
+      `record_git_commit_event(log_path, repo_root, commit="HEAD")`
+      probes the real commit (full sha via `git rev-parse`, message via
+      `git log`, best-effort branch/author/files_changed) and appends
+      one event, validated against git-commit-event.schema.json.
+      `python -m blueprint.dep.git_commit_event --log-path PATH
+      --repo-root PATH [--commit SHA]` is its CLI (same pattern as
+      `finish_cycle`'s) -- what lets an agent or any shell record a
+      commit right after making it, without importing Python. Not
+      currently wired into any sample or into this repo's own commit
+      workflow -- built and proven with its own tests, available for a
+      caller to adopt when it fits.
   jepa:
     role: >
       NOT YET BUILT. The agent that does the implementation job (Phase 5

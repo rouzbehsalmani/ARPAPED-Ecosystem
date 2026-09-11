@@ -22,6 +22,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from .policy import PolicyContext, StaticPolicyEngine
@@ -67,6 +68,15 @@ class BridgeError(Exception):
 
     def __str__(self) -> str:
         return f"{self.code}@{self.stage}: {self.message}"
+
+
+def _event_envelope() -> dict[str, str]:
+    """`event_id`/`timestamp` for a runtime event (blueprint/dep/MANIFEST.yaml's
+    runtime_log) -- factored out only because both `handle`'s success and
+    failure paths need the same pair, not because either value means
+    anything beyond identifying/dating one event."""
+
+    return {"event_id": uuid.uuid4().hex, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 def _apply_input_schema(
@@ -272,10 +282,19 @@ class Bridge:
         registry: CapabilityRegistry,
         policy: StaticPolicyEngine,
         selector: DeterministicSelector,
+        event_sink: Optional[Callable[[dict[str, Any]], None]] = None,
     ) -> None:
         self.registry = registry
         self.policy = policy
         self.selector = selector
+        # Optional, duck-typed (a plain callable, never a specific type) --
+        # blueprint.dep.runtime_log.RuntimeEventLog.record is the reference
+        # implementation, but this class never imports it: the same
+        # decoupling posture `handle` already has toward ProcessExecutorPool
+        # (hasattr/getattr, never an import). None means "record nothing",
+        # the default and behavior for every caller that predates this
+        # parameter -- passing it is strictly opt-in.
+        self._event_sink = event_sink
 
     def resolve(self, capability_id: str, operation: str, contract_version: str, **kwargs: Any) -> BoundCapability:
         """Discovers `capability_id`+`operation` once and returns a handle whose
@@ -322,129 +341,169 @@ class Bridge:
             if on_stage is not None:
                 on_stage(stage)
 
-        request.validate()
-        _reached("validated")
-        if resolved is not None:
-            discovered = resolved.live_candidates()
-        else:
-            discovered = self.registry.discover(
-                request.capability_id, request.contract_version, request.operation,
-            )
-        _reached("discovered")
-        if not discovered:
-            raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered")
-
-        allowed = []
-        rejections: dict[str, str] = {}
-        for implementation in discovered:
-            decision = self.policy.evaluate(implementation, request.policy_context)
-            if decision.allowed:
-                allowed.append(implementation)
+        # Everything below is wrapped so a runtime event (blueprint/dep/MANIFEST.yaml's
+        # runtime_log) can be recorded for THIS call regardless of outcome --
+        # every raise point below already normalizes to BridgeError before
+        # escaping (the one non-BridgeError `except Exception` further down
+        # re-raises as one), so this single outer handler catches every
+        # failure path. `self._event_sink` is optional and duck-typed
+        # (Bridge.__init__) -- None means "record nothing," unchanged from
+        # every caller that predates this parameter.
+        try:
+            request.validate()
+            _reached("validated")
+            if resolved is not None:
+                discovered = resolved.live_candidates()
             else:
-                rejections[implementation.implementation_id] = decision.reason_code
-        _reached("policy_evaluated")
-        if not allowed:
-            raise BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected", rejections)
+                discovered = self.registry.discover(
+                    request.capability_id, request.contract_version, request.operation,
+                )
+            _reached("discovered")
+            if not discovered:
+                raise BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered")
 
-        ranked = self.selector.rank(tuple(allowed)) if hasattr(self.selector, "rank") else (self.selector.select(tuple(allowed)),)
-        if not ranked:
-            raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "All allowed candidates are temporarily unavailable")
-        _reached("selected")
-        # Every candidate here shares the same capability_id+operation+contract_version,
-        # hence the same contract-declared input shape (R2) -- checked once,
-        # against any one of them, outside the retry loop below: a schema
-        # mismatch is invalid input, not a candidate-specific failure, so
-        # failing over to a different candidate could never fix it. The
-        # returned effective_input (declared defaults filled in) is what
-        # every executor below actually receives; request.input itself,
-        # used everywhere else (trace, response), stays exactly what the
-        # caller sent.
-        effective_input = _apply_input_schema(
-            request.operation, request.input, ranked[0].input_schema.get(request.operation, ()),
-        )
-        failures: dict[str, dict[str, Any]] = {}
-        for selected in ranked:
-            try:
-            # The policy context is part of the execution context of the same
-            # request. Passing it to the implementation lets nested dependencies
-            # honour the same constraints without making the implementation the
-            # final policy arbiter.
-                output = selected.executor(request.operation, effective_input, request.policy_context)
-            except BridgeError as exc:
-                details = exc.details or {}
-                if len(ranked) == 1 or not details.get("failover_allowed", False):
-                    raise
-                failures[selected.implementation_id] = {"code": exc.code, "stage": exc.stage, **details}
-                if hasattr(self.selector, "record_failure"):
-                    self.selector.record_failure(selected.implementation_id)
-                continue
-            except Exception as exc:
-            # Internal implementation details must not cross this boundary; the
-            # stable bridge error type is preserved.
+            allowed = []
+            rejections: dict[str, str] = {}
+            for implementation in discovered:
+                decision = self.policy.evaluate(implementation, request.policy_context)
+                if decision.allowed:
+                    allowed.append(implementation)
+                else:
+                    rejections[implementation.implementation_id] = decision.reason_code
+            _reached("policy_evaluated")
+            if not allowed:
+                raise BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected", rejections)
+
+            ranked = self.selector.rank(tuple(allowed)) if hasattr(self.selector, "rank") else (self.selector.select(tuple(allowed)),)
+            if not ranked:
+                raise BridgeError("BRIDGE_NO_HEALTHY_ROUTE", "selection", "All allowed candidates are temporarily unavailable")
+            _reached("selected")
+            # Every candidate here shares the same capability_id+operation+contract_version,
+            # hence the same contract-declared input shape (R2) -- checked once,
+            # against any one of them, outside the retry loop below: a schema
+            # mismatch is invalid input, not a candidate-specific failure, so
+            # failing over to a different candidate could never fix it. The
+            # returned effective_input (declared defaults filled in) is what
+            # every executor below actually receives; request.input itself,
+            # used everywhere else (trace, response), stays exactly what the
+            # caller sent.
+            effective_input = _apply_input_schema(
+                request.operation, request.input, ranked[0].input_schema.get(request.operation, ()),
+            )
+            failures: dict[str, dict[str, Any]] = {}
+            for selected in ranked:
+                try:
+                # The policy context is part of the execution context of the same
+                # request. Passing it to the implementation lets nested dependencies
+                # honour the same constraints without making the implementation the
+                # final policy arbiter.
+                    output = selected.executor(request.operation, effective_input, request.policy_context)
+                except BridgeError as exc:
+                    details = exc.details or {}
+                    if len(ranked) == 1 or not details.get("failover_allowed", False):
+                        raise
+                    failures[selected.implementation_id] = {"code": exc.code, "stage": exc.stage, **details}
+                    if hasattr(self.selector, "record_failure"):
+                        self.selector.record_failure(selected.implementation_id)
+                    continue
+                except Exception as exc:
+                # Internal implementation details must not cross this boundary; the
+                # stable bridge error type is preserved.
+                    raise BridgeError(
+                        "BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request",
+                        {"implementation_id": selected.implementation_id, "cause_type": type(exc).__name__},
+                    ) from exc
+                if hasattr(self.selector, "record_success"):
+                    self.selector.record_success(selected.implementation_id)
+                break
+            else:
                 raise BridgeError(
-                    "BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request",
-                    {"implementation_id": selected.implementation_id, "cause_type": type(exc).__name__},
-                ) from exc
-            if hasattr(self.selector, "record_success"):
-                self.selector.record_success(selected.implementation_id)
-            break
-        else:
-            raise BridgeError(
-                "BRIDGE_ALL_IMPLEMENTATIONS_FAILED", "execution",
-                "All allowed and selectable implementations failed", failures,
-            )
-        _reached("executed")
+                    "BRIDGE_ALL_IMPLEMENTATIONS_FAILED", "execution",
+                    "All allowed and selectable implementations failed", failures,
+                )
+            _reached("executed")
 
-        # Decision Context (2-RULES.md glossary "selection", distinct from
-        # the agent-level decisions[] in agent-cycle-report.schema.json):
-        # which candidates this request actually discovered and cleared
-        # policy for, and why THIS one, of those, is the one that ran --
-        # observed and reported the same way `trace` already is (R8, Gate
-        # 28/37), never invented after the fact. `allowed`/`ranked`/
-        # `selected`/`failures` are exactly the locals the selection and
-        # execution loop above already computed; nothing here re-derives
-        # or re-evaluates anything.
-        if selected.implementation_id == ranked[0].implementation_id:
-            reason = (
-                f"highest priority ({selected.priority}) among {len(allowed)} "
-                f"policy-allowed candidate{'s' if len(allowed) != 1 else ''}"
-            )
-        else:
-            reason = (
-                f"priority {selected.priority} selected after {', '.join(failures)} "
-                f"failed over, among {len(allowed)} policy-allowed candidates"
-            )
-        selection_report = {
-            "capability_id": request.capability_id,
-            "operation": request.operation,
-            "contract_version": request.contract_version,
-            "candidates": [
-                {"implementation_id": c.implementation_id, "priority": c.priority}
-                for c in sorted(allowed, key=lambda c: (-c.priority, c.implementation_id))
-            ],
-            "selected": selected.implementation_id,
-            "reason": reason,
-        }
+            # Decision Context (2-RULES.md glossary "selection", distinct from
+            # the agent-level decisions[] in agent-cycle-report.schema.json):
+            # which candidates this request actually discovered and cleared
+            # policy for, and why THIS one, of those, is the one that ran --
+            # observed and reported the same way `trace` already is (R8, Gate
+            # 28/37), never invented after the fact. `allowed`/`ranked`/
+            # `selected`/`failures` are exactly the locals the selection and
+            # execution loop above already computed; nothing here re-derives
+            # or re-evaluates anything.
+            if selected.implementation_id == ranked[0].implementation_id:
+                reason = (
+                    f"highest priority ({selected.priority}) among {len(allowed)} "
+                    f"policy-allowed candidate{'s' if len(allowed) != 1 else ''}"
+                )
+            else:
+                reason = (
+                    f"priority {selected.priority} selected after {', '.join(failures)} "
+                    f"failed over, among {len(allowed)} policy-allowed candidates"
+                )
+            selection_report = {
+                "capability_id": request.capability_id,
+                "operation": request.operation,
+                "contract_version": request.contract_version,
+                "candidates": [
+                    {"implementation_id": c.implementation_id, "priority": c.priority}
+                    for c in sorted(allowed, key=lambda c: (-c.priority, c.implementation_id))
+                ],
+                "selected": selected.implementation_id,
+                "reason": reason,
+            }
 
-        # Evidence: process-kind (executor_kind: process) execution
-        # evidence, duck-typed so this stays uncoupled from
-        # ProcessExecutorPool by type -- the same idiom this method already
-        # uses for `hasattr(self.selector, "record_failure"/"record_success")`.
-        # None for direct/factory/remote-kind executors, which have no
-        # analogous out-of-process evidence to report.
-        last_evidence = getattr(selected.executor, "last_call_evidence", None)
-        evidence = last_evidence() if callable(last_evidence) else None
+            # Evidence: process-kind (executor_kind: process) execution
+            # evidence, duck-typed so this stays uncoupled from
+            # ProcessExecutorPool by type -- the same idiom this method already
+            # uses for `hasattr(self.selector, "record_failure"/"record_success")`.
+            # None for direct/factory/remote-kind executors, which have no
+            # analogous out-of-process evidence to report.
+            last_evidence = getattr(selected.executor, "last_call_evidence", None)
+            evidence = last_evidence() if callable(last_evidence) else None
 
-        return BridgeResponse(
-            request_id=request.request_id,
-            capability_id=request.capability_id,
-            contract_version=request.contract_version,
-            implementation_id=selected.implementation_id,
-            output=output,
-            trace=tuple(trace),
-            selection=selection_report,
-            evidence=evidence,
-        )
+            response = BridgeResponse(
+                request_id=request.request_id,
+                capability_id=request.capability_id,
+                contract_version=request.contract_version,
+                implementation_id=selected.implementation_id,
+                output=output,
+                trace=tuple(trace),
+                selection=selection_report,
+                evidence=evidence,
+            )
+        except BridgeError as exc:
+            if self._event_sink is not None:
+                self._event_sink({
+                    **_event_envelope(),
+                    "request_id": request.request_id,
+                    "capability_id": request.capability_id,
+                    "operation": request.operation,
+                    "contract_version": request.contract_version,
+                    "input": request.input,
+                    "trace": list(trace),
+                    "outcome": "failure",
+                    "error": {"code": exc.code, "stage": exc.stage, "message": exc.message,
+                              **({"details": exc.details} if exc.details else {})},
+                })
+            raise
+
+        if self._event_sink is not None:
+            self._event_sink({
+                **_event_envelope(),
+                "request_id": response.request_id,
+                "capability_id": response.capability_id,
+                "operation": request.operation,
+                "contract_version": response.contract_version,
+                "input": request.input,
+                "trace": list(response.trace),
+                "implementation_id": response.implementation_id,
+                "selection": response.selection,
+                **({"evidence": response.evidence} if response.evidence is not None else {}),
+                "outcome": "success",
+            })
+        return response
 
     def handle_with_timeout(
         self,

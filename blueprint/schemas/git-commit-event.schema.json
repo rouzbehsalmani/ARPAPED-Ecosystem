@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Git-Commit Event",
+  "description": "The fact that a commit was made, recorded as its own DEP event -- written by blueprint.dep.git_commit_event (2-RULES.md glossary: git-commit event). Independent of runtime-event.schema.json (own module, own shape, no shared code) -- a commit is an agent/operator action, not a capability's Bridge call. DEP references git here (the operator's own instruction: reference git commits/branches/tags where relevant) without depending on it as DEP's storage model -- every other blueprint/dep/ artifact works with zero git involvement; this is the one piece whose whole job IS to record that a git action happened.",
+  "type": "object",
+  "required": ["event_id", "timestamp", "commit", "message"],
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601, UTC -- when this event was recorded, not necessarily the commit's own author/commit date."
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character sha, from a real `git rev-parse` probe -- never guessed, never abbreviated."
+    },
+    "branch": {
+      "type": "string",
+      "description": "Best-effort: the branch HEAD was on when probed. Omitted for a detached HEAD or if the probe fails."
+    },
+    "message": {
+      "type": "string",
+      "description": "The commit's own subject+body, verbatim from `git log`, never reworded or summarized."
+    },
+    "author": {
+      "type": "string",
+      "description": "Best-effort `name <email>`, from `git log`. Omitted if the probe fails."
+    },
+    "files_changed": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Best-effort, from `git diff-tree`. Omitted (not emptied) if the probe fails -- an empty array would falsely claim 'zero files changed', which is different from 'not probed'."
+    }
+  }
+}

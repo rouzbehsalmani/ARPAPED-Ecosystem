@@ -45,6 +45,10 @@ runtime/                          everything a real deployment needs; nothing he
   app/
     dependencies.yaml, requests.py, main.py
   clients/python/                 bridge_client.py, direct_adapter.py — runtime dependencies of process-kind executors
+state/                             generated, gitignored — never committed, always reproducible by running the commands above
+  verification-record.json         written by verify.py, the harness's own last act on a green run
+  episodes/                        one directory per recorded cycle (blueprint.dep.episode_store)
+  runtime-events.jsonl             one line per REAL Bridge call (blueprint.dep.runtime_log) — see "Runtime events" below
 ```
 
 The two process-kind executors below don't hand-write their own
@@ -411,3 +415,25 @@ endpoint only (`/bridge` and `/health`), never a static file server — and
 prints its URL plus the command needed to serve the frontend separately.
 See `../README.md` "Two servers, not one" for why, and
 `../frontend/README.md` "Run" to bring the frontend up against this API.
+
+## Runtime events
+
+Every one of the six calls above (and the seventh, `web.serve`'s own
+start) lands in `state/runtime-events.jsonl` too — not just recorded in
+`state/verification-record.json` the way `verify.py`'s scripted calls
+are. `runtime/app/requests.py` passes a `blueprint.dep.runtime_log.RuntimeEventLog`
+(`blueprint/dep/MANIFEST.yaml: runtime_log`) as this Bridge's own
+`event_sink`; `Bridge.handle` (`runtime/bridge/bridge.py`) calls it once
+per real call it ever handles, success or failure, whether that call
+came from this file, from `verify.py`'s harness, or from a NESTED call a
+factory/process executor makes through the same Bridge mid-request (the
+fifth line above, printed by `greeting.compose.process`'s own nested
+`console.write` call, is its own independent event too — inspect the
+file after a run and there are more lines than there were top-level
+calls). This is what makes `state/` genuinely runtime history, not just
+a development-cycle audit trail: a verification record is written once
+per verified cycle, by a harness; a runtime event is written once per
+call, by the Bridge itself, for every call it ever actually handles.
+`bridge.py` never imports `blueprint.dep` — `event_sink` is a plain,
+duck-typed callable, the same decoupling posture it already has toward
+`ProcessExecutorPool`.
