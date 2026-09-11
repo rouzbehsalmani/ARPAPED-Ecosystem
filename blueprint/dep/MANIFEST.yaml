@@ -328,7 +328,26 @@ dep:
       `state/runtime-events.jsonl` as its own independent event, not
       just the top-level ones a script happens to make). `read_events(path)`
       is the read-side counterpart, for anything that later consumes
-      this log.
+      this log. `record_resolution(resolves_event_id, summary, detail,
+      verified_by_event_id=None, commit=None)` records the OTHER half of
+      an error: an EXPLICIT record of how a prior capability_call
+      failure was actually fixed, linked by that failure's own
+      `event_id` -- never auto-inferred from a later success (a later
+      success could be a coincidence -- different input, a transient
+      dependency recovering -- so only a deliberate act by whoever
+      actually diagnosed and fixed it counts, the same discipline
+      agent-cycle-report.schema.json's decisions[].failure/correction
+      already holds, applied here at runtime-event granularity).
+      `verified_by_event_id` optionally names a LATER success event that
+      proves the fix genuinely worked; `commit` optionally names the git
+      commit (from git_commit_event below) that made it, when the fix
+      happened to be committed -- never required. Proven for real, not
+      just schema-shaped: observed for real, a genuine implementation
+      bug (a contract's own enum allowing a value the implementation's
+      internal lookup table didn't handle) was actually triggered
+      through a real Bridge call, actually fixed, actually re-verified
+      with a real successful call, and `record_resolution` actually
+      linked all three real `event_id`s together.
   git_commit_event:
     location: blueprint/dep/git_commit_event.py
     role: >

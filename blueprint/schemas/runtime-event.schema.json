@@ -1,119 +1,163 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Runtime Event",
-  "description": "One real Bridge call, success or failure -- written by blueprint.dep.runtime_log, hooked into a Bridge's own handle() (2-RULES.md glossary: runtime event). Distinct from verification-record.schema.json: that record is written once per verified CYCLE, by a harness; this event is written once per CALL, by the Bridge itself, for every real call it ever handles -- harness-scripted or genuine production traffic alike.",
-  "type": "object",
-  "required": [
-    "event_id",
-    "timestamp",
-    "request_id",
-    "capability_id",
-    "operation",
-    "contract_version",
-    "input",
-    "trace",
-    "outcome"
+  "description": "Two kinds of event, both written by blueprint.dep.runtime_log into the same JSONL stream (2-RULES.md glossary: runtime event). A 'capability_call' event: one real Bridge call, success or failure -- hooked into a Bridge's own handle(), written once per call, for every call it ever handles. A 'resolution' event: an EXPLICIT record of how a prior capability_call failure was fixed -- written deliberately by whoever (agent or human) actually diagnosed and fixed it, never auto-inferred from a later success (Bridge.handle can't know a later success was a deliberate fix vs. coincidence, so this stays a deliberate act, the same discipline agent-cycle-report.schema.json's decisions[].failure/correction already holds). Distinct from verification-record.schema.json: that record is written once per verified CYCLE, by a harness; these events are written per CALL and per FIX, by the Bridge and by whoever resolves a failure, harness-scripted or genuine production traffic alike.",
+  "oneOf": [
+    {"$ref": "#/$defs/capability_call"},
+    {"$ref": "#/$defs/resolution"}
   ],
-  "properties": {
-    "event_id": {
-      "type": "string"
-    },
-    "timestamp": {
-      "type": "string",
-      "description": "ISO 8601, UTC -- when the Bridge finished handling this call (success or failure)."
-    },
-    "request_id": {
-      "type": "string",
-      "description": "The BridgeRequest's own request_id."
-    },
-    "capability_id": {
-      "type": "string"
-    },
-    "operation": {
-      "type": "string"
-    },
-    "contract_version": {
-      "type": "string"
-    },
-    "input": {
-      "description": "Copied from BridgeRequest.input verbatim -- same authenticity discipline as verification-record.schema.json's checks[].input."
-    },
-    "trace": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Whatever stages were actually reached -- validated -> discovered -> policy_evaluated -> selected -> executed. Partial (even empty, for a call that failed BridgeRequest.validate() before reaching any stage) on failure -- the same OBSERVED, never-constructed trace verification-record.schema.json's checks[].trace already requires (R8, Gate 28); an empty array here is an honest report of zero stages reached, never padded to look like more happened."
-    },
-    "implementation_id": {
-      "type": "string",
-      "description": "Present once the 'selected' stage was reached; absent for a call that failed before selection."
-    },
-    "selection": {
+  "$defs": {
+    "capability_call": {
       "type": "object",
-      "description": "Bridge-level Decision Context (2-RULES.md glossary) -- present only on a call that reached 'selected'. Same shape as verification-record.schema.json's checks[].selection, copied from the Bridge's own observed response.selection, never invented.",
-      "required": ["capability_id", "operation", "contract_version", "candidates", "selected", "reason"],
+      "required": [
+        "event_id",
+        "timestamp",
+        "request_id",
+        "capability_id",
+        "operation",
+        "contract_version",
+        "input",
+        "trace",
+        "outcome"
+      ],
       "properties": {
-        "capability_id": {"type": "string"},
-        "operation": {"type": "string"},
-        "contract_version": {"type": "string"},
-        "candidates": {
+        "event_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601, UTC -- when the Bridge finished handling this call (success or failure)."
+        },
+        "request_id": {
+          "type": "string",
+          "description": "The BridgeRequest's own request_id."
+        },
+        "capability_id": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "contract_version": {
+          "type": "string"
+        },
+        "input": {
+          "description": "Copied from BridgeRequest.input verbatim -- same authenticity discipline as verification-record.schema.json's checks[].input."
+        },
+        "trace": {
           "type": "array",
-          "minItems": 1,
           "items": {
-            "type": "object",
-            "required": ["implementation_id", "priority"],
-            "properties": {
-              "implementation_id": {"type": "string"},
-              "priority": {"type": "integer"}
+            "type": "string"
+          },
+          "description": "Whatever stages were actually reached -- validated -> discovered -> policy_evaluated -> selected -> executed. Partial (even empty, for a call that failed BridgeRequest.validate() before reaching any stage) on failure -- the same OBSERVED, never-constructed trace verification-record.schema.json's checks[].trace already requires (R8, Gate 28); an empty array here is an honest report of zero stages reached, never padded to look like more happened."
+        },
+        "implementation_id": {
+          "type": "string",
+          "description": "Present once the 'selected' stage was reached; absent for a call that failed before selection."
+        },
+        "selection": {
+          "type": "object",
+          "description": "Bridge-level Decision Context (2-RULES.md glossary) -- present only on a call that reached 'selected'. Same shape as verification-record.schema.json's checks[].selection, copied from the Bridge's own observed response.selection, never invented.",
+          "required": ["capability_id", "operation", "contract_version", "candidates", "selected", "reason"],
+          "properties": {
+            "capability_id": {"type": "string"},
+            "operation": {"type": "string"},
+            "contract_version": {"type": "string"},
+            "candidates": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["implementation_id", "priority"],
+                "properties": {
+                  "implementation_id": {"type": "string"},
+                  "priority": {"type": "integer"}
+                }
+              }
+            },
+            "selected": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
             }
           }
         },
-        "selected": {
+        "evidence": {
+          "type": "object",
+          "description": "Process-kind (executor_kind: process) execution evidence -- present only when the selected implementation ran out-of-process. Same shape as verification-record.schema.json's checks[].evidence.",
+          "required": ["executor_kind", "response_output"],
+          "properties": {
+            "executor_kind": {"type": "string", "const": "process"},
+            "response_output": {"type": "object"},
+            "stdout": {"type": "string"},
+            "stderr": {"type": "string"},
+            "worker_alive": {"type": "boolean"},
+            "process_exit_code": {"type": ["integer", "null"]}
+          }
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["success", "failure"]
+        },
+        "error": {
+          "type": "object",
+          "description": "Present only when outcome is 'failure' -- the Bridge's own BridgeError code/stage/message/details, copied verbatim, never reworded.",
+          "required": ["code", "stage", "message"],
+          "properties": {
+            "code": {"type": "string"},
+            "stage": {"type": "string"},
+            "message": {"type": "string"},
+            "details": {"type": "object"}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"outcome": {"const": "failure"}}, "required": ["outcome"]},
+          "then": {"required": ["error"]}
+        },
+        {
+          "if": {"properties": {"outcome": {"const": "success"}}, "required": ["outcome"]},
+          "then": {"required": ["implementation_id", "selection"]}
+        }
+      ]
+    },
+    "resolution": {
+      "type": "object",
+      "required": ["event_id", "timestamp", "resolves_event_id", "summary", "detail"],
+      "properties": {
+        "event_id": {
           "type": "string"
         },
-        "reason": {
-          "type": "string"
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601, UTC -- when this resolution was recorded, not necessarily when the fix itself was made."
+        },
+        "resolves_event_id": {
+          "type": "string",
+          "description": "The event_id of the capability_call event (outcome: failure) this resolves -- an explicit link, never guessed by matching capability_id/operation or timestamp proximity (2-RULES.md \"No silent defaults on what resolution depends on\")."
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The short, greppable label for what was wrong -- same posture as agent-cycle-report.schema.json's decisions[].failure.summary."
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What was actually changed to fix it -- same posture as decisions[].correction.detail."
+        },
+        "verified_by_event_id": {
+          "type": "string",
+          "description": "Optional: the event_id of a LATER capability_call event (outcome: success) that proves the fix actually worked -- a real, observed re-run, never just a claim that it's fixed."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Optional: the git commit sha (blueprint.dep.git_commit_event) that made this fix, when the fix happened to be committed. Never required -- DEP references git when relevant but never depends on it; a fix not yet committed is still a real, recordable resolution."
         }
       }
-    },
-    "evidence": {
-      "type": "object",
-      "description": "Process-kind (executor_kind: process) execution evidence -- present only when the selected implementation ran out-of-process. Same shape as verification-record.schema.json's checks[].evidence.",
-      "required": ["executor_kind", "response_output"],
-      "properties": {
-        "executor_kind": {"type": "string", "const": "process"},
-        "response_output": {"type": "object"},
-        "stdout": {"type": "string"},
-        "stderr": {"type": "string"},
-        "worker_alive": {"type": "boolean"},
-        "process_exit_code": {"type": ["integer", "null"]}
-      }
-    },
-    "outcome": {
-      "type": "string",
-      "enum": ["success", "failure"]
-    },
-    "error": {
-      "type": "object",
-      "description": "Present only when outcome is 'failure' -- the Bridge's own BridgeError code/stage/message/details, copied verbatim, never reworded.",
-      "required": ["code", "stage", "message"],
-      "properties": {
-        "code": {"type": "string"},
-        "stage": {"type": "string"},
-        "message": {"type": "string"},
-        "details": {"type": "object"}
-      }
     }
-  },
-  "allOf": [
-    {
-      "if": {"properties": {"outcome": {"const": "failure"}}, "required": ["outcome"]},
-      "then": {"required": ["error"]}
-    },
-    {
-      "if": {"properties": {"outcome": {"const": "success"}}, "required": ["outcome"]},
-      "then": {"required": ["implementation_id", "selection"]}
-    }
-  ]
+  }
 }

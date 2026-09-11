@@ -26,14 +26,33 @@ sample/hello_world/backend/runtime/bridge/assembler.py's catalog writer
 already uses for capability-catalog.jsonl. Generic like every other
 blueprint/dep/ tool: `path` is always given by the caller, never
 defaulted.
+
+`record_resolution` records the OTHER half of an error: how a prior
+capability_call failure was actually fixed. Recording only failures and
+never their fixes was the gap that prompted this -- `runtime-events.jsonl`
+could show a call failing, and (assuming the code was later fixed and
+re-run) a LATER call to the same capability succeeding, but nothing ever
+said those two were related, let alone WHAT changed between them. This
+is deliberately NOT auto-inferred from "the next success after a
+failure" -- a later success might be a coincidence (different input, a
+transient dependency recovering, a retry that happened to work), so
+Bridge.handle has no way to know a given success is genuinely the fix
+for a given failure. A resolution is instead an EXPLICIT act by whoever
+(agent or human) actually diagnosed and fixed it, the same discipline
+agent-cycle-report.schema.json's decisions[].failure/correction already
+holds for cycle-level failures -- this is that same idea at runtime-event
+granularity, linked by the failed event's own `event_id`, never guessed
+by matching capability_id/operation or timestamp proximity.
 """
 
 from __future__ import annotations
 
 import json
 import threading
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import jsonschema
 
@@ -63,6 +82,46 @@ class RuntimeEventLog:
             with self._path.open("a", encoding="utf-8") as f:
                 f.write(line)
                 f.write("\n")
+
+    def record_resolution(
+        self,
+        resolves_event_id: str,
+        summary: str,
+        detail: str,
+        verified_by_event_id: Optional[str] = None,
+        commit: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Records an EXPLICIT resolution for a prior capability_call
+        failure (see module docstring) -- never auto-inferred. Returns
+        the event actually written.
+
+        `resolves_event_id` is that failure's own `event_id`, always
+        supplied by the caller, never looked up here by matching
+        capability_id/operation or scanning for "the most recent
+        failure" -- an unstated link is not implicitly "whichever
+        failure seems related" (2-RULES.md "No silent defaults on what
+        resolution depends on"). `verified_by_event_id`, when given, is
+        a LATER capability_call success event's own `event_id` -- a
+        real, observed re-run proving the fix worked, not just a claim.
+        `commit`, when given, is a full git commit sha (typically from
+        `blueprint.dep.git_commit_event`) -- optional, since not every
+        fix is committed immediately and this module never depends on
+        git being present.
+        """
+
+        event: dict[str, Any] = {
+            "event_id": uuid.uuid4().hex,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "resolves_event_id": resolves_event_id,
+            "summary": summary,
+            "detail": detail,
+        }
+        if verified_by_event_id is not None:
+            event["verified_by_event_id"] = verified_by_event_id
+        if commit is not None:
+            event["commit"] = commit
+        self.record(event)
+        return event
 
 
 def read_events(path: Path):

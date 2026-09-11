@@ -105,18 +105,18 @@ class DatasetBuilderTests(unittest.TestCase):
 
     def test_check_ids_join_folds_in_selection_evidence_trace(self):
         decision = {
-            "responsibility": "console.write", "decision": "reuse", "reason": "x",
-            "check_ids": ["call:1:console_write"],
+            "responsibility": "widget.render", "decision": "reuse", "reason": "x",
+            "check_ids": ["call:1:widget_render"],
         }
         report = _cycle_report([decision])
         checks = [{
-            "check_id": "call:1:console_write", "description": "d", "status": "passed",
+            "check_id": "call:1:widget_render", "description": "d", "status": "passed",
             "check_type": "capability_operation",
             "trace": ["validated", "discovered", "policy_evaluated", "selected", "executed"],
             "selection": {
-                "capability_id": "console.write", "operation": "write", "contract_version": ">=2.0.0,<3.0.0",
-                "candidates": [{"implementation_id": "console.write.v2", "priority": 200}],
-                "selected": "console.write.v2", "reason": "highest priority (200) among 1 policy-allowed candidate",
+                "capability_id": "widget.render", "operation": "render", "contract_version": ">=2.0.0,<3.0.0",
+                "candidates": [{"implementation_id": "widget.render.v2", "priority": 200}],
+                "selected": "widget.render.v2", "reason": "highest priority (200) among 1 policy-allowed candidate",
             },
             "evidence": {"executor_kind": "process", "response_output": {}},
         }]
@@ -132,10 +132,10 @@ class DatasetBuilderTests(unittest.TestCase):
         # No check_ids on the decision, even though a check with a
         # similarly-named check_id exists -- the join must never guess by
         # string similarity.
-        decision = {"responsibility": "console.write", "decision": "reuse", "reason": "x"}
+        decision = {"responsibility": "widget.render", "decision": "reuse", "reason": "x"}
         report = _cycle_report([decision])
         checks = [{
-            "check_id": "call:1:console_write", "description": "d", "status": "passed",
+            "check_id": "call:1:widget_render", "description": "d", "status": "passed",
             "check_type": "capability_operation",
             "trace": ["validated", "discovered", "policy_evaluated", "selected", "executed"],
         }]
@@ -149,12 +149,12 @@ class DatasetBuilderTests(unittest.TestCase):
 
     def test_check_ids_join_folds_in_input(self):
         decision = {
-            "responsibility": "console.write", "decision": "reuse", "reason": "x",
-            "check_ids": ["call:1:console_write"],
+            "responsibility": "widget.render", "decision": "reuse", "reason": "x",
+            "check_ids": ["call:1:widget_render"],
         }
         report = _cycle_report([decision])
         checks = [{
-            "check_id": "call:1:console_write", "description": "d", "status": "passed",
+            "check_id": "call:1:widget_render", "description": "d", "status": "passed",
             "check_type": "capability_operation",
             "trace": ["validated", "discovered", "policy_evaluated", "selected", "executed"],
             "input": {"message": "hi"},
