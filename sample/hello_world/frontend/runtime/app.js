@@ -28,6 +28,12 @@
  *     for this runtime's own `remote`-kind implementations
  *     (console.write) -- always explicit; there is no same-origin case.
  *
+ * `eventSink`, when given, is forwarded straight to BridgeCore (see
+ * ./bridge/core.js) -- this file has no opinion on how/whether a real
+ * call gets recorded, only on how the Core itself gets built. A real
+ * browser passes none (no filesystem to write to); the Node-based
+ * harness (implementation/tests/verify.js) passes a real fs-backed one.
+ *
  * createApp is async: assembly fetches the catalog and dynamically
  * imports each Local executor module -- genuinely asynchronous in a
  * browser, never a synchronous filesystem read pretending to be one.
@@ -43,8 +49,8 @@ const DECLARED = {
   greeting_render: { capabilityId: "greeting.render", contractVersion: "1.0.0" },
 };
 
-async function createApp({ selfBaseUrl = "", backendBaseUrl = "", importer } = {}) {
-  const core = new BridgeCore();
+async function createApp({ selfBaseUrl = "", backendBaseUrl = "", importer, eventSink = null } = {}) {
+  const core = new BridgeCore({ eventSink });
   await assembleFromCatalog("/capability-catalog.jsonl", core, {
     selfBaseUrl,
     backendBaseUrl,

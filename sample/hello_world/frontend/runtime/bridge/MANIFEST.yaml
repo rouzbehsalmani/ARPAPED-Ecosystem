@@ -28,7 +28,17 @@ bridge:
       glossary), running in the frontend runtime instead of the backend's.
       Validation is Core-owned here too (checked once, against the
       resolved candidate's own declared input_schema, before any executor
-      runs) -- never per-executor, never duplicated per capability.
+      runs) -- never per-executor, never duplicated per capability. Also
+      returns `selection` (Decision Context) on every response, already
+      built in runtime-event.schema.json's own snake_case shape rather
+      than this file's own camelCase convention, so a consumer never
+      needs a translation step. Optionally calls `eventSink` once per
+      real call, success or failure (blueprint/dep/MANIFEST.yaml:
+      runtime_log) -- this file never imports anything Node-specific to
+      build or persist that event itself (a real browser has no
+      filesystem); whoever constructs this Core (app.js, for a real
+      browser; the Node-based harness, for a real fs-backed sink)
+      decides whether/how one gets wired in.
   registry:
     location: sample/hello_world/frontend/runtime/bridge/core.js
     role: >

@@ -180,8 +180,20 @@ function select(candidates) {
 }
 
 class BridgeCore {
-  constructor() {
+  /** `eventSink`, when given, is called once per real call this Core
+   * handles, success or failure -- the JS mirror of sample/hello_world/backend/runtime/bridge/bridge.py's
+   * own `event_sink` constructor argument (blueprint/dep/MANIFEST.yaml:
+   * runtime_log). This Core never imports anything Node-specific (no
+   * `fs`) to build or write that event itself -- a real browser has no
+   * filesystem, so ANY persistence decision belongs to whoever
+   * constructs this Core (app.js, for a real browser; the Node-based
+   * harness, implementation/tests/verify.js, for a real fs-backed
+   * JSONL sink), never to this file. `eventSink` is a plain callback,
+   * duck-typed, the same decoupling posture the Python Bridge already
+   * has toward its own event_sink. */
+  constructor({ eventSink = null } = {}) {
     this.registry = new Registry();
+    this._eventSink = eventSink;
   }
 
   resolve(capabilityId, operation, contractVersion) {
@@ -192,48 +204,121 @@ class BridgeCore {
   /** The Core pipeline itself -- validated -> discovered -> policy_evaluated
    * -> selected -> executed, the same five stages sample/hello_world/backend/runtime/bridge/bridge.py's
    * Bridge.handle produces, asserted identically by any harness that
-   * exercises this runtime's own Bridge (blueprint/1-CYCLE.md Gate 19). */
+   * exercises this runtime's own Bridge (blueprint/1-CYCLE.md Gate 19).
+   *
+   * Wrapped in try/catch, mirroring bridge.py's own handle(), so a
+   * runtime event (blueprint/schemas/runtime-event.schema.json) can be
+   * recorded for THIS call regardless of outcome -- every throw point
+   * below is already a BridgeError (the one non-BridgeError catch
+   * around the executor call re-wraps it as one), so this single outer
+   * handler covers every failure path. */
   async handle(request) {
     const trace = [];
-    if (!request.requestId || !request.capabilityId || !request.contractVersion || !request.operation) {
-      throw new BridgeError("BRIDGE_INVALID_REQUEST", "validation", "Required request field is empty");
-    }
-    trace.push("validated");
-
-    const discovered = this.registry.discover(request.capabilityId, request.contractVersion, request.operation);
-    trace.push("discovered");
-    if (discovered.length === 0) {
-      throw new BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered");
-    }
-
-    const allowed = discovered.filter((e) => evaluatePolicy(e, request.policyContext).allowed);
-    trace.push("policy_evaluated");
-    if (allowed.length === 0) {
-      throw new BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected");
-    }
-
-    const chosen = select(allowed);
-    trace.push("selected");
-
-    const effectiveInput = applyInputSchema(request.operation, request.input, chosen.inputSchema && chosen.inputSchema[request.operation]);
-
-    let output;
     try {
-      output = await chosen.executor(request.operation, effectiveInput, request.policyContext);
-    } catch (exc) {
-      if (exc instanceof BridgeError) throw exc;
-      throw new BridgeError("BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request", { causeType: exc && exc.name });
-    }
-    trace.push("executed");
+      if (!request.requestId || !request.capabilityId || !request.contractVersion || !request.operation) {
+        throw new BridgeError("BRIDGE_INVALID_REQUEST", "validation", "Required request field is empty");
+      }
+      trace.push("validated");
 
-    return {
-      requestId: request.requestId,
-      capabilityId: request.capabilityId,
-      contractVersion: chosen.contractVersion,
-      implementationId: chosen.implementationId,
-      output,
-      trace,
-    };
+      const discovered = this.registry.discover(request.capabilityId, request.contractVersion, request.operation);
+      trace.push("discovered");
+      if (discovered.length === 0) {
+        throw new BridgeError("BRIDGE_NO_IMPLEMENTATION", "discovery", "No compatible implementation discovered");
+      }
+
+      const allowed = discovered.filter((e) => evaluatePolicy(e, request.policyContext).allowed);
+      trace.push("policy_evaluated");
+      if (allowed.length === 0) {
+        throw new BridgeError("BRIDGE_POLICY_DENIED", "policy", "All compatible candidates were rejected");
+      }
+
+      const chosen = select(allowed);
+      trace.push("selected");
+
+      const effectiveInput = applyInputSchema(request.operation, request.input, chosen.inputSchema && chosen.inputSchema[request.operation]);
+
+      let output;
+      try {
+        output = await chosen.executor(request.operation, effectiveInput, request.policyContext);
+      } catch (exc) {
+        if (exc instanceof BridgeError) throw exc;
+        throw new BridgeError("BRIDGE_EXECUTION_FAILED", "execution", "The selected implementation did not execute the request", { causeType: exc && exc.name });
+      }
+      trace.push("executed");
+
+      // Decision Context (2-RULES.md glossary "selection") -- built
+      // already in the schema's own snake_case shape, unlike every
+      // other field on this response (which stay this file's own
+      // camelCase convention): whatever consumes it (a check dict, a
+      // runtime event) never needs a translation step, and looks
+      // identical whether it came from this Bridge or the backend's.
+      // `allowed`/`chosen` are exactly the locals select() already
+      // computed; nothing here re-derives or re-evaluates anything.
+      // This Core's own select() never fails over (one reduce, not a
+      // ranked retry loop like the backend's), so the reason is always
+      // the highest-priority case -- never a fabricated failover string
+      // for something that can't actually happen here.
+      const selection = {
+        capability_id: request.capabilityId,
+        operation: request.operation,
+        contract_version: request.contractVersion,
+        candidates: allowed.map((e) => ({ implementation_id: e.implementationId, priority: e.priority })),
+        selected: chosen.implementationId,
+        reason: `highest priority (${chosen.priority}) among ${allowed.length} policy-allowed candidate${allowed.length !== 1 ? "s" : ""}`,
+      };
+
+      const response = {
+        requestId: request.requestId,
+        capabilityId: request.capabilityId,
+        contractVersion: chosen.contractVersion,
+        implementationId: chosen.implementationId,
+        output,
+        trace,
+        selection,
+      };
+
+      if (this._eventSink) {
+        this._eventSink({
+          event_id: cryptoRandomId(),
+          timestamp: new Date().toISOString(),
+          request_id: request.requestId,
+          capability_id: request.capabilityId,
+          operation: request.operation,
+          contract_version: chosen.contractVersion,
+          input: request.input === undefined ? null : request.input,
+          trace,
+          implementation_id: chosen.implementationId,
+          selection,
+          outcome: "success",
+        });
+      }
+
+      return response;
+    } catch (exc) {
+      if (this._eventSink) {
+        const bridgeExc = exc instanceof BridgeError ? exc : null;
+        this._eventSink({
+          event_id: cryptoRandomId(),
+          timestamp: new Date().toISOString(),
+          request_id: request.requestId || "",
+          capability_id: request.capabilityId || "",
+          operation: request.operation || "",
+          contract_version: request.contractVersion || "",
+          input: request.input === undefined ? null : request.input,
+          trace,
+          outcome: "failure",
+          error: bridgeExc
+            ? {
+              code: bridgeExc.code,
+              stage: bridgeExc.stage,
+              message: bridgeExc.bridgeMessage,
+              ...(bridgeExc.details ? { details: bridgeExc.details } : {}),
+            }
+            : { code: "BRIDGE_EXECUTION_FAILED", stage: "execution", message: String(exc && exc.message ? exc.message : exc) },
+        });
+      }
+      throw exc;
+    }
   }
 }
 

@@ -218,3 +218,25 @@ backend's own harness (`../backend/implementation/tests/verify/verify.py`)
 starts both a real backend API and a separate test-only static server
 for `runtime/`, then shells out to it with both URLs and folds its
 check into the same verification record (blueprint/1-CYCLE.md Gate 19).
+
+## Runtime events
+
+This runtime's own Bridge Core (`bridge/core.js`) records the same kind
+of runtime event the backend's Bridge does (`../backend/README.md`
+"Runtime events", `blueprint/dep/MANIFEST.yaml: runtime_log`) — one per
+real call, success or failure, including a nested call (`greeting.render`
+composing `console.write` as `executor_kind: remote`) as its own
+independent event, not just the top-level one a script happens to make.
+`core.js` itself never imports anything Node-specific to do this — a
+real browser has no filesystem, so it only ever calls an `eventSink`
+callback if one was given; persisting it is entirely the caller's
+decision. `index.html` (a real browser) passes none. `implementation/tests/verify.js`
+(the Node-based harness) passes a real one, writing
+`state/runtime-events.jsonl` — proven for real: running the full harness
+produces schema-valid events here (`blueprint/schemas/runtime-event.schema.json`,
+the SAME schema the backend's own events validate against) for both the
+`greeting.render` call and its nested `console.write` one, while the
+backend's own `state/runtime-events.jsonl` independently records ITS
+side of that same distributed call (a real incoming HTTP request) —
+two different vantage points of one real interaction, neither guessing
+at what the other saw.

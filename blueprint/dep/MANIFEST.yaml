@@ -328,7 +328,17 @@ dep:
       `state/runtime-events.jsonl` as its own independent event, not
       just the top-level ones a script happens to make). `read_events(path)`
       is the read-side counterpart, for anything that later consumes
-      this log. `record_resolution(resolves_event_id, summary, detail,
+      this log. runtime-event.schema.json is the actual contract here,
+      not any one language's implementation of it -- proven for real by
+      the frontend runtime's own Bridge Core, a separate implementation
+      entirely (no shared code, can't import this module across
+      runtimes) that independently builds and writes its own
+      schema-valid events into its own `state/runtime-events.jsonl`,
+      recording that runtime's own view of a real distributed call (e.g.
+      its own outgoing `executor_kind: remote` request) alongside this
+      module's record of the backend's side of that same call -- two
+      vantage points of one interaction, neither guessing at what the
+      other observed. `record_resolution(resolves_event_id, summary, detail,
       verified_by_event_id=None, commit=None)` records the OTHER half of
       an error: an EXPLICIT record of how a prior capability_call
       failure was actually fixed, linked by that failure's own

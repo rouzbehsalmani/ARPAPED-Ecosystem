@@ -23,8 +23,18 @@
  * browser's native import() resolves an http(s) URL directly. `nodeImporter`
  * below exists ONLY for that; app.js's default behavior (no override) IS
  * the real browser behavior, never touched in production use.
+ *
+ * The SECOND Node-specific accommodation: `fsEventSink` below, passed as
+ * app.js's own `eventSink` option -- a real browser has no filesystem to
+ * persist a runtime event to (blueprint/schemas/runtime-event.schema.json,
+ * blueprint/dep/MANIFEST.yaml: runtime_log), but this harness runs in
+ * Node, which does. Writes ../../state/runtime-events.jsonl, the same
+ * JSONL-per-call shape ../../../backend/state/runtime-events.jsonl
+ * already uses -- both validate against the same schema, so a reader
+ * never needs to know which runtime produced a given line.
  */
 
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -32,6 +42,12 @@ import { createApp } from "../../runtime/app.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME_ROOT = path.resolve(__dirname, "../../runtime");
+const RUNTIME_EVENTS_PATH = path.resolve(__dirname, "../../state/runtime-events.jsonl");
+
+function fsEventSink(event) {
+  fs.mkdirSync(path.dirname(RUNTIME_EVENTS_PATH), { recursive: true });
+  fs.appendFileSync(RUNTIME_EVENTS_PATH, `${JSON.stringify(event)}\n`, "utf-8");
+}
 
 function nodeImporter(specifier) {
   const url = new URL(specifier);
@@ -51,18 +67,21 @@ async function main() {
 
   const checks = [];
 
+  const input = { name: "ARPAPED (via the frontend Bridge)" };
   try {
-    const app = await createApp({ backendBaseUrl, selfBaseUrl, importer: nodeImporter });
+    const app = await createApp({ backendBaseUrl, selfBaseUrl, importer: nodeImporter, eventSink: fsEventSink });
     const handle = app.resolve("greeting_render", "render");
-    const response = await handle.call({ name: "ARPAPED (via the frontend Bridge)" });
+    const response = await handle.call(input);
     const traceJson = JSON.stringify(response.trace);
     const status = traceJson === EXPECTED_TRACE ? "passed" : "failed";
     const check = {
       check_id: "call:1:greeting_render (frontend)",
+      input,
       description: `greeting_render.render reaches every stage through ${response.implementationId}, composing a Remote console.write call`,
       status,
       check_type: "capability_operation",
       trace: response.trace,
+      selection: response.selection,
     };
     if (status === "failed") {
       check.observed = `expected ${EXPECTED_TRACE}, got ${traceJson}`;
