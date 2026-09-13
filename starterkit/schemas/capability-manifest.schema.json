@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ARPAPED Capability Manifest",
+  "description": "Machine-readable declaration of a capability contract and the executor references that implement it. Lives with the capability's generic footprint (R3), one entry per implementation. Consumed by the generic assembler during the Publish phase (Phase 8) to build and register implementation records into the canonical Registry.",
+  "type": "object",
+  "required": [
+    "capability_id",
+    "contract_version",
+    "implementations"
+  ],
+  "properties": {
+    "capability_id": {
+      "type": "string",
+      "description": "Generic capability identity per R1 as domain.operation. Never product-prefixed."
+    },
+    "contract": {
+      "type": "string",
+      "description": "Path or identity of the contract artifact that machine-defines this capability (R2)."
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Version of the capability contract this manifest binds to."
+    },
+    "implementations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "implementation_id",
+          "version",
+          "operations",
+          "executor",
+          "priority"
+        ],
+        "properties": {
+          "implementation_id": {
+            "type": "string",
+            "description": "Unique identifier of this implementation record."
+          },
+          "version": {
+            "type": "string",
+            "description": "Package version of this implementation."
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Contract operations this implementation provides."
+          },
+          "executor": {
+            "type": ["string", "array"],
+            "items": {"type": "string"},
+            "description": "Reference to the executor. For executor_kind 'direct' or 'factory' (the default 'direct'), this is always a string, 'module:attr'. For executor_kind 'process', this instead names a program to run, spawned once at assembly time and reached over the process executor protocol (starterkit/schemas/process-executor-protocol.schema.json) that mirrors the same execute(operation, input, policy) -> output contract -- a single command string (e.g. a compiled binary), or an argv list when an interpreter and a script are both needed (e.g. [\"python\", \"path/to/executor.py\"]). For executor_kind 'remote', this instead names an address (a URL, a host+port -- whatever locates the OTHER runtime's own Bridge Adapter), never a module path or a program to spawn; requests to it are shaped by starterkit/schemas/bridge-protocol.schema.json, not the process protocol (2-RULES.md R4: a Remote call reaches a whole separate Bridge, which needs the full request shape to run its own discovery/policy/selection, not just an operation/input/policy triple). The component is reached only by the Bridge; it never registers itself. When executor_kind is 'factory', 'module:attr' names a factory — (dependencies) -> executor — called once at assembly time."
+          },
+          "executor_kind": {
+            "type": "string",
+            "enum": ["direct", "factory", "process", "remote"],
+            "default": "direct",
+            "description": "'direct' (default): executor IS the registration-unaware executor -- Local execution (2-RULES.md R4), same runtime as the Bridge Core. 'factory': executor is invoked once at assembly time with a Dependencies scoped to this contract's dependencies.capabilities (R4), and its return value becomes the executor — for a capability that needs live access to another capability during its own execution, not just pre-computed input from its caller -- also Local. 'process': executor names a program, spawned once at assembly time, that becomes the executor — Worker execution: a sibling process on the same machine, for a capability implemented in a language other than the resolved Bridge's own (starterkit/backend/runtime/bridge/MANIFEST.yaml). 'remote': executor names an address reaching another runtime's own Bridge Adapter entirely -- Remote execution: a genuinely separate Bridge (its own Registry/Policy/Selector), not a same-machine sibling process, for a capability that only exists in a different runtime (e.g. a browser-side Bridge depending on a backend-only capability)."
+          },
+          "priority": {
+            "type": "integer",
+            "description": "Higher number = higher precedence = selected first among candidates that already match a request's other constraints (version, policy, health). No default: every implementation must state its own precedence explicitly rather than silently inheriting an implicit one (blueprint/2-RULES.md 'The Registry contract')."
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "healthy": {
+            "type": "boolean",
+            "default": true
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -398,8 +398,8 @@ must never re-decide a responsibility that already reached this status.
 **What.** Create or adjust components only where the decision requires it.
 
 **Do.** For a new component, follow creation order per R7 — contract artifact
-first (validated against `sample/schemas/component-contract.schema.json`), then
-capability manifest (validated against `sample/schemas/capability-manifest.schema.json`,
+first (validated against `starterkit/schemas/component-contract.schema.json`), then
+capability manifest (validated against `starterkit/schemas/capability-manifest.schema.json`,
 declaring the executor reference, which may name a not-yet-existing module),
 then the concrete registration-unaware executor code
 (`execute(operation, input, policy) -> output`) — and satisfy R1–R4. Before

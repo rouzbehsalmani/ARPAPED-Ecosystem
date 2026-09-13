@@ -12,7 +12,7 @@ port, possibly in a stale state from several restarts ago. The next
 still be listening, not the one just started -- confusing, non-
 reproducible failures that have nothing to do with the code under test.
 
-Not a capability: like a sample's own catalog-building tooling and
+Not a capability: like an application's own catalog-building tooling and
 episode_store (blueprint/dep/MANIFEST.yaml), this
 is tooling for the cycle itself (Phase 7's own reliability), not domain
 logic reached through the Bridge.
@@ -185,7 +185,7 @@ def tcp_ready_check(host: str, port: int, timeout: float = 0.5) -> Callable[[], 
     speaking TCP). Returns a zero-argument callable -- pass it straight
     to `start(..., ready_check=tcp_ready_check(host, port))` -- rather
     than every caller hand-writing the same connect-and-catch-OSError
-    snippet. Generic across every sample/application that needs this,
+    snippet. Generic across every application that needs this,
     same posture as everything else in this module: no default
     `host`/`port` baked in, always given explicitly by the caller.
 

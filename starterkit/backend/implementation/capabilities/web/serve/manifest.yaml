@@ -1,0 +1,17 @@
+# Starter kit capability manifest, valid against starterkit/schemas/capability-manifest.schema.json.
+# Co-located with its executor, per R3.
+#
+# executor_kind: factory -- declares log.write as a dependency
+# (../../../contracts/web.serve.contract.yaml) and needs live access to it
+# to dispatch an incoming remote request, so its executor is a factory:
+# (dependencies) -> executor, invoked once at assembly time. See executor.py.
+capability_id: web.serve
+contract: starterkit/backend/implementation/contracts/web.serve.contract.yaml
+contract_version: "1.0.0"
+implementations:
+  - implementation_id: web.serve.default
+    version: "1.0.0"
+    operations: [start, stop]
+    executor: starterkit.backend.runtime.capabilities.web.serve.executor:make_executor
+    executor_kind: factory
+    priority: 100

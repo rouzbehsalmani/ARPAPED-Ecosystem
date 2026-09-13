@@ -8,7 +8,7 @@ nothing else here, read this one rule: **default to capability.** Any
 distinct need — including things that look like plain infrastructure
 (reading input, tracking time, dispatching a command) — gets a contract,
 manifest, and executor, wired through the Bridge already implemented at
-`sample/hello_world/backend/runtime/bridge/`. The only structural exception is the single request-construction
+`starterkit/backend/runtime/bridge/`. The only structural exception is the single request-construction
 point (defined below); the entry point itself is ordinary consumer code, per
 R1. A class with several methods that directly mutate application state is a
 sign you're about to repeat the mistake — stop and decompose it into
@@ -28,28 +28,28 @@ current reference implementation happens to be Python, but
 the Bridge's own manifest, and nothing in this file should be read as
 requiring Python specifically; if DEP is ever reimplemented in a
 different language, only that manifest changes. Wherever an exact shape
-matters, this file points at `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`
+matters, this file points at `starterkit/backend/runtime/bridge/MANIFEST.yaml`
 (which Bridge role lives where), `blueprint/dep/MANIFEST.yaml` (which DEP
-role lives where), and `sample/hello_world/` (a real, runnable sample
+role lives where), and `starterkit/` (a real, runnable starter kit
 app) instead of restating any of it in prose.
 
 ## 0. What already exists here — use it, never reinvent it
 
 A REFERENCE canonical Bridge, Registry, Policy engine, Selector, and
 assembler already exist in this repo, under
-`sample/hello_world/backend/runtime/bridge/` (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`
-names exactly where each one lives and what it does); `sample/schemas/`
+`starterkit/backend/runtime/bridge/` (`starterkit/backend/runtime/bridge/MANIFEST.yaml`
+names exactly where each one lives and what it does); `starterkit/schemas/`
 holds the schemas that define contract, manifest, trace, and catalog
 shapes (this cycle's own record shapes -- cycle input/report,
 verification record, checkpoint -- live separately in
 `blueprint/schemas/`, alongside this file).
 
 **"Ecosystem" is scoped per APPLICATION, never per repo.** This repo is
-not one application; it's a home for however many independent worked
-samples/applications end up here (`sample/hello_world/`, and others
+not one application; it's a home for however many independent
+applications end up here (`starterkit/`, and others
 alongside it). Two genuinely different situations, never conflated:
 
-- **Adding a capability to an EXISTING application** (e.g. hello_world
+- **Adding a capability to an EXISTING application** (e.g. `starterkit/`
   itself): that application's own ecosystem root already exists.
   Resolve ITS ALREADY-ESTABLISHED Bridge from its own MANIFEST.yaml and
   read that implementation's own source for its actual language and
@@ -58,8 +58,8 @@ alongside it). Two genuinely different situations, never conflated:
   edit anything under its own `bridge/` — only resolve and call it.
   `contracts/` already exists for it; you add to it as you add
   capabilities.
-- **Building a genuinely NEW, independent application** (a new sample,
-  a new product -- anything that does not already have an ecosystem
+- **Building a genuinely NEW, independent application** (a new starter
+  kit, a new product -- anything that does not already have an ecosystem
   root in this repo): this is a DIFFERENT ecosystem. It gets its OWN
   Bridge, Registry, Policy, Selector, and assembler, under THAT
   application's own tree -- copied or ported from the reference
@@ -71,7 +71,7 @@ alongside it). Two genuinely different situations, never conflated:
   create it, under THAT application's own root, as you add
   capabilities. Observed for real, the failure this causes when
   skipped: a second, unrelated application imported
-  `sample.hello_world.backend.runtime.bridge` directly instead of
+  `starterkit.backend.runtime.bridge` directly instead of
   resolving its own -- the new application could not run, or even be
   copied into a real deployment, without the first, unrelated
   application's tree also being present. Two independent applications
@@ -89,7 +89,7 @@ Before decomposing the goal:
 
 - [ ] **First, decide which of section 0's two cases this goal is** (Gate
       35): does the goal continue an application that already has an
-      ecosystem root in this repo (e.g. `sample/hello_world/`), or does
+      ecosystem root in this repo (e.g. `starterkit/`), or does
       it need a NEW, independent one? Get this wrong and everything below
       resolves against the wrong application's Bridge.
 - [ ] **Existing application:** confirm that application's own
@@ -97,11 +97,11 @@ Before decomposing the goal:
       the implementation and schemas it points at. This satisfies
       "resolve the canonical Bridge/Registry" (Gates 1, 2) without
       inventing anything (Gate 3).
-- [ ] **New, independent application:** establish its own root under
-      `sample/` (never reusing or nesting inside an existing
-      application's root), then give it its own Bridge, Registry,
+- [ ] **New, independent application:** establish its own root at the
+      repository root, alongside `starterkit/` (never reusing or nesting
+      inside an existing application's root), then give it its own Bridge, Registry,
       Policy, Selector, and assembler -- copied or ported from
-      `sample/hello_world/backend/runtime/bridge/`'s reference
+      `starterkit/backend/runtime/bridge/`'s reference
       implementation into THIS application's own tree, with its own
       MANIFEST.yaml -- before resolving anything else. Never import the
       reference implementation's module directly from the new
@@ -242,7 +242,7 @@ own needs:**
 - Do I define a contract, manifest, and component for it instead? **Yes.**
 - Is this code the entry point / `main` / `run`? [if yes] Does that change
   anything? **No** — should I bypass the Bridge? **No.** Resolve the Bridge
-  per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` and start from there. Everything passes through
+  per `starterkit/backend/runtime/bridge/MANIFEST.yaml` and start from there. Everything passes through
   the Bridge.
 
 ## 3. Per capability: contract → manifest → code, in that order (Phase 5, R7)
@@ -250,7 +250,7 @@ own needs:**
 For every capability from step 2:
 
 1. **Contract first** — `contracts/<domain>.<operation>.contract.yaml`,
-   valid against `sample/schemas/component-contract.schema.json`. That schema
+   valid against `starterkit/schemas/component-contract.schema.json`. That schema
    sets `additionalProperties: false` at every level, so only these keys
    exist: top-level `contract:` wrapping REQUIRED `identity` (`id, name,
    version, domain, family, type` — `type` is exactly `capability`,
@@ -264,11 +264,11 @@ For every capability from step 2:
    `dependencies`, `discoverability`, `versioning`, `lineage` (`policy` and
    `runtime` are optional and may be omitted). Validate it before moving on.
 2. **Manifest second** — a capability manifest valid against
-   `sample/schemas/capability-manifest.schema.json`: top-level
+   `starterkit/schemas/capability-manifest.schema.json`: top-level
    `capability_id`, `contract_version`, `implementations[]` (each:
    `implementation_id`, `version`, `operations[]`, an `executor` locator
    whose exact notation depends on the language you resolved per
-   `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, and `priority` — an integer with no default;
+   `starterkit/backend/runtime/bridge/MANIFEST.yaml`, and `priority` — an integer with no default;
    higher number means higher precedence). Do this only after the contract
    validates.
 3. **Code third** — the executor: an operation `execute` taking (operation,
@@ -285,18 +285,18 @@ pre-computed input its caller already resolved) is the one case with a
 different manifest shape: set `executor_kind: factory` on that
 implementation entry, and point `executor` at a factory — `(dependencies) ->
 executor` — instead of the executor itself, resolved from the same
-canonical Bridge per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. It may only call what its own
+canonical Bridge per `starterkit/backend/runtime/bridge/MANIFEST.yaml`. It may only call what its own
 contract declared under `dependencies.capabilities` (R4) — never invent a
 different wiring locally, and never reach the Bridge any other way.
 
-A minimal, runnable sample of this exact shape (contract → manifest →
+A minimal, runnable starter kit of this exact shape (contract → manifest →
 executor → request-construction point → entry point) lives at
-`sample/hello_world/` — its own `README.md` explains how to run it and
+`starterkit/` — its own `README.md` explains how to run it and
 what it does; this file does not restate that content, and never will,
-so this file never goes stale just because the sample's own shape
+so this file never goes stale just because the starter kit's own shape
 changes. This Blueprint never constrains what interface an application
 presents (console, web, GUI, or otherwise — see step 6 for how any of
-them stays verifiable). It is one sample, not the shape every
+them stays verifiable). It is one starter kit, not the shape every
 application must take: copy the wiring pattern, never its own domain
 content, into a real capability.
 
@@ -306,7 +306,7 @@ In a real application, exactly ONE module owns building requests and calling
 the Bridge's handle operation — e.g. `app/requests`. It does three things,
 in order, at load time: build a registry; assemble every capability manifest
 into it (step 5); construct the Bridge from that registry plus the policy
-and selector resolved per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. It then exposes one
+and selector resolved per `starterkit/backend/runtime/bridge/MANIFEST.yaml`. It then exposes one
 operation — call it with a capability id, an operation name, and input — that
 builds a request (a fresh id each time, plus a default policy context) and
 passes it to the Bridge's handle operation.
@@ -341,6 +341,23 @@ imported — for a capability implemented in a language other than this
 Bridge's own. Whatever launches it is still bound by the same duty as any
 other launched service (R5, gate 6): verify, synchronously and promptly,
 that it actually started before treating it as available, never assume.
+
+**Neither half is mandatory, and "the backend" doesn't have to mean a web
+server.** `starterkit/`'s own two-runtime, HTTP-connected shape (a
+backend AND a frontend, joined by a `web.serve`-style capability) is one
+worked example of the full pattern -- not a minimum every application
+must reach. A goal might need only one runtime at all (a CLI tool or
+batch job with no separate consumer surface: everything happens in one
+process, one Bridge, nothing else to build); or a backend with no
+frontend (a service other services or scripts call into, nothing user-
+facing of its own); or a frontend with no backend that outlives the
+request (a purely local desktop/CLI client whose own Bridge is the only
+one that ever needs to exist). And when a backend DOES exist, exposing
+it over HTTP is one way to make it reachable from another runtime -- not
+the only one (a CLI's own stdin/stdout, a message queue, a socket are
+just as legitimate), and not required at all for a backend nothing else
+calls into yet. Decide this from the goal (Phase 0/1), never by default
+from what `starterkit/` happens to demonstrate.
 
 **R6 does not stop at the backend — every entry point is its own runtime,
 and every runtime needs its own Bridge.** "Every other module... calls
@@ -398,11 +415,11 @@ actually uses, not just the backend capability in isolation (Gate 19).
 
 As part of building the request-construction point (step 4), register every
 capability once, at load time, using the assembler resolved per
-`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`. This is the only place assembly/registration runs.
+`starterkit/backend/runtime/bridge/MANIFEST.yaml`. This is the only place assembly/registration runs.
 
 For a handful of capabilities, walking `capabilities/` directly and
 assembling each manifest found is fine. It stops scaling once there are more
-than a handful — see the worked sample below, which instead registers from a
+than a handful — see the starter kit below, which instead registers from a
 generated capability catalog (built once, at Publish time, from the same
 `capabilities/` tree) so startup never has to walk and re-parse it; see
 2-RULES.md "The Registry contract" for why authoring-time discovery needs
@@ -413,8 +430,8 @@ the same catalog.
 Lives outside the application packages, e.g. `tests/verify`. It must:
 
 - Confirm every contract validates against
-  `sample/schemas/component-contract.schema.json` and every manifest against
-  `sample/schemas/capability-manifest.schema.json` — a prerequisite the harness
+  `starterkit/schemas/component-contract.schema.json` and every manifest against
+  `starterkit/schemas/capability-manifest.schema.json` — a prerequisite the harness
   itself checks, not a final afterthought tacked on after the operation
   checks below.
 - Reuse the SAME Bridge the request-construction point builds — never
@@ -424,7 +441,7 @@ Lives outside the application packages, e.g. `tests/verify`. It must:
   `validated → discovered → policy_evaluated → selected → executed` — copied
   from the observed response, never hand-written.
 - Run every capability-operation check under a bounded per-stage timeout
-  resolved from the canonical Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`), never an
+  resolved from the canonical Bridge (`starterkit/backend/runtime/bridge/MANIFEST.yaml`), never an
   unbounded wait. A stage that never progresses is a hard failure (R5) —
   record it with whatever partial trace was actually observed before the
   timeout, never a reason to wait longer or retry silently. This matters
@@ -540,7 +557,7 @@ would have silently drifted the moment either one changed.
   `blueprint/dep/` itself — an application's own episodes live under its
   own tree (e.g. `state/episodes/`, alongside `state/verification-record.json`),
   the same way its own `capability-catalog.jsonl` already does, not inside
-  `sample/hello_world/backend/runtime/bridge/`. This ONE call refuses to
+  `starterkit/backend/runtime/bridge/`. This ONE call refuses to
   record anything at all if the verification record's own `status` isn't
   `"verified"`, or if the catalog's declared dependency graph contains a
   cycle (Gate 30) — naming the exact cycle found (e.g. `"a -> b -> a"`)
@@ -553,9 +570,9 @@ would have silently drifted the moment either one changed.
   --verification-record ... --catalog ... --episodes-dir ... [--checkpoint ...]`
   as a subprocess call — the one thing that makes Gate 31 satisfiable from
   a JS frontend's own `verify.js` (Gate 19) or any other non-Python
-  harness, not just a Python one. See `sample/hello_world/backend/README.md`
-  for a worked example (this file never restates a sample's own concrete
-  files or their language, same posture as section 0 toward the Bridge).
+  harness, not just a Python one. See `starterkit/backend/README.md`
+  for a worked example (this file never restates the starter kit's own
+  concrete files or their language, same posture as section 0 toward the Bridge).
 - The resulting state — `contracts/`, `capabilities/`, `app/`, `tests/`,
   `state/verification-record.json`, the report, and the recorded episode
   in `state/episodes/` — is everything the next cycle needs. No private

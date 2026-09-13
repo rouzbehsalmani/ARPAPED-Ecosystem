@@ -1,7 +1,7 @@
 """Synthetic round-trip coverage for blueprint/dep/finish_cycle.py -- the
 only regression coverage any blueprint/dep/ tool has today, added here
-because no sample/ is touched to prove this one instead (see the plan
-this module was built from). Stdlib unittest + tempfile only, matching
+because no starter kit is touched to prove this one instead (see the
+plan this module was built from). Stdlib unittest + tempfile only, matching
 the fact that nothing in blueprint/dep/ declares a test dependency beyond
 jsonschema/yaml.
 

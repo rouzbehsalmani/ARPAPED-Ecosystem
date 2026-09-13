@@ -1,0 +1,58 @@
+# Starter kit contract artifact, valid against starterkit/schemas/component-contract.schema.json.
+# Part of the starter kit's backend (../../README.md), following
+# blueprint/0-WALKTHROUGH.md step 3's layout. Copy the shape, not
+# the domain content.
+#
+# One contract, one version, TWO peer implementations
+# (../capabilities/log/write/, priority 100, direct/in-process; and
+# ../capabilities/log/write_process/, priority 50, out-of-process in a
+# different language) -- proves real discovery/policy/selection across
+# genuinely competing candidates for one unpinned name, and that a
+# capability can run out-of-process in another language (R4/R5),
+# without needing two contract versions to do either.
+contract:
+  identity:
+    id: log.write
+    name: Log Write
+    version: "1.0.0"
+    domain: log
+    family: log
+    type: capability
+  responsibility:
+    description: Writes one log line at a given severity level.
+    invariants:
+      - does not modify its input
+  versions:
+    "1.0.0":
+      operations:
+        - name: write
+          description: Writes message to the log at the given level.
+          input:
+            - name: message
+              type: string
+              required: true
+              description: The log line's own text.
+            - name: level
+              type: string
+              required: false
+              default: info
+              enum: [info, warn, error]
+              description: Severity level -- "info" (default), "warn", or "error".
+          output:
+            type: object
+            description: Empty object on success.
+          errors: []
+  dependencies:
+    capabilities: []
+    components: []
+    resources: []
+  discoverability:
+    tags: [log]
+    metadata: {}
+  versioning:
+    compatibility: backward
+    deprecation_policy: none
+  lineage:
+    created_by: walkthrough-starterkit
+    changed_by: walkthrough-starterkit
+    history: []

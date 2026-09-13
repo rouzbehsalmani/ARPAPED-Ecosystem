@@ -7,14 +7,14 @@ problems (blueprint/dep/MANIFEST.yaml: finish_cycle):
    connects a verification_record to an episode, so a fully schema-valid
    status: "verified" record could exist with no episode at all.
    episode_store.save_episode was called from exactly ONE file in this
-   repo's entire sample/ tree -- and even that one caller never called
+   repo's entire starterkit/ tree -- and even that one caller never called
    checkpoint.clear_checkpoint either. There is no non-Python port of
    either module, so a frontend's own JS verification harness (which Gate
    19 requires to exist for every shipped frontend) had no first-party way
    to comply even if it remembered to.
 2. 2-RULES.md R4's acyclic-dependency-graph claim ("an ecosystem's assembler
    verifies this before anything is registered") had ZERO implementation
-   anywhere -- not in blueprint/dep/, not in any sample's own assembler.
+   anywhere -- not in blueprint/dep/, not in any application's own assembler.
 
 Both are decided here, together, as one publish-time act, the same way
 episode_store/checkpoint already refuse half-measures elsewhere (an episode

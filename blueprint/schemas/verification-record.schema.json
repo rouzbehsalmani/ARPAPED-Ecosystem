@@ -119,7 +119,7 @@
               },
               "reason": {
                 "type": "string",
-                "description": "Deterministic, honest wording, e.g. \"highest priority (200) among 2 policy-allowed candidates\", or, after a failover, \"priority 150 selected after console.write.v2 failed over, among 2 policy-allowed candidates\". Never a vague 'best match'."
+                "description": "Deterministic, honest wording, e.g. \"highest priority (200) among 2 policy-allowed candidates\", or, after a failover, \"priority 150 selected after widget.render.v2 failed over, among 2 policy-allowed candidates\". Never a vague 'best match'."
               }
             }
           },
@@ -135,7 +135,7 @@
               },
               "stdout": {
                 "type": "string",
-                "description": "Raw bytes (UTF-8, errors='replace') the worker wrote to its own OS-level stdout during the span this invocation exclusively held its worker connection. Genuinely empty for an implementation whose responsibility never prints (e.g. greeting.compose.process, which only makes a nested Bridge call) and genuinely non-empty for one whose responsibility IS to print (e.g. console.write.process) -- never assumed empty."
+                "description": "Raw bytes (UTF-8, errors='replace') the worker wrote to its own OS-level stdout during the span this invocation exclusively held its worker connection. Genuinely empty for an implementation whose responsibility never prints (e.g. one that only makes a nested Bridge call) and genuinely non-empty for one whose responsibility IS to print -- never assumed empty."
               },
               "stderr": {
                 "type": "string",

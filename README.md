@@ -26,7 +26,7 @@ authoritative ecosystem root.
 
 1. **`blueprint/0-WALKTHROUGH.md` — about to build something? Start here.** It turns
    the phases and rules below into literal file paths, imports, and commands
-   for this repository, including a small runnable sample app showing the
+   for this repository, including a small runnable starter kit showing the
    contract → manifest → executor → Bridge wiring end to end.
 2. `blueprint/1-CYCLE.md` — the 9-phase spine: bootstrap, then Understand → Decompose →
    Discover → Decide → Implement → Integrate → Verify → Publish → Return
@@ -36,14 +36,15 @@ authoritative ecosystem root.
    through the Bridge" enforceable rather than aspirational.
 
 Contract, manifest, and cycle-report shapes are formally defined in
-`blueprint/schemas/` (this cycle's own record shapes) and `sample/schemas/`
+`blueprint/schemas/` (this cycle's own record shapes) and `starterkit/schemas/`
 (bridge/contract/manifest shapes), and demonstrated concretely in
-`sample/hello_world/` — there is no separate template document.
+`starterkit/` — which **is** the template: copy it directly rather than
+building the wiring from scratch (see "A real starter kit" below).
 
 Manifests and contract artifacts are machine-validated against the schemas in
-`sample/schemas/` (`capability-manifest`, `component-contract`, and friends), and
+`starterkit/schemas/` (`capability-manifest`, `component-contract`, and friends), and
 registration is performed by the generic assembler resolved via
-`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`.
+`starterkit/backend/runtime/bridge/MANIFEST.yaml`.
 
 The cycle is hardened so a result cannot silently bypass the ecosystem: **R7**
 mandates contract → manifest → code order, **R8** makes the canonical Bridge
@@ -52,13 +53,25 @@ in the harness), and conformance gates 25–28 (in `blueprint/1-CYCLE.md`) enfor
 bootstrap resolution record, contract-first creation, Bridge-only execution,
 and trace authenticity (traces must be the Bridge's observed `response.trace`).
 
-## This is not a worked product
+## A real starter kit
 
-No concrete application is embedded here, and no concrete evaluation
-scenario is embedded here — an embedded product would become a second
-source of truth and invite literal copying. `blueprint/0-WALKTHROUGH.md` does contain
-small, deliberately trivial wiring skeletons (a single toy capability, and a
-handful composed together) — copy their *shape* (contracts, manifests, the
-request-construction pattern), never their toy domain content. The
-templates and contract formats are the shape; the Blueprint defines the
-reusable operating system for the self-improving cycle.
+`starterkit/` is a genuinely endorsed, copy-from-here template — not a
+mere illustration to read and reimplement from scratch. It's a small,
+real, runnable application (a Python backend, a JavaScript frontend, a
+worked C# process-kind capability) that already does everything
+`blueprint/0-WALKTHROUGH.md` describes: contract → manifest → executor →
+Bridge, one request-construction point, an entry point that decides
+nothing, a real verification harness, and real DEP recording. Copy it
+into a new project and start replacing its capabilities with real ones.
+
+Its one capability, `log.write` (plus the frontend's `client.log`, which
+reports to it remotely), is deliberately real domain content, not a
+disposable placeholder — logging is something almost every application
+actually needs, so unlike an earlier version of this starter kit (a
+"hello world" greeting, deleted by every project that copied it), there
+is no equivalent blanket warning here to rip this one out. What IS still
+illustrative, and worth expecting to replace: the implementation bodies
+themselves are intentionally minimal (a line to stdout) — a real
+deployment likely wants file output, rotation, structured JSON, or a
+real logging library behind the same contract, not this exact executor
+code verbatim.

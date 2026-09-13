@@ -10,27 +10,27 @@ these rules by number; nothing else states a rule in full. If a document
 seems to redefine a term or restate a rule differently, that document is
 wrong, not this page. The cycle that applies these rules phase by phase is
 `1-CYCLE.md`; the contract/manifest/protocol/catalog shapes these rules
-govern are defined in `sample/schemas/` (this cycle's own record shapes --
+govern are defined in `starterkit/schemas/` (this cycle's own record shapes --
 cycle input/report, verification record, checkpoint -- live in
-`blueprint/schemas/`) and demonstrated in `sample/hello_world/`.
+`blueprint/schemas/`) and demonstrated in `starterkit/`.
 
 ## Glossary
 
 | Term | Definition |
 |---|---|
 | **cycle** | One complete pass through the phases in `1-CYCLE.md` (Phase 0 Bootstrap through Phase 9 Return state): it starts from a `current_state` + `goal` and produces a verified `resulting state`, which becomes the next cycle's `current_state`. This is the unit the Blueprint is named after — the loop is "self-improving" because each cycle's output is the next cycle's input, with no private agent memory required in between (Gate 11). |
-| **ecosystem root** | The authoritative root of ONE application. Scoped per application, never per repo: a single repo may hold several independent applications side by side (e.g. several worked samples), each with its OWN ecosystem root — there is no such thing as one ecosystem root that a repo's applications all share. Continuing an application the agent already knows about: resolve every canonical implementation from ITS root; never create a second copy of that same root. Starting a genuinely new, independent application: establish a NEW root for it (0-WALKTHROUGH.md section 0, 1-CYCLE.md Phase 0 Gate 35) — never default to, or resolve canonical implementations from, an existing application's root just because it's the one already found. |
+| **ecosystem root** | The authoritative root of ONE application. Scoped per application, never per repo: a single repo may hold several independent applications side by side (e.g. several starter kits), each with its OWN ecosystem root — there is no such thing as one ecosystem root that a repo's applications all share. Continuing an application the agent already knows about: resolve every canonical implementation from ITS root; never create a second copy of that same root. Starting a genuinely new, independent application: establish a NEW root for it (0-WALKTHROUGH.md section 0, 1-CYCLE.md Phase 0 Gate 35) — never default to, or resolve canonical implementations from, an existing application's root just because it's the one already found. |
 | **responsibility** | One independently meaningful thing the cycle must achieve. The unit of decomposition: one responsibility = one capability = one contract. |
 | **capability** | A named, versioned responsibility that the ecosystem can execute (`capability_id`). Identity is the generic responsibility (`domain.operation`) per R1. Consumers speak only capability IDs + contract operations (per R6) through the single request-construction point. One contract artifact defines it; it may have one or more implementations. |
 | **contract** | The machine-readable interface of a capability: identity, version, operations (name, input, output, errors), dependencies, policy, invariants, discoverability, lineage. One contract artifact per capability (R2). |
-| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `sample/schemas/component-contract.schema.json`; worked example: the sample's `contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
+| **contract artifact** | The materialized, versioned interface file that machine-defines a capability (shape: `starterkit/schemas/component-contract.schema.json`; worked example: the starter kit's `contracts/`). Existence and uniqueness per R2. Contract artifacts live under `contracts/`. Referenced by its capability manifest; may be implemented by many components. |
 | **generic component** | A small, single-task component that is reusable across cycles. "Generic" describes the component's nature (one task, reusable), never a location (R1, R4). |
 | **component** | The thing that *implements* a capability. A registration-unaware executor exposing only `execute(operation, input, policy) -> output`. Components are never named or imported by consumer code. |
 | **implementation** | A registered, versioned record that binds an executor to a capability contract (id, version, operations) in the Registry. |
 | **consumer** | Any application code that invokes a capability. Reference behavior per R6: consumer code uses only capability IDs + contract operations through the single request-construction point and the Bridge, and never names components. |
 | **manifest** | A data file that binds a contract artifact to its operations and to one executor-reference entry per implementation (one contract → one capability manifest → executor entries). The contract artifact, its capability manifests, and its executors are co-located in their owning package within the single application (R3). |
 | **packaging** | How the single application is structured as normal packages: contract artifacts under `contracts/`; component executors and capability manifests co-located in their owning packages; small generic components built and composed before the specific responsibilities over them (generics → specifics, R4); entry points and the single request-construction point at the application level; tests and the verification harness live outside the application packages. |
-| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Resolved from THIS application's own bridge MANIFEST.yaml, never hard-coded — `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml` is hello_world's own; a different application resolves its OWN (ecosystem root glossary entry, above). |
+| **assembler** | A generic Publish-phase helper that reads the capability manifests, imports each executor, builds each implementation record, and registers it into the canonical Registry. Application packages never contain registration logic. Resolved from THIS application's own bridge MANIFEST.yaml, never hard-coded — `starterkit/backend/runtime/bridge/MANIFEST.yaml` is this starter kit's own; a different application resolves its OWN (ecosystem root glossary entry, above). |
 | **Bridge** | The canonical execution boundary, made of two parts: a **Bridge Adapter** (below) and a **Bridge Core** (below). Routes every request through registry discovery → policy → selector → executor and returns a trace. There is exactly one canonical Bridge **per runtime a consumer surface executes in** — the backend process is one runtime; each other entry point the goal ships (a browser tab, a mobile app, a desktop client, a CLI, another service calling in) is its own separate runtime, whatever kind it is. Never two competing Bridges within the same runtime (the parallel-Bridge prohibition, Phase 0) — but a goal whose consumer surface spans more than one runtime legitimately resolves one canonical Bridge per runtime that needs one, every one of them the same architecture (Registry + Policy + Selector + Executor + trace), never a lighter or informal substitute because of which runtime it happens to run in. |
 | **Bridge Core** | The shared four-stage pipeline every Bridge runs, in every runtime that resolves one: request validation, then discovery → policy → selection → execution (the `trace`'s five stages, in order). Naming the pipeline separately from any one runtime's Bridge makes explicit that a second runtime's Bridge (e.g. a browser's) is the SAME architecture as this repo's reference one, not a different design that happens to share a name — the Core is never reimplemented per capability, per request, or informally; it is resolved once per runtime, the same way the Bridge itself is (R8). Validation is Core-owned, not Adapter-owned, specifically so it is never duplicated or drifted per runtime (2-RULES.md "An operation's input shape is enforced once, from the contract, never per-executor"). |
 | **Bridge Adapter** | The single request-construction point (R6), for one runtime. Builds a canonical request from that runtime's own native input (an HTTP handler's parsed body, a DOM event, a CLI argument, a spawned process's stdin) and hands it to that runtime's own Bridge Core — the only runtime-specific part of an otherwise identical architecture. Every runtime that resolves its own Bridge (Bridge glossary, above) resolves an Adapter+Core pair, never a Core without an Adapter or an Adapter that skips the Core. |
@@ -198,7 +198,7 @@ verify this earlier, before registering, as a stronger check layered on
 top — but no such assembler-level check exists anywhere in this Blueprint
 today; `finish_cycle` is what is actually implemented and enforced, and
 this rule must never be read as claiming more than that. The resolved
-assembler and Bridge (`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) implement dependency injection via an
+assembler and Bridge (`starterkit/backend/runtime/bridge/MANIFEST.yaml`) implement dependency injection via an
 `executor_kind: factory` manifest entry, given resolved access to its
 declared dependencies at assembly time.
 
@@ -225,7 +225,7 @@ and Bridge implement the latter via an `executor_kind: process` manifest
 entry, whose `executor` names a program instead of an importable path (a
 single command, or an argv list when an interpreter and a script are
 both needed). Neither the request path, discovery, policy, nor selection
-can tell the difference; only assembly, resolved from `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`,
+can tell the difference; only assembly, resolved from `starterkit/backend/runtime/bridge/MANIFEST.yaml`,
 knows how a given implementation is actually reached, never hard-coded to
 one language. Spawning that program is launching ongoing work: R5's
 condition 6 applies exactly as it does to any other launched service —
@@ -234,11 +234,11 @@ never assumed.
 
 The out-of-process protocol itself is resolved the same way everything
 else in this Blueprint is: written down once, formally, in
-`sample/schemas/process-executor-protocol.schema.json`, and implemented by a
+`starterkit/schemas/process-executor-protocol.schema.json`, and implemented by a
 reference client per language — never hand-rolled per capability. A
-worked example of one lives alongside the sample that uses it; this is
-scaffolding a real application copies the shape of, not shared
-infrastructure it depends on.
+worked example of one lives alongside the starter kit that uses it; a
+real application copies its shape, rather than depending on it as
+shared infrastructure.
 
 The reference client owns the connect/read/dispatch/reply loop entirely
 — a capability hands it a pure `execute(operation, input, policy) ->
@@ -255,7 +255,7 @@ runtime owns, but a genuinely separate Bridge with its own Registry,
 Policy, and Selector, reached over a real network boundary. Its manifest
 entry names an address (a URL, a host+port — whatever locates that
 runtime's Adapter), never a `module:attr` path or an argv/command; the
-protocol is `sample/schemas/bridge-protocol.schema.json` itself — the same
+protocol is `starterkit/schemas/bridge-protocol.schema.json` itself — the same
 request/response/error shape any consumer's Bridge call already uses, not
 a second, simpler protocol invented for this case the way `process` has
 its own. This is deliberate: a Worker only ever answers one
@@ -302,8 +302,8 @@ reusable adapter (not written per capability) that imports the target
 `module:attr` callable and serves it behind the same out-of-process
 protocol `executor_kind: process` already uses — the capability never
 knows or cares that this happened. A worked example lives alongside the
-sample that needed it, even before that sample's own Bridge has actually
-been reimplemented in another language — written and tested ahead of
+starter kit that needed it, even before that starter kit's own Bridge has
+actually been reimplemented in another language — written and tested ahead of
 time, exactly because this coupling is easy to miss until a Bridge
 rewrite is already underway.
 
@@ -402,9 +402,9 @@ stage must be satisfiable before the next begins:
 
 ```text
 1. contract artifact   (the what: operations, inputs, outputs, errors)
-   -> validated against sample/schemas/component-contract.schema.json
+   -> validated against starterkit/schemas/component-contract.schema.json
 2. capability manifest (the binding: id + contract + operations + executor ref)
-   -> validated against sample/schemas/capability-manifest.schema.json;
+   -> validated against starterkit/schemas/capability-manifest.schema.json;
       the executor reference may name a not-yet-existing module
 3. concrete code       (the how: the registration-unaware executor)
    -> execute(operation, input, policy) -> output; never registers itself;
@@ -501,7 +501,7 @@ implemented.
 The agent resolves and uses the ecosystem's existing canonical Bridge; the
 Blueprint never prescribes a replacement implementation, in any language.
 Verify from authoritative ecosystem artifacts — resolved via
-`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded — its identity, canonical request
+`starterkit/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded — its identity, canonical request
 path, validation stage, discovery stage, policy stage, selection stage,
 execution handoff, and tracing/receipt requirements. A consumer of this path
 must not reproduce the Bridge pipeline locally.
@@ -517,17 +517,17 @@ consumer code -> request -> Bridge
 ```
 
 **Request / response / error shape.** Defined once, language-agnostically,
-in `sample/schemas/bridge-protocol.schema.json`: a request carries
+in `starterkit/schemas/bridge-protocol.schema.json`: a request carries
 `request_id`, `capability_id`, `contract_version`, `operation`, `input`,
 `policy_context`; a response adds `implementation_id`, `output`, `trace`; an
 error carries `code`, `stage`, `message`, `details`. The exact
 language-level representation (a class, a struct, a plain map) is whatever
-the resolved Bridge implementation under `sample/hello_world/backend/runtime/bridge/` uses — this Blueprint
+the resolved Bridge implementation under `starterkit/backend/runtime/bridge/` uses — this Blueprint
 defines the shape, not the representation.
 
 **Usage pattern.**
 
-1. Resolve the Bridge from the ecosystem root per `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`,
+1. Resolve the Bridge from the ecosystem root per `starterkit/backend/runtime/bridge/MANIFEST.yaml`,
    never construct one from consumer code.
 2. Create a request with real capability IDs from the ecosystem's
    authoritative manifests — never invented locally.
@@ -569,8 +569,8 @@ any more than the running Bridge can scan every registration. The ecosystem
 must provide a searchable, incrementally-maintained capability catalog for
 this — incrementally maintained meaning publishing one new capability
 appends to it, never requires rescanning everything already published. No
-particular format is mandated. Resolved from `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`; one
-data shape for it is `sample/schemas/capability-catalog.schema.json`.
+particular format is mandated. Resolved from `starterkit/backend/runtime/bridge/MANIFEST.yaml`; one
+data shape for it is `starterkit/schemas/capability-catalog.schema.json`.
 
 **The discovery cascade.** At scale, one selective key is not enough — the
 Registry MUST support searching narrowest-to-widest and stopping at the
@@ -592,7 +592,7 @@ levels and never scanning the level below it:
 
 `family`/`domain`/`tags` are read from the capability's own contract, never
 duplicated into its manifest (R2/R3) — the reference assembler (resolved via
-`sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`) does this when given a root to resolve the
+`starterkit/backend/runtime/bridge/MANIFEST.yaml`) does this when given a root to resolve the
 manifest's `contract` path against. An implementation registered without
 that root is still fully discoverable at Exact/Scoped; it is simply invisible
 to Family/Domain/Cross-domain search until it is. Creation is the last
@@ -626,7 +626,7 @@ either.
 
 **An operation's input shape is enforced once, from the contract, never
 per-executor.** A contract's declared operation input (name, `type`, and
-whether it's `required` — `sample/schemas/component-contract.schema.json`) is
+whether it's `required` — `starterkit/schemas/component-contract.schema.json`) is
 not just documentation: the resolved Bridge checks a request's `input`
 against it — required fields present, a present field's runtime value
 matching its declared type — before any executor runs, for direct,
@@ -708,7 +708,7 @@ an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
    implementation, the component executor that provides it:
 
    ```yaml
-   # valid against sample/schemas/capability-manifest.schema.json
+   # valid against starterkit/schemas/capability-manifest.schema.json
    capability_id: <capability-a>
    contract: <path-to-contract-artifact>
    contract_version: 1.0.0
@@ -736,10 +736,10 @@ an ecosystem-assembly concern performed in the Publish phase (Phase 8, in
 
 3. **A generic assembler performs registration from the manifest.** During
    Publish (Phase 8), the assembler reads each capability manifest
-   (validated against `sample/schemas/capability-manifest.schema.json`), imports
+   (validated against `starterkit/schemas/capability-manifest.schema.json`), imports
    each entry's executor (`module:attr`), builds the implementation record,
    and registers it into the canonical Registry. Resolved from
-   `sample/hello_world/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded. Swapping a component = editing
+   `starterkit/backend/runtime/bridge/MANIFEST.yaml`, never hard-coded. Swapping a component = editing
    the manifest, never the code or any consumer.
 
 **Contract data is generic.** Inputs and outputs must be shaped by the
@@ -931,7 +931,7 @@ rather than embedding a duplicate implementation:
 | Connector | canonical connector contract | direct hidden dependency |
 | Resource Exchange | canonical resource execution path when required | private resource runtime |
 | Capability binding | manifests (one entry per implementation) + generic assembler (Publish phase) binding capability→implementation(s) | registration embedded in components or consumer code |
-| Contract artifact | one materialized, versioned interface file per capability (R2; shape in `sample/schemas/component-contract.schema.json`) | contract shapes living only implicitly in code |
+| Contract artifact | one materialized, versioned interface file per capability (R2; shape in `starterkit/schemas/component-contract.schema.json`) | contract shapes living only implicitly in code |
 
 Exact filesystem paths are intentionally resolved from authoritative
 manifests rather than hard-coded by this Blueprint.

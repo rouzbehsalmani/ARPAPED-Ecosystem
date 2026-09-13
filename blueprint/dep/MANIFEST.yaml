@@ -1,8 +1,9 @@
 # Authoritative, language-agnostic descriptor of this ecosystem's Evolution
 # pillar (self-improvement over time) -- describing tooling that belongs to
 # the methodology zone (`blueprint/`), never to the resolved/concrete zone
-# (`sample/`, which holds sample/hello_world/backend/runtime/bridge/ -- the Runtime pillar this cycle
-# uses -- and every worked sample). This folder holds only what belongs to
+# (`starterkit/`, which holds starterkit/backend/runtime/bridge/ -- the
+# Runtime pillar this cycle uses -- and every application built from this
+# blueprint). This folder holds only what belongs to
 # the self-improving cycle itself, not to the execution boundary it uses.
 # Docs never name a file directly -- they point here instead. If any piece
 # below is ever built, reimplemented, or restructured, update ONLY this
@@ -13,10 +14,10 @@
 # they are shared, stable definitions -- 1-CYCLE.md, a sibling of this
 # folder under blueprint/, and blueprint/schemas/ (the self-development
 # schemas: cycle input/report, verification record, checkpoint) -- kept
-# separate from sample/schemas/ (the bridge-related schemas: contract,
-# manifest, protocol, catalog), the same posture sample/hello_world/backend/runtime/bridge/MANIFEST.yaml
+# separate from starterkit/schemas/ (the bridge-related schemas: contract,
+# manifest, protocol, catalog), the same posture starterkit/backend/runtime/bridge/MANIFEST.yaml
 # takes toward its own half of the split ("pure data-structure
-# definitions... live in the stable `sample/schemas/`"). This file exists
+# definitions... live in the stable `starterkit/schemas/`"). This file exists
 # to name where DEP's OWN artifacts -- the accumulated record store and
 # whatever learns from it -- actually live, once they exist. Nothing here
 # duplicates 1-CYCLE.md or the schemas; it only points at them.
@@ -181,12 +182,12 @@ dep:
       scheme invented). Both records are schema-validated (jsonschema,
       against decision_record/verification_record above) before being
       written; an episode is never silently overwritten. Generic, like
-      a sample's own assembler: has no opinion on WHERE a corpus lives --
+      an application's own assembler: has no opinion on WHERE a corpus lives --
       `episodes_dir` is always given explicitly, never defaulted to a
       path inside blueprint/dep/ itself. An application's own episodes belong
-      under that application (e.g. sample/hello_world/backend/state/episodes/,
+      under that application (e.g. starterkit/backend/state/episodes/,
       alongside its verification-record.json), the same way its own
-      capability-catalog.jsonl belongs under it, not inside sample/hello_world/backend/runtime/bridge/. This
+      capability-catalog.jsonl belongs under it, not inside starterkit/backend/runtime/bridge/. This
       is what was missing for "historical episodes" to be more than a
       phrase in 1-CYCLE.md Phase 9 -- somewhere they actually accumulate
       across cycles, not just within one.
@@ -198,11 +199,11 @@ dep:
       Gate 31 (1-CYCLE.md Phase 8) had no automated enforcement connecting
       a schema-valid verification_record to an actual episode --
       episode_store's own save operation was called from exactly one file
-      in this repo's entire sample/ tree, and even that caller never
+      in this repo's entire starterkit/ tree, and even that caller never
       called checkpoint's own clear operation either, leaving two
       separately-rememberable steps where one was reliably forgotten --
       and Gate 30/R4's acyclic dependency-graph claim (2-RULES.md) had no
-      implementation anywhere, in blueprint/dep/ or in any sample's own
+      implementation anywhere, in blueprint/dep/ or in any application's own
       assembler. `finish_cycle(cycle_report, verification_record,
       catalog_path, episodes_dir, checkpoint_path=None)` refuses to do
       anything at all unless verification_record["status"] == "verified"
@@ -294,8 +295,8 @@ dep:
       captured them -- both optional, since an episode recorded before
       either field existed in the schema simply omits them. Generic, same
       posture as episode_store: no default `episodes_dir`/`output_path`
-      here -- see sample/hello_world/backend/README.md for a worked
-      example, the same relationship it has to a sample's own assembler's
+      here -- see starterkit/backend/README.md for a worked
+      example, the same relationship it has to an application's own assembler's
       rebuild_catalog. Regenerable from the corpus at any time.
   runtime_log:
     location: blueprint/dep/runtime_log.py
@@ -314,15 +315,15 @@ dep:
       Bridge's calls are continuous, so this has to be cheap to append
       to, the same posture capability-catalog.jsonl's own append writer
       already has), thread-safe under concurrent callers (confirmed for
-      real: sample/hello_world/backend/runtime/capabilities/web/serve/executor.py
+      real: starterkit/backend/runtime/capabilities/web/serve/executor.py
       runs a ThreadingHTTPServer, one thread per request). Meant to be
       passed as a Bridge's own `event_sink` constructor argument
-      (sample/hello_world/backend/runtime/bridge/bridge.py) -- `bridge.py`
+      (starterkit/backend/runtime/bridge/bridge.py) -- `bridge.py`
       itself never imports this module, the same decoupling posture it
       already has toward ProcessExecutorPool (hasattr/getattr, never an
       import); an application's own request-construction point is what
       wires the two together (proven for real in
-      sample/hello_world/backend/runtime/app/requests.py -- every real
+      starterkit/backend/runtime/app/requests.py -- every real
       call through `main.py`/`web.serve`, AND every nested nested-call a
       factory/process executor makes through the same Bridge, lands in
       `state/runtime-events.jsonl` as its own independent event, not
@@ -381,7 +382,7 @@ dep:
       --repo-root PATH [--commit SHA]` is its CLI (same pattern as
       `finish_cycle`'s) -- what lets an agent or any shell record a
       commit right after making it, without importing Python. Not
-      currently wired into any sample or into this repo's own commit
+      currently wired into any application or into this repo's own commit
       workflow -- built and proven with its own tests, available for a
       caller to adopt when it fits.
   jepa:

@@ -12,7 +12,7 @@ and it has happened more than once on this exact repository.
 
 The one rule that matters most, if you read nothing else: **default to
 capability.** A canonical Bridge/Registry/Policy/Selector/assembler already
-exists at `sample/hello_world/backend/runtime/bridge/` (see `blueprint/0-WALKTHROUGH.md` step 0). Any distinct need —
+exists at `starterkit/backend/runtime/bridge/` (see `blueprint/0-WALKTHROUGH.md` step 0). Any distinct need —
 including things that look like plain infrastructure (reading input,
 tracking time, dispatching a command, or composing a few other capabilities
 together) — gets its own contract, manifest, and registration-unaware

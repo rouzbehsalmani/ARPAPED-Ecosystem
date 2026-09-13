@@ -1,0 +1,14 @@
+{
+  "capability_id": "log.write",
+  "contract_version": "1.0.0",
+  "implementations": [
+    {
+      "implementation_id": "log.write.remote",
+      "version": "1.0.0",
+      "operations": ["write"],
+      "executor": "/bridge",
+      "executor_kind": "remote",
+      "priority": 100
+    }
+  ]
+}

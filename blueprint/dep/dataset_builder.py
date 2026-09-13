@@ -34,15 +34,15 @@ blueprint.dep.state_ref) when the episode's harness captured them --
 both optional, since an episode recorded before either field existed in
 the schema simply omits them, never a fabricated placeholder.
 
-Not a capability, same posture as episode_store and a sample's own
+Not a capability, same posture as episode_store and an application's own
 catalog-building tooling (blueprint/dep/MANIFEST.yaml): Evolution-phase
 tooling, not something resolved through the Registry or reached over the
 Bridge.
 
 Generic, same posture as episode_store: no default `episodes_dir`/
-`output_path` baked in here -- a sample calls this against its own
+`output_path` baked in here -- an application calls this against its own
 episode corpus and writes its own dataset alongside it (see
-sample/hello_world/backend/README.md for a worked example), the same way
+starterkit/backend/README.md for a worked example), the same way
 it calls its own assembler's rebuild_catalog against its own capabilities/.
 """
 

@@ -1,0 +1,22 @@
+# This app's own declared dependencies (../requests.py). Each top-level
+# key is a name the app chooses; unlike a contract's own
+# dependencies.capabilities (keyed by capability_id), this is keyed by
+# name, so the same capability can be declared more than once under
+# different names, pinned differently (see log_write vs.
+# log_write_process). resolve(name, operation) reads capability_id,
+# contract_version, and implementation_id from the named entry --
+# never restated at a resolve() call site.
+capabilities:
+  log_write:
+    capability_id: log.write
+    contract_version: ">=1.0.0,<2.0.0"
+  log_write_process:
+    # A deliberate proof, not an ongoing dependency: shows a capability
+    # can run out-of-process, in a genuinely different language (R4/R5),
+    # not a non-Python escape hatch.
+    capability_id: log.write
+    contract_version: ">=1.0.0,<2.0.0"
+    implementation_id: log.write.process
+  web_serve:
+    capability_id: web.serve
+    contract_version: "1.0.0"

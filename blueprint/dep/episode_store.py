@@ -8,18 +8,18 @@ place: one directory per completed cycle ("episode"), holding both
 records together, machine-validated against the same schemas the rest of
 this Blueprint already validates manifests and contracts against.
 
-Not a capability: like a sample's own catalog-building tooling is
+Not a capability: like an application's own catalog-building tooling is
 Publish-phase tooling for the Bridge, this is Evolution-phase tooling for
 DEP -- nothing here is resolved through the Registry or reached over the
 Bridge.
 
-Generic, like a sample's own catalog-building tooling and assembler:
+Generic, like an application's own catalog-building tooling and assembler:
 this module has no opinion on WHERE an episode corpus lives -- `episodes_dir`
 is always given explicitly by the caller, never defaulted to a path
-inside blueprint/dep/ itself. A sample's own episodes belong under that sample
-(e.g. sample/hello_world/backend/state/episodes/, alongside its
+inside blueprint/dep/ itself. An application's own episodes belong under that application
+(e.g. starterkit/backend/state/episodes/, alongside its
 verification-record.json), the same way its own capability-catalog.jsonl
-belongs under it, not inside sample/hello_world/backend/runtime/bridge/.
+belongs under it, not inside starterkit/backend/runtime/bridge/.
 
 An episode's identity is its verification_record's own `verification_id`
 (already required, already unique per verification-record.schema.json) --

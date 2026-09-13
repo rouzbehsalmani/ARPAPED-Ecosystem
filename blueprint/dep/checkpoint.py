@@ -101,7 +101,7 @@ def reconcile_with_catalog(checkpoint: dict[str, Any], catalog_path: Path) -> di
     responsibility while 8 capabilities already existed on disk. The
     wrong fix is reading the project to rebuild the checkpoint by hand --
     that is the exact O(project) cost this whole mechanism exists to
-    avoid. The right fix: `catalog_path` (a sample/application's own
+    avoid. The right fix: `catalog_path` (an application's own
     `capability-catalog.jsonl`, built by its own catalog-building tooling)
     is already a bounded, one-line-per-capability index -- the same one
     Phase 3 discovery already uses instead of scanning the Registry.
@@ -176,8 +176,8 @@ def _executor_candidates(locator: str, search_roots: list[Path]) -> list[Path]:
     """A manifest's `executor:` locator is resolved differently per
     language/executor_kind -- a Python `module:attr` string resolves as a
     dotted path from the application root (e.g.
-    `sample.hello_world.backend.runtime.capabilities.console.write.executor:execute`
-    -> `.../console/write/executor.py`), while a plain relative file path
+    `starterkit.backend.runtime.capabilities.log.write.executor:execute`
+    -> `.../log/write/executor.py`), while a plain relative file path
     (a JS factory, or a compiled process-kind binary) resolves from
     whatever root THAT runtime's own assembler uses -- never guaranteed to
     be the same root a Python one uses. This function has no privileged

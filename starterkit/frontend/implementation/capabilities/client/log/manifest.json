@@ -1,0 +1,15 @@
+{
+  "capability_id": "client.log",
+  "contract": "starterkit/frontend/implementation/contracts/client.log.contract.yaml",
+  "contract_version": "1.0.0",
+  "implementations": [
+    {
+      "implementation_id": "client.log.frontend",
+      "version": "1.0.0",
+      "operations": ["report"],
+      "executor": "capabilities/client/log/executor.js",
+      "executor_kind": "factory",
+      "priority": 100
+    }
+  ]
+}

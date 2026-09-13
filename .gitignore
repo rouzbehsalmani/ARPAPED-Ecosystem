@@ -16,8 +16,8 @@ bin/
 obj/
 
 # Generated, mechanically-regenerable runtime/cycle state -- produced by
-# running a sample's own build_catalog / verification harness /
-# dataset_builder (see each sample's own README / 0-WALKTHROUGH.md).
+# running an application's own build_catalog / verification harness /
+# dataset_builder (see each application's own README / 0-WALKTHROUGH.md).
 # Never committed: an agent reading this repo should read contracts,
 # manifests, and executors, then reproduce state itself by running the
 # documented commands, not read accumulated run history baked into the

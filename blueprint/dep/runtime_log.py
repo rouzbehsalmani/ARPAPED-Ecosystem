@@ -10,19 +10,19 @@ artifact": nothing records what an ecosystem's Bridge actually did while
 genuinely serving requests, only what a harness scripted it to do.
 
 `RuntimeEventLog(path).record` is meant to be passed as a Bridge's own
-`event_sink` (sample/hello_world/backend/runtime/bridge/bridge.py) --
+`event_sink` (starterkit/backend/runtime/bridge/bridge.py) --
 `Bridge.handle` calls it once per real call, success or failure, with a
 normalized event matching runtime-event.schema.json. `bridge.py` itself
 never imports this module (stays fully decoupled from blueprint.dep, the
 same posture it already has toward ProcessExecutorPool via
 hasattr/getattr) -- an application's own request-construction point
-(e.g. sample/hello_world/backend/runtime/app/requests.py) is what wires
+(e.g. starterkit/backend/runtime/app/requests.py) is what wires
 a RuntimeEventLog in, by passing its `.record` method as `event_sink`.
 
 JSONL, not one-directory-per-event (episode_store's shape): a cycle
 happens rarely, a Bridge's calls happen continuously, so this needs to
 be cheap to append to -- the same append style
-sample/hello_world/backend/runtime/bridge/assembler.py's catalog writer
+starterkit/backend/runtime/bridge/assembler.py's catalog writer
 already uses for capability-catalog.jsonl. Generic like every other
 blueprint/dep/ tool: `path` is always given by the caller, never
 defaulted.
@@ -63,7 +63,7 @@ _RUNTIME_EVENT_SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
 class RuntimeEventLog:
     """One append-only JSONL file. `record` is safe under concurrent
     callers (a real Bridge can be called from many threads at once --
-    confirmed for real: sample/hello_world/backend/runtime/capabilities/web/serve/executor.py
+    confirmed for real: starterkit/backend/runtime/capabilities/web/serve/executor.py
     runs a ThreadingHTTPServer, one thread per request) -- a single lock
     serializes the validate-then-append, so two concurrent calls can
     never interleave their own JSON onto the same line or corrupt the
