@@ -85,6 +85,29 @@ ecosystem (say) and hand off a resolution record describing it, purely
 as a setup step, even if the second agent then works without any
 further cycle discipline.
 
+### Starting Agent 1
+
+The ask can be as short as **"start a new project"** — Agent 1 doesn't
+need a filled-in template handed to it. If you're Agent 1 and the user
+asked you to start (in any phrasing) without already giving you a
+pillar combination and a target location, ask exactly these two
+questions before doing anything else:
+
+1. **Which pillar combination?** Run `python -m packs.bootstrap
+   list-pillars` and show the menu — never assume all three, never
+   assume Bridge alone (`1-CYCLE.md` Phase 0 Gate 35).
+2. **Where should the new project live?** Its ecosystem root — a path
+   that isn't already another application's own root.
+
+Once you have both answers: copy the chosen pack(s)' `files.required`
+(and whatever `files.optional` the combination actually needs) into
+that location, wire any `combine_with:` hooks the combination calls
+for, then run `python -m packs.bootstrap resolve --ecosystem-root
+<location> --pillars-file <a JSON file you write, matching the
+schema's `pillars` shape>`. Report back only the resolution record's
+path — that's the whole handoff; nothing else needs explaining to
+whoever builds on it next.
+
 ## Why an index instead of a copy
 
 A pack file that duplicated its files' content would drift from the
