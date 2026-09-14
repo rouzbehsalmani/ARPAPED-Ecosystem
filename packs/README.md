@@ -96,8 +96,20 @@ questions before doing anything else:
 1. **Which pillar combination?** Run `python -m packs.bootstrap
    list-pillars` and show the menu — never assume all three, never
    assume Bridge alone (`1-CYCLE.md` Phase 0 Gate 35).
-2. **Where should the new project live?** Its ecosystem root — a path
-   that isn't already another application's own root.
+2. **Where should the new project live?** Its ecosystem root — offer
+   two ways to answer, since one line rarely covers both: (a) an
+   absolute path, typed or pasted directly (e.g. `D:\Projects\my-app` or
+   `/home/user/projects/my-app`); or (b) a relative location or plain
+   description ("a folder called my-app next to this repo", "in my
+   usual projects folder") for Agent 1 to resolve itself — always
+   confirm the resolved absolute path back before proceeding, never
+   silently guess and continue. Either way, a path that isn't already
+   another application's own root. `packs.bootstrap resolve` accepts
+   either form for `--ecosystem-root` and always normalizes it to
+   absolute before storing it (never taking a relative path's meaning
+   from whatever directory `resolve` happens to run in later) — but
+   asking for or confirming the absolute path up front avoids relying
+   on that safety net silently.
 
 Once you have both answers: copy the chosen pack(s)' `files.required`
 (and whatever `files.optional` the combination actually needs) into

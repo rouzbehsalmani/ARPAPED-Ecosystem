@@ -109,8 +109,19 @@ def resolve(
     ecosystem_resolution.EcosystemResolutionError if the resulting record
     fails schema validation (an empty `pillars`, a malformed runtime
     entry, an unknown pillar key). Returns the path written to.
+
+    `ecosystem_root` is always resolved to an absolute path before it's
+    either stored in the record or used to derive the default `out`
+    path -- a relative path (e.g. "my-app") would be stored verbatim
+    otherwise, ambiguous the moment anything reads it back from a
+    different working directory than whichever one `resolve()` happened
+    to run from (2-RULES.md "No silent defaults on what resolution
+    depends on"). This never fails on a not-yet-existing directory --
+    `Path.resolve()` doesn't require the path to exist, only makes it
+    absolute and normalizes `.`/`..` segments.
     """
 
+    ecosystem_root = ecosystem_root.resolve()
     pillars = json.loads(pillars_file.read_text(encoding="utf-8"))
     record: dict[str, Any] = {
         "resolution_id": f"res-{uuid.uuid4().hex[:12]}",
@@ -162,7 +173,10 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     sub.add_parser("list-pillars", help="Print the available pillars and every combination of them.")
 
     p_resolve = sub.add_parser("resolve", help="Write a new ecosystem-resolution record.")
-    p_resolve.add_argument("--ecosystem-root", required=True, type=Path)
+    p_resolve.add_argument(
+        "--ecosystem-root", required=True, type=Path,
+        help="Absolute or relative -- always resolved to absolute before being stored, so a relative path is safe to pass but never required.",
+    )
     p_resolve.add_argument(
         "--pillars-file", required=True, type=Path,
         help="JSON file matching the schema's own 'pillars' object shape directly.",

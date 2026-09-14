@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -80,6 +81,28 @@ class ResolveDescribeTests(unittest.TestCase):
 
         out_path = bootstrap.resolve(self.root, self.pillars_file)
         self.assertEqual(out_path, self.root / "state" / "ecosystem-resolution.json")
+
+    def test_relative_ecosystem_root_stored_as_absolute(self):
+        # A relative --ecosystem-root (e.g. "my-app") must never end up
+        # stored verbatim -- it would be ambiguous the moment anything
+        # reads the record back from a different working directory than
+        # whichever one `resolve` happened to run from.
+        self.pillars_file.write_text(json.dumps({
+            "cycles": {"cycle_doc": "x", "rules_doc": "y"},
+        }), encoding="utf-8")
+        (self.root / "my-app").mkdir()
+
+        original_cwd = Path.cwd()
+        try:
+            os.chdir(self.root)
+            out_path = bootstrap.resolve(Path("my-app"), self.pillars_file)
+        finally:
+            os.chdir(original_cwd)
+
+        record = ecosystem_resolution.load_resolution_record(out_path)
+        stored_root = Path(record["ecosystem_root"])
+        self.assertTrue(stored_root.is_absolute(), f"expected an absolute path, got {stored_root}")
+        self.assertEqual(stored_root, (self.root / "my-app").resolve())
 
     def test_combine_with_file_is_included(self):
         self.pillars_file.write_text(json.dumps({
