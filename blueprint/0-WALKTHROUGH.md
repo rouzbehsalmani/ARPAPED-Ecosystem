@@ -1,7 +1,7 @@
 # Build Walkthrough
 
-This file walks through the FULL, integrated configuration -- Process +
-Runtime + Evolution pillars together, exactly what `starterkit/`
+This file walks through the FULL, integrated configuration -- Cycles +
+Bridge + DEP pillars together, exactly what `starterkit/`
 demonstrates end to end. Adopting only one or two pillars for a
 Bridge-free or DEP-free project? See `../README.md`'s "Three independently
 adoptable pillars" section first; this file's "default to capability"

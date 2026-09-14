@@ -1,8 +1,8 @@
-# Authoritative, language-agnostic descriptor of this ecosystem's Evolution
+# Authoritative, language-agnostic descriptor of this ecosystem's DEP
 # pillar (self-improvement over time) -- describing tooling that belongs to
 # the methodology zone (`blueprint/`), never to the resolved/concrete zone
 # (`starterkit/`, which holds starterkit/backend/runtime/bridge/ -- the
-# Runtime pillar this cycle uses -- and every application built from this
+# Bridge pillar this cycle uses -- and every application built from this
 # blueprint). This folder holds only what belongs to
 # the self-improving cycle itself, not to the execution boundary it uses.
 # Docs never name a file directly -- they point here instead. If any piece
@@ -11,7 +11,7 @@
 # Blueprint needs to change.
 #
 # The cycle process and its record formats are NOT owned by this folder:
-# they are shared, stable definitions -- 1-CYCLE.md (the Process pillar),
+# they are shared, stable definitions -- 1-CYCLE.md (the Cycles pillar),
 # a sibling of this folder under blueprint/, and blueprint/schemas/ (the self-development
 # schemas: cycle input/report, verification record, checkpoint) -- kept
 # separate from starterkit/schemas/ (the bridge-related schemas: contract,
@@ -22,22 +22,22 @@
 # whatever learns from it -- actually live, once they exist. Nothing here
 # duplicates 1-CYCLE.md or the schemas; it only points at them.
 dep:
-  process:
-    location: 1-CYCLE.md (the Process pillar)
+  cycles:
+    location: 1-CYCLE.md (the Cycles pillar)
     role: >
       The Self-Improving Cycle every DEP episode records one run of --
       Phase 0 (Bootstrap) through Phase 9 (Return state), each phase citing
       the 2-RULES.md invariant(s) it enforces. When a project HAS also
-      adopted the Runtime pillar (a Bridge of its own), this is not owned
-      by the Evolution pillar alone: the Bridge is itself resolved and
+      adopted the Bridge pillar, this is not owned
+      by the DEP pillar alone: the Bridge is itself resolved and
       used within this same cycle (Phase 0 gates 1-3, Phase 6 gate 27) --
       the cycle is what binds the two pillars into one ecosystem in that
-      configuration. But the cycle does NOT require the Runtime pillar to
+      configuration. But the cycle does NOT require the Bridge pillar to
       be useful: a project with no Bridge of its own still runs this same
       Phase 0-9 spine -- decompose a goal, decide an approach, implement
       it, verify it via whatever harness fits the work, record the
       episode (finish_cycle below, catalog_path=None), return state -- with
-      every Runtime-scoped gate simply inapplicable, the same posture
+      every Bridge-scoped gate simply inapplicable, the same posture
       every OTHER entry in this file already takes ("nothing here is
       resolved through the Registry or reached over the Bridge"). See
       1-CYCLE.md's own "Scope" section (top of that file) and 2-RULES.md's
@@ -55,7 +55,7 @@ dep:
       a small JSON artifact or a dedicated report section." Written ONCE when a genuinely NEW ecosystem root is first
       established (Phase 0 step 2/Gate 35) -- offered to the operator as
       explicit pillar-combination options at that moment, never defaulted
-      silently to all three or to Runtime alone. A cycle continuing an
+      silently to all three or to Bridge alone. A cycle continuing an
       EXISTING ecosystem never re-decides this; it reads the same file
       back via checkpoint's own `ecosystem_resolution_ref`
       (blueprint/schemas/cycle-checkpoint.schema.json) or the cycle
@@ -65,7 +65,7 @@ dep:
       `save_resolution_record` overwrites freely, unlike episode_store's
       own refusal to overwrite an existing episode_id: re-save this only
       if the ecosystem's own pillar composition genuinely changes later
-      (e.g. a Runtime-only project later also adopting the Evolution
+      (e.g. a Bridge-only project later also adopting the DEP
       pillar). This is also the concrete handoff artifact for a
       two-agent split (one agent prepares the ecosystem -- Phase 0 --,
       a second builds the application on top of it from Phase 1 onward):
@@ -97,7 +97,7 @@ dep:
       Real execution evidence, not a self-report: every capability-operation
       check carries the Bridge's own observed response.trace, copied never
       invented (2-RULES.md R8, Gate 28) -- the point where this pillar's
-      own record and the Runtime pillar's actual execution meet. Also
+      own record and the Bridge pillar's actual execution meet. Also
       carries `environment` (the platform this run actually executed on,
       captured once per run -- OS/arch/runtime, never assumed) and, per
       check, `input` (the actual value that check's capability operation
@@ -274,7 +274,7 @@ dep:
       Python module, but can always shell out to this CLI as a
       subprocess, the same way it already has to invoke anything else
       outside its own language. `catalog_path` is Optional: when a real
-      path is given (a project that HAS adopted the Runtime pillar), this
+      path is given (a project that HAS adopted the Bridge pillar), this
       remains the one place in blueprint/dep/ that DOES require it to
       already exist and be parseable (raises FinishCycleError otherwise)
       rather than treating a missing catalog as "nothing to check" the way
@@ -290,10 +290,10 @@ dep:
       registration is what puts there. When no real path is given at all
       -- `catalog_path=None`, explicit, never a default this parameter
       falls back to on its own (2-RULES.md "No silent defaults") -- the
-      acyclic check is skipped outright: a project with no Runtime pillar
+      acyclic check is skipped outright: a project with no Bridge pillar
       has no capability dependency graph to have a cycle among. This is
       what makes finish_cycle, and Gate 31, genuinely usable by a project
-      that has adopted only the Evolution pillar.
+      that has adopted only the DEP pillar.
   state_ref:
     location: blueprint/dep/state_ref.py
     role: >

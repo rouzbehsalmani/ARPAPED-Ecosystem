@@ -47,9 +47,9 @@ actually in the catalog at the moment it's called; calling this before
 registration would silently check a graph missing this cycle's own new
 edges, which is weaker than Gate 30 actually requires.
 
-`catalog_path` is Optional: a project that has adopted the Evolution
-pillar (this module) with no Runtime pillar (no Bridge, no capabilities)
-of its own passes `catalog_path=None` explicitly -- never a default this
+`catalog_path` is Optional: a project that has adopted the DEP
+pillar (this module) with no Bridge pillar of its own (no Bridge, no
+capabilities) passes `catalog_path=None` explicitly -- never a default this
 parameter falls back to on its own (2-RULES.md "No silent defaults on
 what resolution depends on") -- and the acyclic-graph check is skipped
 outright, vacuously satisfied: there is no declared capability dependency
@@ -104,7 +104,7 @@ _VERIFICATION_RECORD_SCHEMA = json.loads((_SCHEMAS_DIR / "verification-record.sc
 class FinishCycleError(Exception):
     """Raised when a cycle refuses to be published: the verification record
     isn't status "verified", or -- when a real catalog_path was given (it
-    is Optional; None means the Runtime pillar isn't in play and this
+    is Optional; None means the Bridge pillar isn't in play and this
     whole check is skipped) -- that catalog doesn't exist or isn't
     parseable, or the dependency graph it declares contains a cycle
     (R4/R5, Gate 30). Distinct from episode_store.EpisodeStoreError
@@ -225,7 +225,7 @@ def finish_cycle(
     2. refuse if verification_record["status"] != "verified";
     3. if catalog_path is not None, build the dependency graph from it and
        refuse if it contains a cycle, naming the exact cycle (Gate 30) --
-       skipped outright when catalog_path is None (no Runtime pillar, no
+       skipped outright when catalog_path is None (no Bridge pillar, no
        capabilities, nothing to have a cycle among; see this function's
        own module docstring);
     4. only past both refusals, episode_store.save_episode(cycle_report,
@@ -307,7 +307,7 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument("--verification-record", required=True, type=Path, dest="verification_record_path")
     parser.add_argument(
         "--catalog", required=False, default=None, type=Path, dest="catalog_path",
-        help="Omit entirely for a project with no Runtime pillar (no Bridge, no capabilities) -- "
+        help="Omit entirely for a project with no Bridge pillar (no capabilities) -- "
         "the acyclic dependency-graph check is then skipped outright, never defaulted to a guessed path.",
     )
     parser.add_argument("--episodes-dir", required=True, type=Path, dest="episodes_dir")

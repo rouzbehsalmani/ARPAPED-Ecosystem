@@ -27,7 +27,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 class ListPillarsTests(unittest.TestCase):
     def test_reads_all_three_real_packs(self):
         pillars = bootstrap._load_pack_descriptions()  # noqa: SLF001 -- exercising the real source-of-truth read
-        self.assertEqual(set(pillars.keys()), {"runtime", "evolution", "process"})
+        self.assertEqual(set(pillars.keys()), {"bridge", "dep", "cycles"})
         for name, detail in pillars.items():
             self.assertTrue(detail["description"], f"{name} pack has an empty description")
 
@@ -37,8 +37,8 @@ class ListPillarsTests(unittest.TestCase):
             bootstrap.list_pillars()
         output = buf.getvalue()
         # 3 singles + 3 pairs + 1 triple = 7 non-empty subsets of 3 pillars,
-        # in alphabetical order (names are sorted()) -- Evolution, Process, Runtime.
-        for combo in ["Runtime", "Evolution", "Process", "Evolution + Process", "Evolution + Runtime", "Process + Runtime", "Evolution + Process + Runtime"]:
+        # in alphabetical order (names are sorted()) -- Bridge, Cycles, DEP.
+        for combo in ["Bridge", "Cycles", "DEP", "Bridge + Cycles", "Bridge + DEP", "Cycles + DEP", "Bridge + Cycles + DEP"]:
             self.assertIn(combo, output)
 
 
@@ -53,15 +53,15 @@ class ResolveDescribeTests(unittest.TestCase):
 
     def test_resolve_then_describe_round_trip(self):
         self.pillars_file.write_text(json.dumps({
-            "process": {"cycle_doc": "blueprint/1-CYCLE.md", "rules_doc": "blueprint/2-RULES.md"},
-            "evolution": {"dep_root": "blueprint/dep", "episodes_dir": "state/episodes"},
+            "cycles": {"cycle_doc": "blueprint/1-CYCLE.md", "rules_doc": "blueprint/2-RULES.md"},
+            "dep": {"dep_root": "blueprint/dep", "episodes_dir": "state/episodes"},
         }), encoding="utf-8")
 
         out_path = bootstrap.resolve(self.root, self.pillars_file, resolved_by="test-agent")
         self.assertTrue(out_path.exists())
 
         record = ecosystem_resolution.load_resolution_record(out_path)
-        self.assertEqual(set(record["pillars"].keys()), {"process", "evolution"})
+        self.assertEqual(set(record["pillars"].keys()), {"cycles", "dep"})
         self.assertEqual(record["resolved_by"], "test-agent")
         self.assertTrue(record["resolution_id"].startswith("res-"))
 
@@ -69,13 +69,13 @@ class ResolveDescribeTests(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             bootstrap.describe(out_path)
         output = buf.getvalue()
-        self.assertIn("process", output)
-        self.assertIn("evolution", output)
+        self.assertIn("cycles", output)
+        self.assertIn("dep", output)
         self.assertIn("test-agent", output)
 
     def test_default_out_path_is_ecosystem_root_state(self):
         self.pillars_file.write_text(json.dumps({
-            "process": {"cycle_doc": "x", "rules_doc": "y"},
+            "cycles": {"cycle_doc": "x", "rules_doc": "y"},
         }), encoding="utf-8")
 
         out_path = bootstrap.resolve(self.root, self.pillars_file)
@@ -83,12 +83,12 @@ class ResolveDescribeTests(unittest.TestCase):
 
     def test_combine_with_file_is_included(self):
         self.pillars_file.write_text(json.dumps({
-            "process": {"cycle_doc": "x", "rules_doc": "y"},
-            "evolution": {"dep_root": "d", "episodes_dir": "e"},
+            "cycles": {"cycle_doc": "x", "rules_doc": "y"},
+            "dep": {"dep_root": "d", "episodes_dir": "e"},
         }), encoding="utf-8")
         combine_file = self.root / "combine.json"
         combine_file.write_text(json.dumps([
-            {"hook": "evolution.finish_cycle_catalog_path", "from_pillar": "evolution", "to_pillar": "process", "applied": True, "detail": "catalog_path=None"},
+            {"hook": "dep.finish_cycle_catalog_path", "from_pillar": "dep", "to_pillar": "cycles", "applied": True, "detail": "catalog_path=None"},
         ]), encoding="utf-8")
 
         out_path = bootstrap.resolve(self.root, self.pillars_file, combine_with_file=combine_file)
@@ -108,7 +108,7 @@ class ResolveDescribeTests(unittest.TestCase):
 
     def test_cli_subprocess_resolve_and_describe(self):
         self.pillars_file.write_text(json.dumps({
-            "runtime": {
+            "bridge": {
                 "runtimes": [
                     {
                         "name": "backend",
@@ -137,7 +137,7 @@ class ResolveDescribeTests(unittest.TestCase):
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
         )
         self.assertEqual(describe_result.returncode, 0, describe_result.stderr)
-        self.assertIn("runtime", describe_result.stdout)
+        self.assertIn("bridge", describe_result.stdout)
 
     def test_cli_list_pillars_subprocess(self):
         result = subprocess.run(
@@ -145,7 +145,7 @@ class ResolveDescribeTests(unittest.TestCase):
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Evolution + Process + Runtime", result.stdout)
+        self.assertIn("Bridge + Cycles + DEP", result.stdout)
 
 
 if __name__ == "__main__":

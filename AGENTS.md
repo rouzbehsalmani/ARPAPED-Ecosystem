@@ -1,9 +1,9 @@
 # Instructions for any agent working in this repository
 
 **Which pillar(s) is this goal adopting?** This Blueprint is three
-independently adoptable pillars -- Process (the 9-phase cycle,
-`1-CYCLE.md`/`2-RULES.md`), Runtime (the Bridge/capability execution
-model, `2-RULES.md` R1-R9), and Evolution (`blueprint/dep/`, episode
+independently adoptable pillars -- Cycles (the 9-phase cycle,
+`1-CYCLE.md`/`2-RULES.md`), Bridge (the Bridge/capability execution
+model, `2-RULES.md` R1-R9), and DEP (`blueprint/dep/`, episode
 recording for training). See README.md's "Three independently adoptable
 pillars" section for what each gives you alone, and `1-CYCLE.md`/
 `2-RULES.md`'s own "Scope" sections for exactly which gates/rules apply

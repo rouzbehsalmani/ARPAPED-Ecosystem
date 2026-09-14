@@ -13,61 +13,61 @@ a rule in full — every phase cites the rule number it enforces.
 ## Scope: Bridge-scoped gates vs. always-applicable gates
 
 This Blueprint is three independently adoptable pillars (README.md "Three
-independently adoptable pillars"): **Process** (this cycle), **Runtime**
+independently adoptable pillars"): **Cycles** (this cycle), **Bridge**
 (the Bridge/Registry/contract/manifest execution model, `2-RULES.md` R1–R9),
-and **Evolution** (`blueprint/dep/`, episode recording for training). The
+and **DEP** (`blueprint/dep/`, episode recording for training). The
 phases and gates below are written for a project that has adopted all
 three together, exactly as `starterkit/` demonstrates — that configuration
 is unaffected by this section; every phase, gate, and step below still
 applies to it in full, unchanged, in the same order.
 
-A project that has adopted the Process pillar WITHOUT the Runtime pillar
+A project that has adopted the Cycles pillar WITHOUT the Bridge pillar
 still runs this same Phase 0–9 spine — understand the goal, decompose it,
 discover/decide an approach, implement it, verify it via whatever harness
-fits the work, record the episode (if the Evolution pillar is also
+fits the work, record the episode (if the DEP pillar is also
 adopted — `blueprint.dep.finish_cycle` accepts `catalog_path=None` for
 exactly this case), return state — but a gate below that names a Bridge,
 Registry, capability, contract, manifest, trace, selection, evidence, or
-catalog is Runtime-pillar vocabulary and is simply inapplicable to it, the
+catalog is Bridge-pillar vocabulary and is simply inapplicable to it, the
 same way every `blueprint/dep/` tool's own MANIFEST.yaml entry already
 says of itself ("nothing here is resolved through the Registry or reached
 over the Bridge").
 
-**Bridge-scoped** (apply only when the Runtime pillar is adopted): 1, 2, 3,
+**Bridge-scoped** (apply only when the Bridge pillar is adopted): 1, 2, 3,
 5, 7, 9, 10, 13, 14, 15, 16, 18, 21, 22, 24, 27, 28, 36, 37.
 
 **Always-applicable** (apply to any disciplined cycle, any pillar
 combination): 11, 17, 20, 23, 31, 32.
 
 **Hybrid** — the core requirement is always-applicable; a named sub-clause
-fires only when the Runtime pillar is adopted:
+fires only when the Bridge pillar is adopted:
 
 - 4 (discover existing reusable work before creating new — always-applicable
   in principle; the five-level Registry cascade that BOUNDS the search is
-  Runtime-only, so a Bridge-free project satisfies this by whatever
+  Bridge-only, so a Bridge-free project satisfies this by whatever
   reuse-check fits its own existing work, not by that cascade)
 - 6 (prefer reuse, record the reason for every decision — always-applicable;
   the "small-reusability verdict (R1)" and "generics-first order (R4)"
-  sub-clauses are Runtime-only)
+  sub-clauses are Bridge-only)
 - 8 (preserve lineage on split — always-applicable; "update discoverability"
-  is Runtime-only, since only a Registry has discoverability metadata)
+  is Bridge-only, since only a Registry has discoverability metadata)
 - 12 (audit existing components before adding new work — always-applicable;
-  "contract complexity" and "Registry/index" are Runtime-only vocabulary)
+  "contract complexity" and "Registry/index" are Bridge-only vocabulary)
 - 19 (exercise every consumer-visible behavior via a scripted stream and
   assert its effect — always-applicable; the "own resolved Bridge" clause
-  is Runtime-only)
+  is Bridge-only)
 - 25 (write a resolvable ecosystem-resolution record naming which
   pillar(s) this ecosystem adopted — always-applicable, pillar-generic by
   design (`ecosystem-resolution-record.schema.json`); naming the
-  canonical Bridge(s)/Registry/implementation map is the Runtime-only
+  canonical Bridge(s)/Registry/implementation map is the Bridge-only
   sub-clause, moot when that pillar wasn't chosen)
 - 26 (design/interface before implementation — always-applicable; "contract
-  + manifest" is the Runtime pillar's own mechanism for this ordering, a
+  + manifest" is the Bridge pillar's own mechanism for this ordering, a
   Bridge-free project satisfies the same ordering by whatever
   design-before-code practice fits its own work)
 - 29 (a bounded timeout, never an unbounded wait, treated as a hard failure —
   always-applicable as a reliability discipline; "capability-operation
-  check" is Runtime-only framing)
+  check" is Bridge-only framing)
 - 30 (declared dependency graph acyclic — vacuously satisfied with zero
   capabilities; `blueprint.dep.finish_cycle`'s `catalog_path` accepts an
   explicit `None` for exactly this case)
@@ -76,50 +76,50 @@ fires only when the Runtime pillar is adopted:
   dependency, and `ecosystem_resolution_ref` itself is pillar-generic
   (`ecosystem-resolution-record.schema.json` covers all three pillars);
   only the contract/manifest/executor shape of `artifacts`, and the
-  ecosystem-resolution record's own `pillars.runtime` sub-object, are
-  Runtime-only — a Bridge-free checkpoint records whatever artifacts its
+  ecosystem-resolution record's own `pillars.bridge` sub-object, are
+  Bridge-only — a Bridge-free checkpoint records whatever artifacts its
   own responsibilities actually produce)
 - 34 (reconcile a stale checkpoint against a bounded source of truth, never
   a full re-scan — always-applicable; the capability-catalog fallback
-  specifically is Runtime-only, the filesystem-naming-convention fallback
+  specifically is Bridge-only, the filesystem-naming-convention fallback
   generalizes to whatever convention this project's own work follows)
 - 35 (decide continue-vs-new, and if new, offer the available pillar
   combinations explicitly before resolving anything — always-applicable,
   pillar-generic by design (`packs/README.md`); only the sub-clause
   about where a resolved Bridge/Registry/Policy/Selector/assembler ends
-  up is Runtime-only, moot when that pillar wasn't chosen)
+  up is Bridge-only, moot when that pillar wasn't chosen)
 - 38 (the verification record carries `environment` and, when present, an
   accurate `resulting_state_ref` — always-applicable, neither needs a
   Bridge; "each capability-operation check carries its own `input`" is
-  Runtime-only, vacuous with no such checks)
+  Bridge-only, vacuous with no such checks)
 
 `2-RULES.md`'s own "Scope" section (top of that file) does the same for
 R1–R9; read the two together.
 
 **Worked example.** A goal that adds input validation to a CLI tool, in a
-project that has adopted only the Process pillar (no Bridge, no
+project that has adopted only the Cycles pillar (no Bridge, no
 capabilities, no Registry): Phase 0 still resolves whatever this project's
 own authoritative structure already is (repo root, existing modules —
 Gate 3's generic reading: don't invent a duplicate arrangement of what
 already exists) and skips Gates 1, 2 outright — there is no Bridge or
 Registry to resolve. Gate 35 still fully applies in its generalized
 form: this is a genuinely new ecosystem root, so the operator is still
-offered the pillar-combination choice explicitly (they picked Process
+offered the pillar-combination choice explicitly (they picked Cycles
 alone) before anything else happens — only its Bridge/Registry/Policy/
 Selector/assembler placement sub-clause is moot. Gate 25 also still
 applies, generalized: an ecosystem-resolution record is still written,
-naming `pillars: {process: {...}}` — just with no `pillars.runtime`
+naming `pillars: {cycles: {...}}` — just with no `pillars.bridge`
 sub-object, since naming a canonical Bridge/Registry only fires once
 that pillar is chosen. Phase 2–4 decompose and decide normally — Gate 6
 fully applies: record the reuse/create decision and why, minus its
-Runtime-only sub-clauses. Phase 5–6's contract/manifest gates (7, 13–16,
+Bridge-only sub-clauses. Phase 5–6's contract/manifest gates (7, 13–16,
 24, and 26's literal "contract + manifest" mechanism) are skipped; Gate
 26's generalized reading still applies — design the validation rule's
 shape before writing the code that enforces it. Phase 7 runs whatever
 headless harness fits the work (plain unit tests suffice) — Gates 17, 20,
 23 fully apply; Gates 18, 22, 27, 28, 30 (vacuously), 36, 37 (Bridge
 trace/selection/evidence/catalog) are skipped. Phase 8 still calls
-`blueprint.dep.finish_cycle` with `catalog_path=None` if the Evolution
+`blueprint.dep.finish_cycle` with `catalog_path=None` if the DEP
 pillar is adopted too (Gate 31 fully applies, satisfied); Gates 9, 14 are
 skipped (no Registry to register into). Phase 9's Gate 11 applies
 unchanged.
@@ -252,14 +252,14 @@ the goal. Mandatory before any other phase, for any human or AI agent.
      NEW root for it (never nested inside, or defaulting to, an
      existing application's root). Before resolving anything else,
      **offer the operator the available pillar combinations explicitly**
-     (`packs/README.md` names them: Runtime alone, Evolution alone,
-     Process alone, or any combination) -- never default silently to all
-     three, and never default silently to Runtime alone just because
+     (`packs/README.md` names them: Bridge alone, DEP alone,
+     Cycles alone, or any combination) -- never default silently to all
+     three, and never default silently to Bridge alone just because
      that is the most detailed of the three to resolve. Only once a
      combination is chosen does this step continue: for whichever
      pillar(s) were chosen, see 0-WALKTHROUGH.md section 0 for what this
      application must resolve/establish for itself (its OWN Bridge,
-     Registry, Policy, Selector, assembler if the Runtime pillar was
+     Registry, Policy, Selector, assembler if the Bridge pillar was
      chosen -- copied or ported from a reference implementation, never
      imported cross-application).
 3. Starting there, discover the authoritative ecosystem profile/manifest,
@@ -283,10 +283,10 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    validated against `blueprint/schemas/ecosystem-resolution-record.schema.json`
    (`blueprint.dep.ecosystem_resolution.save_resolution_record`) — naming
    which pillar(s) were chosen above and, for each, what was resolved: for
-   the Runtime pillar, at minimum the resolved canonical Bridge, Registry,
+   the Bridge pillar, at minimum the resolved canonical Bridge, Registry,
    policy stage, selector, the `contracts/` area, and the implementation
-   map, per runtime; for the Evolution pillar, its own tooling root and
-   episodes directory; for the Process pillar, which cycle/rules
+   map, per runtime; for the DEP pillar, its own tooling root and
+   episodes directory; for the Cycles pillar, which cycle/rules
    documents it follows. Without it the cycle cannot proceed: a
    resolved-but-unrecorded Bridge is treated as unresolved. The record is
    referenced in the cycle report (`agent-cycle-report.schema.json`'s own
@@ -348,7 +348,7 @@ it through a Bridge (R6/R9) — in any runtime, in any language.
 3. Did I avoid creating a parallel Bridge or Registry?
 25. Did I emit and reference a written ecosystem-resolution record naming
     which pillar(s) this ecosystem adopted (`ecosystem-resolution-record.schema.json`)?
-    If the Runtime pillar was among them, does the record also name the
+    If the Bridge pillar was among them, does the record also name the
     canonical Bridge(s) and Registry (and the implementation map) — one
     Bridge per runtime the goal's consumer surface actually executes in, not
     just the backend's? The canonical Bridge for each such runtime is the
@@ -383,8 +383,8 @@ it through a Bridge (R6/R9) — in any runtime, in any language.
     application's ecosystem or requires a genuinely NEW, independent
     one — and if new, did I offer the available pillar combinations
     explicitly (`packs/README.md`) before resolving anything, rather
-    than defaulting silently to all three or to the Runtime pillar
-    alone? If the Runtime pillar was chosen, did the resolved
+    than defaulting silently to all three or to the Bridge pillar
+    alone? If the Bridge pillar was chosen, did the resolved
     Bridge/Registry/Policy/Selector/assembler end up under THIS
     application's own tree (copied or ported from a reference
     implementation), never imported directly from another application's

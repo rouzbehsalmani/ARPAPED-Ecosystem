@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ARPAPED Ecosystem Resolution Record",
-  "description": "The written record blueprint/1-CYCLE.md Phase 0 Gate 25 requires -- naming which pillar(s) this ecosystem adopts (README.md 'Three independently adoptable pillars') and, for each adopted pillar, what actually got resolved. Written ONCE when a genuinely NEW ecosystem root is established (never re-decided by a cycle continuing an existing one -- 1-CYCLE.md Phase 0 step 2/Gate 35); a continuing cycle's own checkpoint.ecosystem_resolution_ref just points back at this same file. Mutable, current-composition truth, not a historical log -- contrast verification-record/episode (never overwritten): re-save this if the ecosystem's own pillar composition genuinely changes later (e.g. adding the Evolution pillar to a project that started Runtime-only).",
+  "description": "The written record blueprint/1-CYCLE.md Phase 0 Gate 25 requires -- naming which pillar(s) this ecosystem adopts (README.md 'Three independently adoptable pillars') and, for each adopted pillar, what actually got resolved. Written ONCE when a genuinely NEW ecosystem root is established (never re-decided by a cycle continuing an existing one -- 1-CYCLE.md Phase 0 step 2/Gate 35); a continuing cycle's own checkpoint.ecosystem_resolution_ref just points back at this same file. Mutable, current-composition truth, not a historical log -- contrast verification-record/episode (never overwritten): re-save this if the ecosystem's own pillar composition genuinely changes later (e.g. adding the DEP pillar to a project that started Bridge-only).",
   "type": "object",
   "required": ["resolution_id", "ecosystem_root", "pillars", "resolved_at"],
   "properties": {
@@ -18,9 +18,9 @@
       "description": "Which pillar(s) this ecosystem adopted, and what each one resolved to. Presence of a key means that pillar is adopted; at least one key is required -- an ecosystem adopting none of the three is not a valid resolution. Offered as explicit options when this ecosystem root was first established, never defaulted silently (1-CYCLE.md Phase 0 Gate 35; packs/README.md names the available combinations).",
       "minProperties": 1,
       "properties": {
-        "runtime": {
+        "bridge": {
           "type": "object",
-          "description": "Present only when the Runtime pillar is adopted. One entry per runtime the goal's consumer surface actually executes in (2-RULES.md Bridge glossary -- never assume a backend Bridge alone covers another entry point's own requests).",
+          "description": "Present only when the Bridge pillar is adopted. One entry per runtime the goal's consumer surface actually executes in (2-RULES.md Bridge glossary -- never assume a backend Bridge alone covers another entry point's own requests).",
           "required": ["runtimes"],
           "properties": {
             "runtimes": {
@@ -45,18 +45,18 @@
             }
           }
         },
-        "evolution": {
+        "dep": {
           "type": "object",
-          "description": "Present only when the Evolution pillar is adopted.",
+          "description": "Present only when the DEP pillar is adopted.",
           "required": ["dep_root", "episodes_dir"],
           "properties": {
-            "dep_root": {"type": "string", "description": "Path to this ecosystem's own copy of the Evolution pillar's tooling (packs/evolution.yaml)."},
+            "dep_root": {"type": "string", "description": "Path to this ecosystem's own copy of the DEP pillar's tooling (packs/dep.yaml)."},
             "episodes_dir": {"type": "string", "description": "This ecosystem's own episode corpus directory (blueprint.dep.episode_store)."}
           }
         },
-        "process": {
+        "cycles": {
           "type": "object",
-          "description": "Present only when the Process pillar is adopted. Mostly confirmatory -- the Process pillar is methodology, not infrastructure, so there is little to \"resolve\" beyond naming which cycle/rules doc this ecosystem follows.",
+          "description": "Present only when the Cycles pillar is adopted. Mostly confirmatory -- the Cycles pillar is methodology, not infrastructure, so there is little to \"resolve\" beyond naming which cycle/rules doc this ecosystem follows.",
           "required": ["cycle_doc", "rules_doc"],
           "properties": {
             "cycle_doc": {"type": "string"},
@@ -73,9 +73,9 @@
         "type": "object",
         "required": ["hook", "from_pillar", "to_pillar", "applied"],
         "properties": {
-          "hook": {"type": "string", "description": "e.g. \"runtime.event_sink\", \"evolution.finish_cycle_catalog_path\" -- names which combine_with: entry this is."},
-          "from_pillar": {"type": "string", "enum": ["runtime", "evolution", "process"]},
-          "to_pillar": {"type": "string", "enum": ["runtime", "evolution", "process"]},
+          "hook": {"type": "string", "description": "e.g. \"bridge.event_sink\", \"dep.finish_cycle_catalog_path\" -- names which combine_with: entry this is."},
+          "from_pillar": {"type": "string", "enum": ["bridge", "dep", "cycles"]},
+          "to_pillar": {"type": "string", "enum": ["bridge", "dep", "cycles"]},
           "applied": {"type": "boolean", "description": "Whether this hook was actually wired, not just available."},
           "detail": {"type": "string", "description": "What was actually done, or why it was left unwired."}
         }

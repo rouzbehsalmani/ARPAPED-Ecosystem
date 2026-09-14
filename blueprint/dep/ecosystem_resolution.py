@@ -16,7 +16,7 @@ root is first established (1-CYCLE.md Phase 0 step 2/Gate 35 -- a cycle
 continuing an EXISTING ecosystem never re-decides this, it just reads the
 same file back via checkpoint.ecosystem_resolution_ref), and re-saved only
 if the ecosystem's own pillar composition later genuinely changes (e.g. a
-Runtime-only project later also adopting the Evolution pillar).
+Bridge-only project later also adopting the DEP pillar).
 
 Generic, same posture as every other blueprint/dep/ tool: no default
 `path` here -- always given explicitly by the caller, this application's

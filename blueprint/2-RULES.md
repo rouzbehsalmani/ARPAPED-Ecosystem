@@ -17,10 +17,10 @@ cycle input/report, verification record, checkpoint -- live in
 ## Scope: which rules are Bridge-scoped
 
 R1–R9 below, the Bridge/Registry/Policy/Selector contracts, and most of
-the Glossary are Runtime-pillar vocabulary (README.md "Three
+the Glossary are Bridge-pillar vocabulary (README.md "Three
 independently adoptable pillars"): they apply to a project that has
 adopted the Bridge/contract/manifest execution model. A project using
-only the Process pillar (`1-CYCLE.md`) and/or the Evolution pillar
+only the Cycles pillar (`1-CYCLE.md`) and/or the DEP pillar
 (`blueprint/dep/`), with no Bridge in its own ecosystem, is not bound by
 R1–R9 at all — there is no Registry for anything to default into, and
 "capability" is not a category that pillar combination uses. The
@@ -134,7 +134,7 @@ composes other capabilities" is a reason to give it a contract, never a
 reason to leave it local. The narrow exception to this — the single
 request-construction point itself, and the entry point that calls it — is a
 request-path concern, not an identity one: see R6. A project that has
-adopted only the Process and/or Evolution pillars, with no Bridge of its
+adopted only the Cycles and/or DEP pillars, with no Bridge of its
 own, is not bound by this default at all — see "Scope" at the top of this
 file.
 

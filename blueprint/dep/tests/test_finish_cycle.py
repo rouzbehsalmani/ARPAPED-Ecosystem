@@ -323,7 +323,7 @@ class FinishCycleTests(unittest.TestCase):
             ],
             "new_capabilities": [],
             "reused_capabilities": [],
-            "bridge_integration": "N/A -- this project has not adopted the Runtime pillar",
+            "bridge_integration": "N/A -- this project has not adopted the Bridge pillar",
             "verification": {
                 "harness": "plain-unittest",
                 "verification_record_ref": "state/verification-record.json",

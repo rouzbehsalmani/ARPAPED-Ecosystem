@@ -20,7 +20,7 @@ Three commands:
       file matching the schema's own `pillars` object shape directly,
       the same posture blueprint.dep.finish_cycle's own CLI already takes
       toward --cycle-report/--verification-record (a real record as a
-      file, never flattened into ad hoc flags -- `pillars.runtime` in
+      file, never flattened into ad hoc flags -- `pillars.bridge` in
       particular is a variable-length array of multi-field objects, which
       no flag design handles cleanly). Exits 0 with the written path on
       stdout, or 1 with why not on stderr (schema-invalid input).
@@ -55,15 +55,20 @@ _PACKS_DIR = Path(__file__).resolve().parent
 
 
 def _load_pack_descriptions() -> dict[str, dict[str, str]]:
-    """pillar name (lowercase) -> {"pack": ..., "description": ...},
+    """pillar name (lowercase) -> {"pack": ..., "display": ..., "description": ...},
     read fresh from every packs/*.yaml sibling of this file each call --
-    never cached, never copied into this module's own source."""
+    never cached, never copied into this module's own source. `display`
+    is the pack's own `pillar:` field verbatim (e.g. "DEP", not "Dep") --
+    used for anything printed to a human/agent, never re-derived with
+    `.capitalize()` or similar, which would mangle an acronym like DEP.
+    """
 
     result: dict[str, dict[str, str]] = {}
     for path in sorted(_PACKS_DIR.glob("*.yaml")):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         result[data["pillar"].lower()] = {
             "pack": data["pack"],
+            "display": data["pillar"],
             "description": data["description"].strip(),
         }
     return result
@@ -76,14 +81,14 @@ def list_pillars() -> None:
     print("Available pillars (packs/README.md):")
     for name in names:
         first_line = pillars[name]["description"].splitlines()[0]
-        print(f"  - {name.capitalize()} ({pillars[name]['pack']}.yaml): {first_line}")
+        print(f"  - {pillars[name]['display']} ({pillars[name]['pack']}.yaml): {first_line}")
     print()
 
     print("Combinations you can adopt (choose one):")
     n = 1
     for r in range(1, len(names) + 1):
         for combo in itertools.combinations(names, r):
-            label = " + ".join(c.capitalize() for c in combo)
+            label = " + ".join(pillars[c]["display"] for c in combo)
             if r == len(names):
                 label += "  (the full, integrated configuration -- see starterkit/)"
             print(f"  {n}. {label}")

@@ -1,7 +1,7 @@
-# Runtime pillar pack -- the copy-paste manifest for a new project that
+# Bridge pillar pack -- the copy-paste manifest for a new project that
 # wants ONLY the Bridge's loosely-coupled, contract-and-manifest
-# capability execution model, with no self-development cycle (Process
-# pillar) and no episode/training recording (Evolution pillar).
+# capability execution model, with no self-development cycle (Cycles
+# pillar) and no episode/training recording (DEP pillar).
 #
 # This is an INDEX, not a duplicate: every path below is this Blueprint's
 # one canonical copy -- nothing else in this repo defines Bridge/Registry/
@@ -12,8 +12,8 @@
 # contents are ever restructured, update ONLY this file -- no document
 # elsewhere in the Blueprint needs to change (same posture as
 # blueprint/dep/MANIFEST.yaml toward its own tools).
-pack: runtime
-pillar: Runtime
+pack: bridge
+pillar: Bridge
 description: >
   A loosely-coupled, contract-and-manifest capability execution model:
   every capability execution goes through one canonical Bridge over
@@ -70,13 +70,13 @@ worked_example: starterkit/
 # pattern (runtime/app/requests.py). See starterkit/backend/README.md.
 
 combine_with:
-  process: >
-    Adopting the Process pillar too (packs/process.yaml)? Nothing extra
+  cycles: >
+    Adopting the Cycles pillar too (packs/cycles.yaml)? Nothing extra
     to add here -- blueprint/1-CYCLE.md's own "Scope" section activates
     every Bridge-scoped gate automatically once this pack's files exist
     in your project; nothing in this pack changes.
-  evolution: >
-    Adopting the Evolution pillar too (packs/evolution.yaml)? Pass a
+  dep: >
+    Adopting the DEP pillar too (packs/dep.yaml)? Pass a
     blueprint.dep.runtime_log.RuntimeEventLog instance as this Bridge's
     own `event_sink` constructor argument (see bridge.py's own
     docstring) to get every real call recorded automatically -- entirely

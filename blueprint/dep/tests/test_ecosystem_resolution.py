@@ -16,12 +16,12 @@ from pathlib import Path
 from blueprint.dep import ecosystem_resolution
 
 
-def _runtime_only_record() -> dict:
+def _bridge_only_record() -> dict:
     return {
-        "resolution_id": "res-runtime-0001",
+        "resolution_id": "res-bridge-0001",
         "ecosystem_root": "test/app",
         "pillars": {
-            "runtime": {
+            "bridge": {
                 "runtimes": [
                     {
                         "name": "backend",
@@ -39,12 +39,12 @@ def _runtime_only_record() -> dict:
     }
 
 
-def _evolution_only_record() -> dict:
+def _dep_only_record() -> dict:
     return {
-        "resolution_id": "res-evolution-0001",
+        "resolution_id": "res-dep-0001",
         "ecosystem_root": "test/app",
         "pillars": {
-            "evolution": {
+            "dep": {
                 "dep_root": "test/app/dep",
                 "episodes_dir": "test/app/state/episodes",
             }
@@ -53,12 +53,12 @@ def _evolution_only_record() -> dict:
     }
 
 
-def _process_only_record() -> dict:
+def _cycles_only_record() -> dict:
     return {
-        "resolution_id": "res-process-0001",
+        "resolution_id": "res-cycles-0001",
         "ecosystem_root": "test/app",
         "pillars": {
-            "process": {
+            "cycles": {
                 "cycle_doc": "blueprint/1-CYCLE.md",
                 "rules_doc": "blueprint/2-RULES.md",
             }
@@ -78,65 +78,65 @@ class EcosystemResolutionTests(unittest.TestCase):
     def test_missing_file_loads_as_none(self):
         self.assertIsNone(ecosystem_resolution.load_resolution_record(self.path))
 
-    def test_runtime_only_round_trips(self):
-        ecosystem_resolution.save_resolution_record(_runtime_only_record(), self.path)
+    def test_bridge_only_round_trips(self):
+        ecosystem_resolution.save_resolution_record(_bridge_only_record(), self.path)
         loaded = ecosystem_resolution.load_resolution_record(self.path)
-        self.assertEqual(loaded["pillars"].keys(), {"runtime"})
-        self.assertEqual(loaded["pillars"]["runtime"]["runtimes"][0]["name"], "backend")
+        self.assertEqual(loaded["pillars"].keys(), {"bridge"})
+        self.assertEqual(loaded["pillars"]["bridge"]["runtimes"][0]["name"], "backend")
 
-    def test_evolution_only_round_trips(self):
-        ecosystem_resolution.save_resolution_record(_evolution_only_record(), self.path)
+    def test_dep_only_round_trips(self):
+        ecosystem_resolution.save_resolution_record(_dep_only_record(), self.path)
         loaded = ecosystem_resolution.load_resolution_record(self.path)
-        self.assertEqual(loaded["pillars"].keys(), {"evolution"})
+        self.assertEqual(loaded["pillars"].keys(), {"dep"})
 
-    def test_process_only_round_trips(self):
-        ecosystem_resolution.save_resolution_record(_process_only_record(), self.path)
+    def test_cycles_only_round_trips(self):
+        ecosystem_resolution.save_resolution_record(_cycles_only_record(), self.path)
         loaded = ecosystem_resolution.load_resolution_record(self.path)
-        self.assertEqual(loaded["pillars"].keys(), {"process"})
+        self.assertEqual(loaded["pillars"].keys(), {"cycles"})
 
     def test_multi_pillar_with_combine_with_applied(self):
-        record = _runtime_only_record()
-        record["pillars"]["evolution"] = _evolution_only_record()["pillars"]["evolution"]
+        record = _bridge_only_record()
+        record["pillars"]["dep"] = _dep_only_record()["pillars"]["dep"]
         record["combine_with_applied"] = [
             {
-                "hook": "runtime.event_sink",
-                "from_pillar": "evolution",
-                "to_pillar": "runtime",
+                "hook": "bridge.event_sink",
+                "from_pillar": "dep",
+                "to_pillar": "bridge",
                 "applied": True,
                 "detail": "RuntimeEventLog passed as the backend Bridge's own event_sink",
             }
         ]
         ecosystem_resolution.save_resolution_record(record, self.path)
         loaded = ecosystem_resolution.load_resolution_record(self.path)
-        self.assertEqual(loaded["pillars"].keys(), {"runtime", "evolution"})
+        self.assertEqual(loaded["pillars"].keys(), {"bridge", "dep"})
         self.assertTrue(loaded["combine_with_applied"][0]["applied"])
 
     def test_zero_pillars_refused(self):
-        record = _process_only_record()
+        record = _cycles_only_record()
         record["pillars"] = {}
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
         self.assertFalse(self.path.exists())
 
     def test_unknown_pillar_key_refused(self):
-        record = _process_only_record()
+        record = _cycles_only_record()
         record["pillars"]["not_a_real_pillar"] = {}
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
 
-    def test_incomplete_runtime_entry_refused(self):
-        record = _runtime_only_record()
-        del record["pillars"]["runtime"]["runtimes"][0]["registry"]
+    def test_incomplete_bridge_entry_refused(self):
+        record = _bridge_only_record()
+        del record["pillars"]["bridge"]["runtimes"][0]["registry"]
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
 
     def test_save_overwrites_freely(self):
         # Unlike episode_store.save_episode, this is current-truth, not an
         # append-only log -- re-saving to the same path must never refuse.
-        ecosystem_resolution.save_resolution_record(_process_only_record(), self.path)
-        ecosystem_resolution.save_resolution_record(_runtime_only_record(), self.path)
+        ecosystem_resolution.save_resolution_record(_cycles_only_record(), self.path)
+        ecosystem_resolution.save_resolution_record(_bridge_only_record(), self.path)
         loaded = ecosystem_resolution.load_resolution_record(self.path)
-        self.assertEqual(loaded["pillars"].keys(), {"runtime"})
+        self.assertEqual(loaded["pillars"].keys(), {"bridge"})
 
     def test_load_refuses_schema_invalid_file_on_disk(self):
         # A file that was somehow written invalid (hand-edited, a bug
