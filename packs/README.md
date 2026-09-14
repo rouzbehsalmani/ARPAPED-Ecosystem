@@ -42,17 +42,25 @@ copy, a worked, runnable proof that the three combine cleanly. Copy
 assembling the three packs by hand if you want the full, integrated
 configuration.
 
-## Two-agent split: one prepares the ecosystem, another builds on it
+## Two-agent split: the Bootstrap agent prepares the ecosystem, the Builder agent builds on it
+
+Two named roles, matching `1-CYCLE.md`'s own phase name for the first
+one and the verb this document already used for the second: the
+**Bootstrap agent** runs Phase 0 only (choose and resolve a pillar
+combination, nothing more); the **Builder agent** starts at Phase 1 and
+actually builds the application. Same agent, same session, or two
+entirely separate ones — the split is a responsibility boundary, not a
+requirement to use two different tools.
 
 **Run it directly: `python -m packs.bootstrap`** — `list-pillars` prints
 the menu below (generated live from these three files' own `pillar:`/
 `description:` fields, never hardcoded prose that could drift from
 them), `resolve` writes the handoff record, `describe` reads it back
 human-readably. Proven end to end: `packs/tests/test_bootstrap.py`, and
-a real Cycles+DEP run with no Bridge pillar at all — Agent 1
-resolved and wrote the record, Agent 2 read only its path, ran real
-verification checks, published a real episode via `finish_cycle` with
-`catalog_path=None`, and fed it into `dataset_builder` — zero
+a real Cycles+DEP run with no Bridge pillar at all — the Bootstrap agent
+resolved and wrote the record, the Builder agent read only its path, ran
+real verification checks, published a real episode via `finish_cycle`
+with `catalog_path=None`, and fed it into `dataset_builder` — zero
 re-discovery, zero conversation history required.
 
 If the Cycles pillar is among what you're adopting, `1-CYCLE.md`
@@ -62,36 +70,36 @@ and resolving a pillar combination, and its output — the
 **ecosystem-resolution record**
 (`blueprint/schemas/ecosystem-resolution-record.schema.json`,
 `blueprint.dep.ecosystem_resolution`) — is exactly the handoff artifact
-a second agent needs to start at Phase 1 without re-resolving or
-re-deciding anything the first agent already settled (the same
+the Builder agent needs to start at Phase 1 without re-resolving or
+re-deciding anything the Bootstrap agent already settled (the same
 bounded-resume discipline `1-CYCLE.md` Gate 33 already requires of a
 checkpoint).
 
-Concretely: tell the first agent which pillar combination you want (or
-have it offer you the options — `1-CYCLE.md` Phase 0 step 2 now requires
-this explicitly for a genuinely new ecosystem root, never a silent
-default to all three); it copies the relevant pack(s)' files, wires
-whatever `combine_with:` hooks you chose, and writes the resolution
-record. Hand that record's path to the second agent; it reads
-`pillars:` to know what exists (and `combine_with_applied:` to know
-what's already wired) and proceeds from Phase 1 onward. Neither agent
-needs the other's conversation history — the record is the whole
+Concretely: tell the Bootstrap agent which pillar combination you want
+(or have it offer you the options — `1-CYCLE.md` Phase 0 step 2 now
+requires this explicitly for a genuinely new ecosystem root, never a
+silent default to all three); it copies the relevant pack(s)' files,
+wires whatever `combine_with:` hooks you chose, and writes the
+resolution record. Hand that record's path to the Builder agent; it
+reads `pillars:` to know what exists (and `combine_with_applied:` to
+know what's already wired) and proceeds from Phase 1 onward. Neither
+agent needs the other's conversation history — the record is the whole
 interface, machine-readable and schema-validated, not a prose summary
 to reconstruct by re-reading a transcript.
 
 This works even without the Cycles pillar adopted for the actual
-application: a first agent can still prepare a Bridge+DEP
+application: a Bootstrap agent can still prepare a Bridge+DEP
 ecosystem (say) and hand off a resolution record describing it, purely
-as a setup step, even if the second agent then works without any
+as a setup step, even if the Builder agent then works without any
 further cycle discipline.
 
-### Starting Agent 1
+### Starting the Bootstrap agent
 
-The ask can be as short as **"start a new project"** — Agent 1 doesn't
-need a filled-in template handed to it. If you're Agent 1 and the user
-asked you to start (in any phrasing) without already giving you a
-pillar combination and a target location, ask exactly these two
-questions before doing anything else:
+The ask can be as short as **"start a new project"** — the Bootstrap
+agent doesn't need a filled-in template handed to it. If you're acting
+as the Bootstrap agent and the user asked you to start (in any
+phrasing) without already giving you a pillar combination and a target
+location, ask exactly these two questions before doing anything else:
 
 1. **Which pillar combination?** Run `python -m packs.bootstrap
    list-pillars` and show the menu — never assume all three, never
@@ -101,15 +109,15 @@ questions before doing anything else:
    absolute path, typed or pasted directly (e.g. `D:\Projects\my-app` or
    `/home/user/projects/my-app`); or (b) a relative location or plain
    description ("a folder called my-app next to this repo", "in my
-   usual projects folder") for Agent 1 to resolve itself — always
-   confirm the resolved absolute path back before proceeding, never
-   silently guess and continue. Either way, a path that isn't already
-   another application's own root. `packs.bootstrap resolve` accepts
-   either form for `--ecosystem-root` and always normalizes it to
-   absolute before storing it (never taking a relative path's meaning
-   from whatever directory `resolve` happens to run in later) — but
-   asking for or confirming the absolute path up front avoids relying
-   on that safety net silently.
+   usual projects folder") for the Bootstrap agent to resolve itself —
+   always confirm the resolved absolute path back before proceeding,
+   never silently guess and continue. Either way, a path that isn't
+   already another application's own root. `packs.bootstrap resolve`
+   accepts either form for `--ecosystem-root` and always normalizes it
+   to absolute before storing it (never taking a relative path's
+   meaning from whatever directory `resolve` happens to run in later)
+   — but asking for or confirming the absolute path up front avoids
+   relying on that safety net silently.
 
 Once you have both answers: copy the chosen pack(s)' `files.required`
 (and whatever `files.optional` the combination actually needs) into
@@ -117,8 +125,8 @@ that location, wire any `combine_with:` hooks the combination calls
 for, then run `python -m packs.bootstrap resolve --ecosystem-root
 <location> --pillars-file <a JSON file you write, matching the
 schema's `pillars` shape>`. Report back only the resolution record's
-path — that's the whole handoff; nothing else needs explaining to
-whoever builds on it next.
+path — that's the whole handoff; nothing else needs explaining to the
+Builder agent.
 
 ## Why an index instead of a copy
 

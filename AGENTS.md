@@ -15,8 +15,8 @@ demonstrates, and the rest of this file is written for it.
 **Asked to start a genuinely new project** (however short the ask --
 "start", "bootstrap this", etc.), with no pillar combination or target
 location already given? Don't guess either one. See `packs/README.md`'s
-"Starting Agent 1" section for the two questions to ask before doing
-anything else.
+"Starting the Bootstrap agent" section for the two questions to ask
+before doing anything else.
 
 **Read `blueprint/0-WALKTHROUGH.md` in full before writing any code here.** This
 applies regardless of which agent or model you are — the rules below are

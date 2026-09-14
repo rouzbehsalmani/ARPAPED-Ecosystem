@@ -67,11 +67,13 @@ dep:
       if the ecosystem's own pillar composition genuinely changes later
       (e.g. a Bridge-only project later also adopting the DEP
       pillar). This is also the concrete handoff artifact for a
-      two-agent split (one agent prepares the ecosystem -- Phase 0 --,
-      a second builds the application on top of it from Phase 1 onward):
-      the second agent reads this file directly instead of re-resolving
-      or re-deciding anything the first agent already settled, the same
-      bounded-resume discipline Gate 33 already requires of a checkpoint.
+      two-agent split (packs/README.md "Two-agent split"): the Bootstrap
+      agent prepares the ecosystem (Phase 0 only), the Builder agent
+      builds the application on top of it from Phase 1 onward -- the
+      Builder agent reads this file directly instead of re-resolving
+      or re-deciding anything the Bootstrap agent already settled, the
+      same bounded-resume discipline Gate 33 already requires of a
+      checkpoint.
   cycle_input:
     location: blueprint/schemas/agent-cycle-input.schema.json
     role: >

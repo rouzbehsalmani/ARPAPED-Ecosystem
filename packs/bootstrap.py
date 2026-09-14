@@ -1,6 +1,7 @@
 """The executable form of packs/README.md's own "two-agent split" section
--- what Agent 1 (1-CYCLE.md Phase 0) actually runs to offer the pillar
-combinations, and what Agent 2 runs to read the handoff.
+-- what the Bootstrap agent (1-CYCLE.md Phase 0) actually runs to offer
+the pillar combinations, and what the Builder agent runs to read the
+handoff.
 
 Three commands:
 
@@ -28,8 +29,9 @@ Three commands:
   python -m packs.bootstrap describe PATH
       Pretty-prints an existing resolution record -- which pillars, what
       each resolved to, which combine_with hooks were applied. What
-      Agent 2 runs first, instead of hand-reading raw JSON, to confirm
-      what Agent 1 actually settled before building anything.
+      the Builder agent runs first, instead of hand-reading raw JSON, to
+      confirm what the Bootstrap agent actually settled before building
+      anything.
 
 Nothing here duplicates a pack's own content -- `list-pillars` reads
 packs/*.yaml directly every time, so it can never go stale independently

@@ -297,11 +297,12 @@ the goal. Mandatory before any other phase, for any human or AI agent.
    first established (step 2 above) — a cycle continuing an EXISTING
    ecosystem never re-decides or re-writes this, it reads the same file
    back (`blueprint.dep.ecosystem_resolution.load_resolution_record`).
-   This is also the natural handoff point for a two-agent split: one
-   agent runs Phase 0 alone (offers the pillar combination, resolves and
-   records it), a second starts at Phase 1 by reading this record
-   directly, never re-resolving or re-deciding anything the first agent
-   already settled.
+   This is also the natural handoff point for a two-agent split
+   (`packs/README.md` "Two-agent split"): the Bootstrap agent runs
+   Phase 0 alone (offers the pillar combination, resolves and records
+   it), the Builder agent starts at Phase 1 by reading this record
+   directly, never re-resolving or re-deciding anything the Bootstrap
+   agent already settled.
 6. Load the operating rules: this Blueprint, the ecosystem's authoritative
    manifests, canonical Bridge/Registry contracts, immutable architectural
    decisions, capability/component reuse rules, repository-local policies.
