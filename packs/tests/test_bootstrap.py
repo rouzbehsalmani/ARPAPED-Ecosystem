@@ -43,10 +43,203 @@ class ListPillarsTests(unittest.TestCase):
             self.assertIn(combo, output)
 
 
+class QuestionsTests(unittest.TestCase):
+    def _ids(self, answers=None):
+        return [q["id"] for q in bootstrap.applicable_questions(answers)]
+
+    def test_start_of_flow_has_no_bridge_questions(self):
+        # Nothing answered yet -- bridge_runtimes/bridge_language_* all
+        # depend on `pillars` being answered first, so none of them
+        # should appear, only the unconditional questions.
+        self.assertEqual(self._ids(), ["pillars", "capability_language", "location"])
+
+    def test_bridge_not_chosen_skips_all_bridge_questions(self):
+        ids = self._ids({"pillars": ["dep", "cycles"]})
+        self.assertNotIn("bridge_runtimes", ids)
+        self.assertNotIn("bridge_language_backend", ids)
+        self.assertNotIn("bridge_language_frontend", ids)
+
+    def test_bridge_chosen_shows_runtime_question_only(self):
+        ids = self._ids({"pillars": ["bridge"]})
+        self.assertIn("bridge_runtimes", ids)
+        self.assertNotIn("bridge_language_backend", ids)
+        self.assertNotIn("bridge_language_frontend", ids)
+
+    def test_backend_only_asks_backend_language_only(self):
+        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "backend"})
+        self.assertIn("bridge_language_backend", ids)
+        self.assertNotIn("bridge_language_frontend", ids)
+
+    def test_frontend_only_asks_frontend_language_only(self):
+        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "frontend"})
+        self.assertIn("bridge_language_frontend", ids)
+        self.assertNotIn("bridge_language_backend", ids)
+
+    def test_both_asks_both_languages(self):
+        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "both"})
+        self.assertIn("bridge_language_backend", ids)
+        self.assertIn("bridge_language_frontend", ids)
+
+    def test_already_answered_questions_never_reappear(self):
+        # pillars and bridge_runtimes are both already answered -- neither
+        # should show up again even though bridge_runtimes still
+        # technically "applies" given these answers.
+        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "both"})
+        self.assertNotIn("pillars", ids)
+        self.assertNotIn("bridge_runtimes", ids)
+
+    def test_bridge_language_options_are_the_reference_language_only(self):
+        # Exactly one real option each -- the reference implementation's
+        # own language -- never a second, redundant "write your own"
+        # entry duplicating the free-text fallback.
+        questions = {q["id"]: q for q in bootstrap.applicable_questions({"pillars": ["bridge"], "bridge_runtimes": "both"})}
+        self.assertEqual(questions["bridge_language_backend"]["options"], ["Python"])
+        self.assertEqual(questions["bridge_language_frontend"]["options"], ["JavaScript"])
+
+    def test_capability_language_options_are_two_genuine_choices(self):
+        questions = {q["id"]: q for q in bootstrap.applicable_questions()}
+        self.assertEqual(
+            questions["capability_language"]["options"],
+            ["Same language as the Bridge", "Not yet / I don't know"],
+        )
+
+    def test_location_has_no_options_at_all(self):
+        # Genuinely open -- options: None AND no options_source, unlike
+        # pillars below. This is the one question with nothing to select.
+        questions = {q["id"]: q for q in bootstrap.applicable_questions()}
+        self.assertIsNone(questions["location"]["options"])
+        self.assertEqual(questions["location"]["kind"], "open")
+        self.assertNotIn("options_source", questions["location"])
+
+    def test_pillars_has_no_hardcoded_options_but_is_still_a_selection_question(self):
+        # options: None here does NOT mean "ask in plain text" -- it
+        # means the real options live in list-pillars' own output.
+        # options_source must be present and point at that command, or
+        # an agent reading only `options` has no way to tell this apart
+        # from a genuinely open question like location.
+        questions = {q["id"]: q for q in bootstrap.applicable_questions()}
+        self.assertIsNone(questions["pillars"]["options"])
+        self.assertEqual(questions["pillars"]["options_source"], "python -m packs.bootstrap list-pillars")
+
+    def test_print_questions_notes_pillars_options_source(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bootstrap.print_questions()
+        output = buf.getvalue()
+        self.assertIn("still a selection question", output)
+        self.assertIn("list-pillars", output)
+
+    def test_next_question_returns_none_when_nothing_left(self):
+        answers = {
+            "pillars": ["cycles"], "capability_language": "Python", "location": "/tmp/x",
+        }
+        self.assertIsNone(bootstrap.next_question(answers))
+
+    def test_print_questions_default_shows_only_the_next_one(self):
+        # The regression this whole command exists to prevent: seeing
+        # more than one question at once invites asking several without
+        # re-checking in between. Default output must be exactly one.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bootstrap.print_questions({"pillars": ["bridge"], "bridge_runtimes": "backend"})
+        output = buf.getvalue()
+        self.assertIn("[bridge_language_backend]", output)
+        self.assertIn("Python", output)
+        self.assertNotIn("bridge_language_frontend", output)
+        self.assertNotIn("capability_language", output)
+        self.assertNotIn("location", output)
+
+    def test_print_questions_all_shows_every_remaining_one(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bootstrap.print_questions({"pillars": ["bridge"], "bridge_runtimes": "backend"}, show_all=True)
+        output = buf.getvalue()
+        self.assertIn("[bridge_language_backend]", output)
+        self.assertIn("capability_language", output)
+        self.assertIn("location", output)
+
+    def test_print_questions_nothing_left_message(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bootstrap.print_questions({"pillars": ["cycles"], "capability_language": "x", "location": "y"})
+        self.assertIn("Nothing left to ask.", buf.getvalue())
+
+    def test_full_loop_never_skips_a_question(self):
+        # Simulates exactly what a real Bootstrap agent should do:
+        # repeatedly call next_question(), answer it, feed the answer
+        # back, until None. Proves the whole Bridge+both-runtimes flow
+        # surfaces every single question, in order, none skipped, none
+        # repeated -- the exact failure mode a real run hit for real.
+        answers: dict = {}
+        seen_ids = []
+        canned = {
+            "pillars": ["bridge", "dep"],
+            "bridge_runtimes": "both",
+            "bridge_language_backend": "Python",
+            "bridge_language_frontend": "JavaScript",
+            "capability_language": "Python",
+            "location": "/tmp/my-app",
+        }
+        for _ in range(20):  # hard cap -- a real infinite loop is itself a test failure
+            q = bootstrap.next_question(answers)
+            if q is None:
+                break
+            self.assertNotIn(q["id"], seen_ids, f"{q['id']} was asked twice")
+            seen_ids.append(q["id"])
+            answers[q["id"]] = canned[q["id"]]
+        else:
+            self.fail("loop never terminated -- next_question() kept returning something")
+
+        self.assertEqual(
+            seen_ids,
+            ["pillars", "bridge_runtimes", "bridge_language_backend", "bridge_language_frontend", "capability_language", "location"],
+        )
+
+    def test_cli_questions_subprocess_no_answers(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "packs.bootstrap", "questions"],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[pillars]", result.stdout)
+        self.assertNotIn("bridge_runtimes", result.stdout)
+
+    def test_cli_questions_subprocess_with_answers_file_shows_only_next(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            answers_path = Path(tmp) / "answers.json"
+            answers_path.write_text(json.dumps({"pillars": ["bridge"], "bridge_runtimes": "both"}), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-m", "packs.bootstrap", "questions", "--answers-file", str(answers_path)],
+                cwd=str(_REPO_ROOT), capture_output=True, text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("bridge_language_backend", result.stdout)
+        self.assertNotIn("bridge_language_frontend", result.stdout)
+        self.assertNotIn("[pillars]", result.stdout)
+
+    def test_cli_questions_subprocess_all_flag_shows_everything(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            answers_path = Path(tmp) / "answers.json"
+            answers_path.write_text(json.dumps({"pillars": ["bridge"], "bridge_runtimes": "both"}), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-m", "packs.bootstrap", "questions", "--answers-file", str(answers_path), "--all"],
+                cwd=str(_REPO_ROOT), capture_output=True, text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("bridge_language_backend", result.stdout)
+        self.assertIn("bridge_language_frontend", result.stdout)
+
+
 class ResolveDescribeTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
+        # NOTE: self.pillars_file lives directly inside self.root, so
+        # most tests below that pass ecosystem_root=self.root incidentally
+        # satisfy resolve()'s own "real content besides state/" check just
+        # by having written this fixture file first -- not because it
+        # simulates real copied pack content. RealContentCheckTests below
+        # exercises that check deliberately and explicitly instead.
         self.pillars_file = self.root / "pillars.json"
 
     def tearDown(self):
@@ -91,6 +284,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "cycles": {"cycle_doc": "x", "rules_doc": "y"},
         }), encoding="utf-8")
         (self.root / "my-app").mkdir()
+        (self.root / "my-app" / "1-CYCLE.md").write_text("x", encoding="utf-8")  # simulate real copied content
 
         original_cwd = Path.cwd()
         try:
@@ -134,7 +328,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "bridge": {
                 "runtimes": [
                     {
-                        "name": "backend",
+                        "name": "backend", "language": "Python",
                         "bridge": "x", "registry": "x", "policy": "x", "selector": "x",
                         "contracts_dir": "x", "implementation_map": {},
                     }
@@ -169,6 +363,76 @@ class ResolveDescribeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Bridge + Cycles + DEP", result.stdout)
+
+
+class RealContentCheckTests(unittest.TestCase):
+    """Deliberate, explicit coverage for resolve()'s own refusal when
+    ecosystem_root shows no real evidence anything was actually copied
+    or ported into it -- the exact real-world failure this check exists
+    to catch: a Bootstrap agent ran every question, wrote a fully
+    schema-valid resolution record naming real-looking file paths, and
+    never once copied an actual file. `D:\\simcity` ended up with nothing
+    but `state/ecosystem-resolution.json` -- a record describing an
+    ecosystem that plainly doesn't exist.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.pillars_file = self.root / ".." / "pillars.json"  # deliberately OUTSIDE self.root
+        self.pillars_file = self.pillars_file.resolve()
+        self.pillars_file.write_text(json.dumps({"cycles": {"cycle_doc": "x", "rules_doc": "y"}}), encoding="utf-8")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+        self.pillars_file.unlink(missing_ok=True)
+
+    def test_refuses_when_ecosystem_root_does_not_exist(self):
+        missing = self.root / "does-not-exist-yet"
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
+            bootstrap.resolve(missing, self.pillars_file)
+        self.assertIn("no real content", str(ctx.exception))
+
+    def test_refuses_when_ecosystem_root_is_completely_empty(self):
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
+            bootstrap.resolve(self.root, self.pillars_file)
+        self.assertIn("no real content", str(ctx.exception))
+
+    def test_refuses_when_ecosystem_root_has_only_a_state_directory(self):
+        # The exact D:\simcity shape: state/ already exists (e.g. from a
+        # previous failed attempt), but nothing else does.
+        (self.root / "state").mkdir()
+        (self.root / "state" / "leftover.json").write_text("{}", encoding="utf-8")
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
+            bootstrap.resolve(self.root, self.pillars_file)
+        self.assertIn("no real content", str(ctx.exception))
+
+    def test_succeeds_once_real_content_exists_alongside_state(self):
+        (self.root / "state").mkdir()
+        (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
+        out_path = bootstrap.resolve(self.root, self.pillars_file)
+        self.assertTrue(out_path.exists())
+
+    def test_succeeds_with_real_content_and_no_state_dir_yet(self):
+        # state/ doesn't need to already exist -- resolve() creates it
+        # itself when writing the record; only "is there real content"
+        # matters, not "does state/ already exist".
+        (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
+        out_path = bootstrap.resolve(self.root, self.pillars_file)
+        self.assertTrue(out_path.exists())
+
+    def test_cli_resolve_refuses_on_empty_ecosystem_root(self):
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "packs.bootstrap", "resolve",
+                "--ecosystem-root", str(self.root),
+                "--pillars-file", str(self.pillars_file),
+            ],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no real content", result.stderr)
+        self.assertFalse((self.root / "state").exists(), "refused resolve must not write anything at all")
 
 
 if __name__ == "__main__":

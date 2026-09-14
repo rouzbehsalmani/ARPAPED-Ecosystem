@@ -25,3 +25,16 @@ obj/
 **/state/
 **/capability-catalog.jsonl
 **/dataset.jsonl
+
+# Ad hoc scratch input files the Bootstrap agent (packs/README.md
+# "Starting the Bootstrap agent") writes while running
+# `python -m packs.bootstrap` -- --pillars-file/--combine-with-file for
+# `resolve`, --answers-file for `questions`. Per-bootstrap-session
+# scratch, same posture as **/state/ above: real output (the
+# ecosystem-resolution record itself) already lands under a target
+# project's own state/, already covered; these are the throwaway inputs
+# that produced it, never meant to be committed, whatever an agent
+# happens to name or locate them. packs/ itself holds no legitimate
+# committed JSON at all (only the three pack YAMLs, README, bootstrap.py,
+# tests/), so ignoring every *.json directly under it is safe.
+packs/*.json

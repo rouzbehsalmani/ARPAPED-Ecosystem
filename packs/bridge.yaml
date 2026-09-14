@@ -3,14 +3,26 @@
 # capability execution model, with no self-development cycle (Cycles
 # pillar) and no episode/training recording (DEP pillar).
 #
-# This is an INDEX, not a duplicate: every path below is this Blueprint's
-# one canonical copy -- nothing else in this repo defines Bridge/Registry/
-# Policy/Selector differently. Adopting this pack means copying these real
-# paths into your new project's own tree, never importing them live from
-# here (2-RULES.md R9/Gate 35: a Bridge is copied per application, never
-# shared at runtime across independent applications). If this pack's own
-# contents are ever restructured, update ONLY this file -- no document
-# elsewhere in the Blueprint needs to change (same posture as
+# The Python (backend) / JavaScript (frontend) code below is this
+# Blueprint's own REFERENCE implementation, not the only language it can
+# exist in: nothing about the Bridge/Registry/Policy/Selector
+# architecture (2-RULES.md Bridge/Bridge Core glossary) or the
+# contract/manifest/protocol shapes it validates against
+# (starterkit/schemas/, language-agnostic) is Python- or
+# JavaScript-specific. If the language chosen for a runtime's own Bridge
+# (packs/README.md "Starting the Bootstrap agent") differs from the
+# reference, treat the files below as the SPECIFICATION to port from --
+# same four-stage pipeline (validate -> discover -> policy -> select ->
+# execute), same observed trace shape, same schemas validated against --
+# not a copy-paste target. This is an INDEX either way, never a
+# duplicate: nothing else in this repo defines the architecture
+# differently, whichever language actually implements it. Adopting this
+# pack means copying (or porting) these real paths into your new
+# project's own tree, never importing them live from here (2-RULES.md
+# R9/Gate 35: a Bridge is copied per application, never shared at
+# runtime across independent applications). If this pack's own contents
+# are ever restructured, update ONLY this file -- no document elsewhere
+# in the Blueprint needs to change (same posture as
 # blueprint/dep/MANIFEST.yaml toward its own tools).
 pack: bridge
 pillar: Bridge
@@ -30,9 +42,10 @@ files:
       # implementation-record, discovery-key, bridge-protocol,
       # bridge-trace, process-executor-protocol -- all 8 files here
       # belong to this pack; nothing under starterkit/schemas/ belongs to
-      # any other pillar. Needed regardless of which runtime(s) below
-      # are chosen -- both speak the same contract/manifest/protocol
-      # shapes.
+      # any other pillar. Needed regardless of which runtime(s) or
+      # language(s) below are chosen -- every Bridge, in any language,
+      # validates against these same shapes; porting a Bridge to a new
+      # language never means porting these too.
   choose_at_least_one:
     # Ask which: backend, frontend, or both (packs/README.md "Starting
     # the Bootstrap agent") -- never assume backend just because it's
@@ -40,11 +53,51 @@ files:
     # is a real, valid choice (e.g. a browser-only app whose capabilities
     # are all Local, with no backend at all); so is backend-only; so is
     # both, wired together exactly as starterkit/ demonstrates.
+    #
+    # Each chosen runtime ALSO needs its own answer to "what language?"
+    # (packs/README.md, same section) -- open question, no offered menu.
+    # backend's reference is Python, frontend's is JavaScript: an answer
+    # matching the reference means copy the files below directly; a
+    # different answer means port them into that language instead (see
+    # this file's own header comment for what must carry over
+    # unchanged). Record whichever language was actually used in the
+    # ecosystem-resolution record's own `pillars.bridge.runtimes[].language`
+    # (ecosystem-resolution-record.schema.json) -- never left implicit.
     backend:
+      # implementation/ before runtime/ -- same order every Layout
+      # section in this Blueprint already lists them in (R7
+      # contract -> manifest -> code; build-time precedes run-time):
+      - starterkit/backend/implementation/build_catalog.py
+      # NOT optional -- without this, there is no way to turn your own
+      # capabilities' contracts/manifests into the runtime/
+      # capability-catalog.jsonl the engine below reads at startup, at
+      # all. Generic logic (just walks implementation/capabilities/ and
+      # implementation/contracts/ relative to itself, both empty in a
+      # fresh project until you add your own), but its OWN import --
+      # `from starterkit.backend.runtime.bridge.assembler import
+      # rebuild_catalog` -- is hardcoded to this repo's own package name
+      # and MUST be rewritten to your new project's own package path;
+      # this is real, required editing, not a verbatim copy, even when
+      # the chosen language matches the reference (Python) exactly.
+      # Lands as a sibling of runtime/ (implementation/build_catalog.py
+      # next to runtime/bridge/) -- see this file's own worked_example
+      # note below for the full folder shape.
       - starterkit/backend/runtime/bridge/
       # bridge.py, registry.py, policy.py, selector.py, assembler.py,
-      # process_executor.py, MANIFEST.yaml -- the whole engine, one piece.
+      # process_executor.py, MANIFEST.yaml -- the whole engine, one
+      # piece. Self-contained: only relative imports (.registry,
+      # .policy, ...) inside this folder, nothing importing "starterkit"
+      # -- copying it verbatim needs zero import adjustment.
     frontend:
+      - starterkit/frontend/implementation/build_catalog.py
+      # NOT optional, same reason as backend's own copy above: without
+      # it there is no way to build runtime/capability-catalog.jsonl
+      # from your own implementation/capabilities/**/manifest.json +
+      # implementation/contracts/ (both empty until you add your own).
+      # Pure Node/JS, no import path to rewrite (unlike backend's own
+      # copy) -- it locates everything relative to itself and to
+      # ../../schemas/ (this pack's own schemas/ entry above), nothing
+      # hardcoded to this repo's own package/module name.
       - starterkit/frontend/runtime/bridge/
       # core.js, assembler.js, remote_client.js, MANIFEST.yaml -- the
       # JS Bridge Core, for a browser (or other JS) runtime with its own
@@ -53,16 +106,29 @@ files:
     out_of_process_python_client:
       - starterkit/backend/runtime/clients/python/bridge_client.py
       - starterkit/backend/runtime/clients/python/direct_adapter.py
-      # only relevant if backend was chosen above, and only if a
-      # capability will run as its own Python process (the reference
-      # client), or the Bridge itself may one day not be Python (the
-      # direct/factory adapter).
+      # For "what language will the REST of the application (the
+      # capabilities) be implemented in?" -- a separate question from
+      # the Bridge's own language above (packs/README.md, same
+      # section), open, no offered menu. Relevant only if backend was
+      # chosen, and only for OUT-OF-PROCESS capabilities
+      # (executor_kind: process) -- a plain in-process capability in the
+      # backend Bridge's own language needs nothing extra here. Copy
+      # these two if the answer was Python: the reference client, and
+      # direct_adapter.py's prepared-ahead-of-need role if the Bridge
+      # itself is ever reimplemented in a different language.
     out_of_process_csharp_client:
       - starterkit/backend/implementation/clients/csharp/BridgeClient.cs
       - starterkit/backend/implementation/clients/csharp/BridgeClient.csproj
-      # only relevant if backend was chosen above, and only if a
-      # capability will be written in C#; never the obj/ build output
+      # Same question, answer was C# -- never the obj/ build output
       # alongside these two files, that's generated.
+    # Answer was something else entirely? No reference client exists yet
+    # for it. The wire protocol itself is language-agnostic
+    # (starterkit/schemas/process-executor-protocol.schema.json, already
+    # copied above) -- port it into that language using either client
+    # above as a worked example (starterkit/backend/README.md "Neither
+    # client hand-rolls its own connect/frame/dispatch logic"). Nothing
+    # more to copy for an unlisted language; this is real work, not a
+    # copy-paste, same as porting the Bridge itself.
 
 rules:
   # Pointer, never a duplicate copy -- read these sections in place,
@@ -75,10 +141,20 @@ rules:
       section for the precise list."
 
 worked_example: starterkit/
-# Copy the SHAPE from here too, not just this pack's own files: the
-# folder layout (implementation/ vs runtime/), the file order (contract
-# -> manifest -> executor), the single request-construction point
-# pattern (runtime/app/requests.py). See starterkit/backend/README.md.
+# Copy the SHAPE from here too, not just this pack's own files -- and
+# for a chosen runtime, this is now load-bearing, not just convention:
+# `implementation/build_catalog.py` above depends on landing as a
+# SIBLING of `runtime/` (both directly under your project's own
+# `backend/` or `frontend/`, exactly as `starterkit/backend/` and
+# `starterkit/frontend/` each already split), and the frontend copy
+# additionally depends on `frontend/` and `schemas/` (this pack's own
+# schemas entry above) landing as SIBLINGS of each other one level up --
+# get either wrong and build_catalog.py's own relative-path computation
+# breaks. Also copy the shape of: the file order (contract -> manifest
+# -> executor), the single request-construction point pattern
+# (runtime/app/requests.py). See starterkit/backend/README.md. If the
+# Bridge itself was ported to another language, the SHAPE still applies
+# -- only the engine's own implementation language changed.
 
 combine_with:
   cycles: >
@@ -92,4 +168,10 @@ combine_with:
     own `event_sink` constructor argument (see bridge.py's own
     docstring) to get every real call recorded automatically -- entirely
     optional, duck-typed (bridge.py never imports blueprint.dep), the
-    Bridge runs identically with or without it.
+    Bridge runs identically with or without it. If this runtime's
+    Bridge was ported to a non-Python language, `runtime_log.py` itself
+    stays Python-only (it's DEP-pillar tooling, not part of the Bridge)
+    -- wiring an event_sink from a non-Python Bridge means porting
+    RuntimeEventLog's own small schema-validated record/append logic
+    too, or having that Bridge call the Python one over some boundary
+    of your own choosing; this pack takes no position on which.

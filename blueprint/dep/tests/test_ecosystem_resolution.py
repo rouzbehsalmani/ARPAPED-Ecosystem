@@ -25,6 +25,7 @@ def _bridge_only_record() -> dict:
                 "runtimes": [
                     {
                         "name": "backend",
+                        "language": "Python",
                         "bridge": "test/app/runtime/bridge/bridge.py",
                         "registry": "test/app/runtime/bridge/registry.py",
                         "policy": "test/app/runtime/bridge/policy.py",
@@ -129,6 +130,26 @@ class EcosystemResolutionTests(unittest.TestCase):
         del record["pillars"]["bridge"]["runtimes"][0]["registry"]
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_bridge_entry_without_language_refused(self):
+        # language is never inferred from a file extension or left
+        # implicit -- a runtime entry with no explicit language is
+        # exactly as incomplete as one missing "registry".
+        record = _bridge_only_record()
+        del record["pillars"]["bridge"]["runtimes"][0]["language"]
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_ported_runtime_language_round_trips(self):
+        # The reference implementation is Python (backend) / JavaScript
+        # (frontend), but a runtime's own Bridge can genuinely be ported
+        # into any language -- proves the schema doesn't special-case or
+        # restrict the value to the two reference languages.
+        record = _bridge_only_record()
+        record["pillars"]["bridge"]["runtimes"][0]["language"] = "Go"
+        ecosystem_resolution.save_resolution_record(record, self.path)
+        loaded = ecosystem_resolution.load_resolution_record(self.path)
+        self.assertEqual(loaded["pillars"]["bridge"]["runtimes"][0]["language"], "Go")
 
     def test_save_overwrites_freely(self):
         # Unlike episode_store.save_episode, this is current-truth, not an

@@ -28,9 +28,10 @@
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["name", "bridge", "registry", "policy", "selector", "contracts_dir", "implementation_map"],
+                "required": ["name", "language", "bridge", "registry", "policy", "selector", "contracts_dir", "implementation_map"],
                 "properties": {
                   "name": {"type": "string", "description": "e.g. \"backend\", \"frontend\" -- whatever this runtime is called in this ecosystem."},
+                  "language": {"type": "string", "description": "What this runtime's own Bridge (Registry/Policy/Selector/Assembler/dispatch) is actually implemented in -- e.g. \"Python\", \"Go\". Never inferred from a file extension or left implicit (2-RULES.md \"No silent defaults on what resolution depends on\") -- explicit, because starterkit/'s own Python (backend) / JavaScript (frontend) code is a REFERENCE implementation, not the only option: a different answer here means this runtime's Bridge was ported into that language from the reference, not copied verbatim (packs/README.md \"Starting the Bootstrap agent\")."},
                   "bridge": {"type": "string", "description": "Path to this runtime's own resolved canonical Bridge."},
                   "registry": {"type": "string", "description": "Path to this runtime's own resolved canonical Registry."},
                   "policy": {"type": "string"},
