@@ -24,34 +24,45 @@ description: >
 
 files:
   required:
-    backend_python:
-      - starterkit/backend/runtime/bridge/
-      # bridge.py, registry.py, policy.py, selector.py, assembler.py,
-      # process_executor.py, MANIFEST.yaml -- the whole engine, one piece.
     schemas:
       - starterkit/schemas/
       # component-contract, capability-manifest, capability-catalog,
       # implementation-record, discovery-key, bridge-protocol,
       # bridge-trace, process-executor-protocol -- all 8 files here
       # belong to this pack; nothing under starterkit/schemas/ belongs to
-      # any other pillar.
-  optional:
-    frontend_javascript:
+      # any other pillar. Needed regardless of which runtime(s) below
+      # are chosen -- both speak the same contract/manifest/protocol
+      # shapes.
+  choose_at_least_one:
+    # Ask which: backend, frontend, or both (packs/README.md "Starting
+    # the Bootstrap agent") -- never assume backend just because it's
+    # the more detailed of the two to resolve. A frontend-only ecosystem
+    # is a real, valid choice (e.g. a browser-only app whose capabilities
+    # are all Local, with no backend at all); so is backend-only; so is
+    # both, wired together exactly as starterkit/ demonstrates.
+    backend:
+      - starterkit/backend/runtime/bridge/
+      # bridge.py, registry.py, policy.py, selector.py, assembler.py,
+      # process_executor.py, MANIFEST.yaml -- the whole engine, one piece.
+    frontend:
       - starterkit/frontend/runtime/bridge/
-      # only if this project also needs a second (e.g. browser) runtime
-      # with its own resolved Bridge -- core.js, assembler.js,
-      # remote_client.js, MANIFEST.yaml.
+      # core.js, assembler.js, remote_client.js, MANIFEST.yaml -- the
+      # JS Bridge Core, for a browser (or other JS) runtime with its own
+      # resolved Bridge.
+  optional:
     out_of_process_python_client:
       - starterkit/backend/runtime/clients/python/bridge_client.py
       - starterkit/backend/runtime/clients/python/direct_adapter.py
-      # only if a capability will run as its own Python process (the
-      # reference client), or the Bridge itself may one day not be
-      # Python (the direct/factory adapter).
+      # only relevant if backend was chosen above, and only if a
+      # capability will run as its own Python process (the reference
+      # client), or the Bridge itself may one day not be Python (the
+      # direct/factory adapter).
     out_of_process_csharp_client:
       - starterkit/backend/implementation/clients/csharp/BridgeClient.cs
       - starterkit/backend/implementation/clients/csharp/BridgeClient.csproj
-      # only if a capability will be written in C#; never the obj/ build
-      # output alongside these two files, that's generated.
+      # only relevant if backend was chosen above, and only if a
+      # capability will be written in C#; never the obj/ build output
+      # alongside these two files, that's generated.
 
 rules:
   # Pointer, never a duplicate copy -- read these sections in place,

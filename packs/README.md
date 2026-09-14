@@ -99,34 +99,45 @@ The ask can be as short as **"start a new project"** — the Bootstrap
 agent doesn't need a filled-in template handed to it. If you're acting
 as the Bootstrap agent and the user asked you to start (in any
 phrasing) without already giving you a pillar combination and a target
-location, ask exactly these two questions before doing anything else:
+location, ask before doing anything else:
 
 1. **Which pillar combination?** Run `python -m packs.bootstrap
    list-pillars` and show the menu — never assume all three, never
    assume Bridge alone (`1-CYCLE.md` Phase 0 Gate 35).
-2. **Where should the new project live?** Its ecosystem root — offer
-   two ways to answer, since one line rarely covers both: (a) an
-   absolute path, typed or pasted directly (e.g. `D:\Projects\my-app` or
-   `/home/user/projects/my-app`); or (b) a relative location or plain
-   description ("a folder called my-app next to this repo", "in my
-   usual projects folder") for the Bootstrap agent to resolve itself —
-   always confirm the resolved absolute path back before proceeding,
-   never silently guess and continue. Either way, a path that isn't
-   already another application's own root. `packs.bootstrap resolve`
-   accepts either form for `--ecosystem-root` and always normalizes it
-   to absolute before storing it (never taking a relative path's
-   meaning from whatever directory `resolve` happens to run in later)
-   — but asking for or confirming the absolute path up front avoids
-   relying on that safety net silently.
+2. **If the Bridge pillar is among them: backend, frontend, or both?**
+   (`packs/bridge.yaml`'s own `files.choose_at_least_one` — read it
+   directly rather than re-deriving this choice from memory.) All
+   three are real, valid choices: frontend-only (e.g. a browser-only
+   app whose capabilities are all Local, no backend at all),
+   backend-only, or both wired together as `starterkit/` demonstrates.
+   Never assume backend just because it's the more detailed of the two
+   to resolve. Not applicable at all if Bridge isn't among the chosen
+   pillars — skip this question entirely.
+3. **Where should the new project live?** Its ecosystem root — an
+   absolute path, given by the user, never proposed or suggested by
+   you: ask for it plainly ("what's the absolute path?") and do not
+   offer an example path as if it were a default or a hint. A relative
+   location or plain description ("a folder called my-app next to this
+   repo", "in my usual projects folder") is also acceptable — resolve
+   it yourself, then always confirm the resolved absolute path back
+   before proceeding, never silently guess and continue. Either way, a
+   path that isn't already another application's own root.
+   `packs.bootstrap resolve` accepts either form for `--ecosystem-root`
+   and always normalizes it to absolute before storing it (never taking
+   a relative path's meaning from whatever directory `resolve` happens
+   to run in later) — but asking for or confirming the absolute path up
+   front avoids relying on that safety net silently.
 
-Once you have both answers: copy the chosen pack(s)' `files.required`
-(and whatever `files.optional` the combination actually needs) into
-that location, wire any `combine_with:` hooks the combination calls
-for, then run `python -m packs.bootstrap resolve --ecosystem-root
-<location> --pillars-file <a JSON file you write, matching the
-schema's `pillars` shape>`. Report back only the resolution record's
-path — that's the whole handoff; nothing else needs explaining to the
-Builder agent.
+Once you have every answer that applies: copy the chosen pack(s)'
+`files.required` (backend/frontend/both from `files.choose_at_least_one`
+when Bridge is among them, and whatever `files.optional` the
+combination actually needs) into that location, wire any
+`combine_with:` hooks the combination calls for, then run `python -m
+packs.bootstrap resolve --ecosystem-root <location> --pillars-file <a
+JSON file you write, matching the schema's `pillars` shape -- one
+`runtimes[]` entry per runtime chosen in question 2, if Bridge was
+adopted>`. Report back only the resolution record's path — that's the
+whole handoff; nothing else needs explaining to the Builder agent.
 
 ## Why an index instead of a copy
 
