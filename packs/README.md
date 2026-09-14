@@ -44,6 +44,17 @@ configuration.
 
 ## Two-agent split: one prepares the ecosystem, another builds on it
 
+**Run it directly: `python -m packs.bootstrap`** — `list-pillars` prints
+the menu below (generated live from these three files' own `pillar:`/
+`description:` fields, never hardcoded prose that could drift from
+them), `resolve` writes the handoff record, `describe` reads it back
+human-readably. Proven end to end: `packs/tests/test_bootstrap.py`, and
+a real Process+Evolution run with no Runtime pillar at all — Agent 1
+resolved and wrote the record, Agent 2 read only its path, ran real
+verification checks, published a real episode via `finish_cycle` with
+`catalog_path=None`, and fed it into `dataset_builder` — zero
+re-discovery, zero conversation history required.
+
 If the Process pillar is among what you're adopting, `1-CYCLE.md`
 Phase 0 is designed to be run by a separate agent (or session) from the
 one that builds the actual application: Phase 0's whole job is choosing
