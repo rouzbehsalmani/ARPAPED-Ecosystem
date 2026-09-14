@@ -1,0 +1,85 @@
+# Evolution pillar pack -- the copy-paste manifest for a new project that
+# wants ONLY DEP's own recording discipline: turn completed development
+# cycles into a durable, accumulating episode corpus, and build a
+# training dataset from it. No Bridge, no capabilities, no self-development
+# cycle process required to adopt this pack.
+#
+# This is an INDEX, not a duplicate: every path below is this Blueprint's
+# one canonical copy. blueprint/dep/*.py already imports nothing
+# Bridge-specific (confirmed: no import of any bridge/registry/policy/
+# selector/assembler/starterkit path anywhere in this folder) -- that is
+# what makes this pack genuinely independent of packs/runtime.yaml.
+pack: evolution
+pillar: Evolution
+description: >
+  Records completed development cycles as episodes (one directory per
+  cycle, holding a decision record + verification record) and builds a
+  training dataset from that corpus -- raw material for a future
+  predictor agent (`jepa`, not yet built). Adopt this alone to record
+  your own development process as training data, whatever that process
+  looks like -- no Bridge and no cycle discipline beyond what you
+  already have.
+
+files:
+  required:
+    tooling:
+      - blueprint/dep/
+      # checkpoint.py, dataset_builder.py, episode_store.py,
+      # finish_cycle.py, git_commit_event.py, process_supervisor.py,
+      # runtime_log.py, state_ref.py, MANIFEST.yaml, tests/ -- copy the
+      # whole folder, including tests/: they're the only regression
+      # coverage any of this has, and they double as the clearest
+      # working examples of every module's own contract.
+    schemas:
+      - blueprint/schemas/agent-cycle-report.schema.json
+      - blueprint/schemas/verification-record.schema.json
+      - blueprint/schemas/cycle-checkpoint.schema.json
+      - blueprint/schemas/runtime-event.schema.json
+      - blueprint/schemas/git-commit-event.schema.json
+      - blueprint/schemas/ecosystem-resolution-record.schema.json
+      # every one of these is jsonschema.validate()'d against by some
+      # blueprint/dep/*.py module directly -- not optional reference,
+      # actually loaded at runtime. (checkpoint.py and
+      # ecosystem_resolution.py, and their two schemas here, are ALSO
+      # independently required by packs/process.yaml alone -- Gates
+      # 25/32-34 are Process-pillar gates; this pack and that one
+      # overlap on exactly these two files, on purpose, not a copy error.)
+  optional:
+    schemas:
+      - blueprint/schemas/agent-cycle-input.schema.json
+      # only needed if this project also adopts the Process pillar's own
+      # cycle-input shape (current_state + goal); nothing in
+      # blueprint/dep/ itself reads this one.
+
+rules: []
+# None. No blueprint/2-RULES.md rule is Evolution-specific -- R1-R9 are
+# Runtime-pillar vocabulary throughout (see that file's own "Scope"
+# section).
+
+no_bridge_required: >
+  blueprint/dep/finish_cycle.py's `catalog_path` parameter accepts an
+  explicit `None` for exactly this pack, adopted alone: the acyclic
+  capability-dependency-graph check is skipped outright (vacuously
+  satisfied -- there are no capabilities to have a cycle among), while
+  every other refusal (an unverified record is never published) stays
+  in force. A cycle_report/verification_record with empty
+  `new_capabilities`/`reused_capabilities` and a `bridge_integration`
+  note like "N/A -- this project has not adopted the Runtime pillar"
+  round-trips through finish_cycle and dataset_builder cleanly --
+  proven by `blueprint/dep/tests/test_finish_cycle.py`'s own
+  `test_no_catalog_episode_feeds_dataset_builder`.
+
+combine_with:
+  runtime: >
+    Adopting the Runtime pillar too (packs/runtime.yaml)? Two hooks
+    connect them, both optional: (1) pass a
+    blueprint.dep.runtime_log.RuntimeEventLog as the Bridge's own
+    `event_sink` to record every real call, not just verified-cycle
+    ones; (2) call `finish_cycle` with a real `catalog_path` (your
+    application's own capability-catalog.jsonl) instead of `None`, so
+    Gate 30's acyclic-dependency check actually runs against your real
+    capability graph.
+  process: >
+    Adopting the Process pillar too (packs/process.yaml)? This pack IS
+    what makes blueprint/1-CYCLE.md's Phase 8 Gate 31 satisfiable --
+    `finish_cycle` is the one call that closes it. Nothing else to add.

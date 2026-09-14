@@ -1,5 +1,46 @@
 # ARPAPED Self-Improving Cycle Blueprint — Agent Executable
 
+## Three independently adoptable pillars
+
+This Blueprint is three pillars, each independently adoptable by a
+project that wants only it. **Want to copy one into a new project right
+now? See [`packs/`](packs/)** — one machine-readable manifest per pillar
+naming exactly which real paths to copy, plus how to combine more than
+one; the prose below is the overview, `packs/` is the actionable version.
+
+- **Process pillar** (`blueprint/1-CYCLE.md`, `blueprint/2-RULES.md`) --
+  the 9-phase self-development cycle methodology: understand a goal,
+  decompose it, discover/decide an approach, implement it, verify it via
+  a harness appropriate to the work, and return state for the next cycle.
+  Adopt this alone for disciplined, self-verifying development cycles
+  with no Bridge and no DEP recording.
+- **Runtime pillar** (`starterkit/*/runtime/bridge/`, `blueprint/2-RULES.md`
+  R1-R9 and the Bridge/Registry contracts) -- a loosely-coupled,
+  contract-and-manifest capability execution model: every capability
+  execution goes through one canonical Bridge over contract-shaped data.
+  Adopt this alone for that composition discipline with no cycle process
+  and no DEP recording.
+- **Evolution pillar** (`blueprint/dep/`, `blueprint/schemas/`) --
+  records completed development cycles as episodes
+  (`blueprint.dep.finish_cycle`, `episode_store`, `checkpoint`, ...) and
+  builds a training dataset from that corpus (`dataset_builder`) -- raw
+  material for a future predictor agent (`jepa`, not yet built). Adopt
+  this alone to record your own development process as training data,
+  with no Bridge and no cycle discipline beyond what you already have.
+
+Combined, all three -- exactly what `starterkit/` demonstrates end to
+end -- is one valid, fully-supported configuration, not the only one: the
+Process pillar's cycle is what binds Runtime and Evolution together when
+a project adopts both (`blueprint/dep/MANIFEST.yaml: process`). For which
+gates/rules apply to YOUR chosen combination, see `1-CYCLE.md`'s "Scope:
+Bridge-scoped gates vs. always-applicable gates" section and
+`2-RULES.md`'s "Scope: which rules are Bridge-scoped" section (both near
+the top of those files).
+
+If you're building the full, integrated configuration -- Process +
+Runtime + Evolution together, the one `starterkit/` demonstrates --
+nothing below changes: keep reading.
+
 **If you are about to write code in this repository, read
 `blueprint/0-WALKTHROUGH.md` first — in full, before your first line of code.** This
 is not a suggestion: every past attempt that skipped it produced a plain

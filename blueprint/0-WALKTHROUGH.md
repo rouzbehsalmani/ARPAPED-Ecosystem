@@ -1,5 +1,13 @@
 # Build Walkthrough
 
+This file walks through the FULL, integrated configuration -- Process +
+Runtime + Evolution pillars together, exactly what `starterkit/`
+demonstrates end to end. Adopting only one or two pillars for a
+Bridge-free or DEP-free project? See `../README.md`'s "Three independently
+adoptable pillars" section first; this file's "default to capability"
+instruction below is Runtime-pillar guidance and does not apply to a
+project that hasn't adopted that pillar.
+
 **Read this file in full before writing any code in this repository.** Every
 past attempt that skipped it produced a plain monolith — a single class with
 a pile of methods, no contracts, no manifests, no Bridge, no capabilities.

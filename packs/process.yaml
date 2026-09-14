@@ -1,0 +1,94 @@
+# Process pillar pack -- the copy-paste manifest for a new project that
+# wants ONLY the 9-phase self-development cycle methodology: understand a
+# goal, decompose it, discover/decide an approach, implement it, verify
+# it via whatever harness fits the work, return state for the next
+# cycle. No Bridge, no capabilities, no DEP recording required to adopt
+# this pack -- though most gates below are written assuming the Runtime
+# pillar IS adopted; see "bridge_free_use" below for what changes when
+# it isn't.
+#
+# This is an INDEX, not a duplicate: the files below are this Blueprint's
+# one canonical copy of the cycle/rules text -- copy them in, don't fork
+# their content into a project-local rewrite (drift risk: a forked copy
+# of R1-R9 or the gate list would silently disagree with this one the
+# moment either changes).
+pack: process
+pillar: Process
+description: >
+  The 9-phase spine (Bootstrap through Return state), each phase citing
+  the invariant rule(s) it enforces, with every conformance gate inlined
+  at the phase that enforces it. Adopt this alone for disciplined,
+  self-verifying development cycles -- reuse over duplication, design
+  before implementation, a headless verification pass every cycle, a
+  legible resulting state the next cycle can pick up without private
+  memory -- independent of whether this project ever adopts a Bridge.
+
+files:
+  required:
+    cycle_and_rules:
+      - blueprint/1-CYCLE.md
+      - blueprint/2-RULES.md
+      # Read blueprint/1-CYCLE.md's own "Scope: Bridge-scoped gates vs.
+      # always-applicable gates" section (and 2-RULES.md's matching
+      # "Scope" section) FIRST -- they tell you, gate by gate and rule
+      # by rule, which of this file's own contents apply to a
+      # Bridge-free project and which are Runtime-pillar-only and safe
+      # to skip.
+    resumability_tooling:
+      - blueprint/dep/checkpoint.py
+      - blueprint/schemas/cycle-checkpoint.schema.json
+      - blueprint/dep/ecosystem_resolution.py
+      - blueprint/schemas/ecosystem-resolution-record.schema.json
+      # These two files live under blueprint/dep/ for structural reasons
+      # (every small, schema-validated record-writer in this Blueprint
+      # lives there), but back Gates 25 and 32-34 -- Phase 0/checkpoint
+      # discipline, Process-pillar gates, always-applicable regardless of
+      # whether the Evolution pillar itself is adopted. Neither imports
+      # anything Bridge-specific or anything else from blueprint/dep/
+      # (episode_store, finish_cycle, dataset_builder, ...) -- adopting
+      # these two files is NOT adopting the Evolution pillar.
+  optional:
+    schemas:
+      - blueprint/schemas/agent-cycle-input.schema.json
+      - blueprint/schemas/agent-cycle-report.schema.json
+      - blueprint/schemas/verification-record.schema.json
+      # illustrative record shapes for a cycle's input/decisions/
+      # verification outcome -- worth adopting even without the
+      # Evolution pillar, purely as a machine-readable format for your
+      # own cycle reports; they become load-bearing (actually validated
+      # against) only once packs/evolution.yaml is also adopted.
+
+rules:
+  - blueprint/2-RULES.md: "Always-applicable and hybrid-generic gates
+      only (see 1-CYCLE.md's own 'Scope' section) -- R1-R9's Bridge-scoped
+      content does not apply without packs/runtime.yaml."
+
+bridge_free_use: >
+  A project with no Bridge still runs the same Phase 0-9 spine, gate for
+  gate -- see 1-CYCLE.md's own worked example (its "Scope" section) for
+  a full goal walked through phase by phase with the Runtime-scoped
+  gates skipped. The short version: Phase 0's Gates 1/2 (resolve a
+  Bridge/Registry) are skipped outright, but Gate 35 still fully applies
+  in generalized form (decide continue-vs-new, offer the pillar
+  combination explicitly) and Gate 25 still applies generalized (write
+  the ecosystem-resolution record naming which pillar(s) were chosen,
+  just with no pillars.runtime sub-object); Phase 5-6's contract/manifest
+  gates (7, 13-16, 24, 26's literal mechanism) are skipped, but Gate
+  26's generalized "design before code" still applies; Phase 7's Bridge
+  trace/selection/evidence gates (18, 22, 27, 28, 30, 36, 37) are
+  skipped or vacuously satisfied; Gates 9, 14 (Registry publication) are
+  skipped. Everything else -- reuse-over-duplication (6), a headless
+  harness (17), regression checks (20), the operator decision window
+  (23), returning a legible resulting state (11) -- applies unchanged.
+
+combine_with:
+  runtime: >
+    Adopting the Runtime pillar too (packs/runtime.yaml)? Every gate
+    marked Bridge-scoped or hybrid in 1-CYCLE.md's own "Scope" section
+    activates automatically -- nothing to add here, that section already
+    names them.
+  evolution: >
+    Adopting the Evolution pillar too (packs/evolution.yaml)? Phase 8's
+    `blueprint.dep.finish_cycle` call becomes how Gate 31 is actually
+    satisfied (call it with `catalog_path=None` if Runtime isn't also
+    adopted) -- see packs/evolution.yaml.

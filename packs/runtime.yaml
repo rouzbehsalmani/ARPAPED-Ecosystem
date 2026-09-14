@@ -1,0 +1,84 @@
+# Runtime pillar pack -- the copy-paste manifest for a new project that
+# wants ONLY the Bridge's loosely-coupled, contract-and-manifest
+# capability execution model, with no self-development cycle (Process
+# pillar) and no episode/training recording (Evolution pillar).
+#
+# This is an INDEX, not a duplicate: every path below is this Blueprint's
+# one canonical copy -- nothing else in this repo defines Bridge/Registry/
+# Policy/Selector differently. Adopting this pack means copying these real
+# paths into your new project's own tree, never importing them live from
+# here (2-RULES.md R9/Gate 35: a Bridge is copied per application, never
+# shared at runtime across independent applications). If this pack's own
+# contents are ever restructured, update ONLY this file -- no document
+# elsewhere in the Blueprint needs to change (same posture as
+# blueprint/dep/MANIFEST.yaml toward its own tools).
+pack: runtime
+pillar: Runtime
+description: >
+  A loosely-coupled, contract-and-manifest capability execution model:
+  every capability execution goes through one canonical Bridge over
+  contract-shaped data (discovery -> policy -> selection -> execution,
+  with a full observed trace). Adopt this alone for that composition
+  discipline -- swappable, independently-discoverable implementations
+  behind one contract -- with no cycle process and no DEP recording.
+
+files:
+  required:
+    backend_python:
+      - starterkit/backend/runtime/bridge/
+      # bridge.py, registry.py, policy.py, selector.py, assembler.py,
+      # process_executor.py, MANIFEST.yaml -- the whole engine, one piece.
+    schemas:
+      - starterkit/schemas/
+      # component-contract, capability-manifest, capability-catalog,
+      # implementation-record, discovery-key, bridge-protocol,
+      # bridge-trace, process-executor-protocol -- all 8 files here
+      # belong to this pack; nothing under starterkit/schemas/ belongs to
+      # any other pillar.
+  optional:
+    frontend_javascript:
+      - starterkit/frontend/runtime/bridge/
+      # only if this project also needs a second (e.g. browser) runtime
+      # with its own resolved Bridge -- core.js, assembler.js,
+      # remote_client.js, MANIFEST.yaml.
+    out_of_process_python_client:
+      - starterkit/backend/runtime/clients/python/bridge_client.py
+      - starterkit/backend/runtime/clients/python/direct_adapter.py
+      # only if a capability will run as its own Python process (the
+      # reference client), or the Bridge itself may one day not be
+      # Python (the direct/factory adapter).
+    out_of_process_csharp_client:
+      - starterkit/backend/implementation/clients/csharp/BridgeClient.cs
+      - starterkit/backend/implementation/clients/csharp/BridgeClient.csproj
+      # only if a capability will be written in C#; never the obj/ build
+      # output alongside these two files, that's generated.
+
+rules:
+  # Pointer, never a duplicate copy -- read these sections in place,
+  # don't fork their text into this pack. blueprint/2-RULES.md's own
+  # "Scope: which rules are Bridge-scoped" section already tags exactly
+  # which numbered rules/gates apply to this pack alone.
+  - blueprint/2-RULES.md: "R1-R9, the Bridge/Registry/Policy/Selector
+      glossary entries, and the Verification contract's Bridge-scoped
+      items (trace/selection/evidence) -- see that file's own 'Scope'
+      section for the precise list."
+
+worked_example: starterkit/
+# Copy the SHAPE from here too, not just this pack's own files: the
+# folder layout (implementation/ vs runtime/), the file order (contract
+# -> manifest -> executor), the single request-construction point
+# pattern (runtime/app/requests.py). See starterkit/backend/README.md.
+
+combine_with:
+  process: >
+    Adopting the Process pillar too (packs/process.yaml)? Nothing extra
+    to add here -- blueprint/1-CYCLE.md's own "Scope" section activates
+    every Bridge-scoped gate automatically once this pack's files exist
+    in your project; nothing in this pack changes.
+  evolution: >
+    Adopting the Evolution pillar too (packs/evolution.yaml)? Pass a
+    blueprint.dep.runtime_log.RuntimeEventLog instance as this Bridge's
+    own `event_sink` constructor argument (see bridge.py's own
+    docstring) to get every real call recorded automatically -- entirely
+    optional, duck-typed (bridge.py never imports blueprint.dep), the
+    Bridge runs identically with or without it.

@@ -23,6 +23,10 @@
       "type": "string",
       "description": "The current_state the cycle began from."
     },
+    "ecosystem_resolution_ref": {
+      "type": "string",
+      "description": "Path to the ecosystem-resolution record written at Phase 0 (ecosystem-resolution-record.schema.json, blueprint.dep.ecosystem_resolution, Gate 25) — same field name and meaning as cycle-checkpoint.schema.json's own ecosystem_resolution_ref. Optional: a cycle whose Phase 0 predates this field, or that continues an ecosystem resolved before this schema existed, simply omits it."
+    },
     "reusable_discovery": {
       "type": "array",
       "items": {"type": "string"},

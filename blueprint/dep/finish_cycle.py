@@ -47,10 +47,25 @@ actually in the catalog at the moment it's called; calling this before
 registration would silently check a graph missing this cycle's own new
 edges, which is weaker than Gate 30 actually requires.
 
+`catalog_path` is Optional: a project that has adopted the Evolution
+pillar (this module) with no Runtime pillar (no Bridge, no capabilities)
+of its own passes `catalog_path=None` explicitly -- never a default this
+parameter falls back to on its own (2-RULES.md "No silent defaults on
+what resolution depends on") -- and the acyclic-graph check is skipped
+outright, vacuously satisfied: there is no declared capability dependency
+graph to have a cycle among. Passing a real Path is unaffected by this:
+the path still must exist and parse, exactly as before (see
+_build_dependency_graph's own docstring) -- only an explicit `None` is
+"nothing to check," never a missing file at a path someone actually gave.
+
 Generic, same posture as every other blueprint/dep/ tool: no default
 `catalog_path`/`episodes_dir`/`checkpoint_path` here -- always given
 explicitly by the caller, this application's own paths, never a path
-inside blueprint/dep/ itself.
+inside blueprint/dep/ itself. `catalog_path` alone may also be given as
+an explicit `None` (never omitted with a silent fallback) -- the Evolution
+pillar's own publish gate for a project that has not adopted the Runtime
+pillar at all: no Bridge, no capabilities, no acyclic-graph check to run
+(README.md "Three independently adoptable pillars"; 1-CYCLE.md "Scope").
 
 Two entry points, for two different callers:
 
@@ -88,9 +103,11 @@ _VERIFICATION_RECORD_SCHEMA = json.loads((_SCHEMAS_DIR / "verification-record.sc
 
 class FinishCycleError(Exception):
     """Raised when a cycle refuses to be published: the verification record
-    isn't status "verified", the catalog named by catalog_path doesn't
-    exist or isn't parseable, or the dependency graph it declares contains
-    a cycle (R4/R5, Gate 30). Distinct from episode_store.EpisodeStoreError
+    isn't status "verified", or -- when a real catalog_path was given (it
+    is Optional; None means the Runtime pillar isn't in play and this
+    whole check is skipped) -- that catalog doesn't exist or isn't
+    parseable, or the dependency graph it declares contains a cycle
+    (R4/R5, Gate 30). Distinct from episode_store.EpisodeStoreError
     and checkpoint.CheckpointError, which this module still lets propagate
     unwrapped for their own failure modes -- this class exists only for the
     two invariants finish_cycle itself introduces."""
@@ -193,7 +210,7 @@ def _find_cycle(graph: dict[str, list[str]]) -> Optional[list[str]]:
 def finish_cycle(
     cycle_report: dict[str, Any],
     verification_record: dict[str, Any],
-    catalog_path: Path,
+    catalog_path: Optional[Path],
     episodes_dir: Path,
     checkpoint_path: Optional[Path] = None,
 ) -> Path:
@@ -206,8 +223,11 @@ def finish_cycle(
        verification_record["status"], since a schema-invalid record might
        not even have that key;
     2. refuse if verification_record["status"] != "verified";
-    3. build the dependency graph from catalog_path and refuse if it
-       contains a cycle, naming the exact cycle (Gate 30);
+    3. if catalog_path is not None, build the dependency graph from it and
+       refuse if it contains a cycle, naming the exact cycle (Gate 30) --
+       skipped outright when catalog_path is None (no Runtime pillar, no
+       capabilities, nothing to have a cycle among; see this function's
+       own module docstring);
     4. only past both refusals, episode_store.save_episode(cycle_report,
        verification_record, episodes_dir);
     5. if checkpoint_path is given, checkpoint.clear_checkpoint(checkpoint_path)
@@ -235,16 +255,17 @@ def finish_cycle(
             "is green, then call finish_cycle again"
         )
 
-    graph = _build_dependency_graph(catalog_path)
-    cycle = _find_cycle(graph)
-    if cycle is not None:
-        raise FinishCycleError(
-            f"declared dependency graph in {catalog_path} contains a cycle: "
-            + " -> ".join(cycle)
-            + " -- R4/R5/Gate 30 requires generics -> specifics, never a loop; fix the "
-            "offending contract's dependencies.capabilities, rebuild the catalog, and only "
-            "then call finish_cycle again"
-        )
+    if catalog_path is not None:
+        graph = _build_dependency_graph(catalog_path)
+        cycle = _find_cycle(graph)
+        if cycle is not None:
+            raise FinishCycleError(
+                f"declared dependency graph in {catalog_path} contains a cycle: "
+                + " -> ".join(cycle)
+                + " -- R4/R5/Gate 30 requires generics -> specifics, never a loop; fix the "
+                "offending contract's dependencies.capabilities, rebuild the catalog, and only "
+                "then call finish_cycle again"
+            )
 
     episode_dir = episode_store.save_episode(cycle_report, verification_record, episodes_dir)
 
@@ -257,7 +278,7 @@ def finish_cycle(
 def finish_cycle_from_paths(
     cycle_report_path: Path,
     verification_record_path: Path,
-    catalog_path: Path,
+    catalog_path: Optional[Path],
     episodes_dir: Path,
     checkpoint_path: Optional[Path] = None,
 ) -> Path:
@@ -284,7 +305,11 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--cycle-report", required=True, type=Path, dest="cycle_report_path")
     parser.add_argument("--verification-record", required=True, type=Path, dest="verification_record_path")
-    parser.add_argument("--catalog", required=True, type=Path, dest="catalog_path")
+    parser.add_argument(
+        "--catalog", required=False, default=None, type=Path, dest="catalog_path",
+        help="Omit entirely for a project with no Runtime pillar (no Bridge, no capabilities) -- "
+        "the acyclic dependency-graph check is then skipped outright, never defaulted to a guessed path.",
+    )
     parser.add_argument("--episodes-dir", required=True, type=Path, dest="episodes_dir")
     parser.add_argument("--checkpoint", required=False, default=None, type=Path, dest="checkpoint_path")
     return parser.parse_args(argv)

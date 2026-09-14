@@ -14,6 +14,25 @@ govern are defined in `starterkit/schemas/` (this cycle's own record shapes --
 cycle input/report, verification record, checkpoint -- live in
 `blueprint/schemas/`) and demonstrated in `starterkit/`.
 
+## Scope: which rules are Bridge-scoped
+
+R1–R9 below, the Bridge/Registry/Policy/Selector contracts, and most of
+the Glossary are Runtime-pillar vocabulary (README.md "Three
+independently adoptable pillars"): they apply to a project that has
+adopted the Bridge/contract/manifest execution model. A project using
+only the Process pillar (`1-CYCLE.md`) and/or the Evolution pillar
+(`blueprint/dep/`), with no Bridge in its own ecosystem, is not bound by
+R1–R9 at all — there is no Registry for anything to default into, and
+"capability" is not a category that pillar combination uses. The
+Verification contract's checklist below (see "Verification contract")
+follows the same split as `1-CYCLE.md`'s own gate classification ("Scope"
+section, top of that file): items requiring a Bridge trace/selection/
+evidence are Bridge-scoped; a headless harness, exercising every
+consumer-visible behavior (generalized to whatever the project's own
+consumer surface is), regression discipline, and a machine-readable
+record (generalized to whatever schema fits the work) are
+always-applicable.
+
 ## Glossary
 
 | Term | Definition |
@@ -100,7 +119,8 @@ never a vague role name (`<domain>.manager`). "Generic" here describes the
 nature of the responsibility: it is a single task that another cycle's
 responsibility can reuse.
 
-**Default to capability.** When a need exists and nothing in the Registry
+**Default to capability, when this project has adopted the Runtime
+(Bridge) pillar.** When a need exists and nothing in the Registry
 satisfies it, the response is to create the capability — contract, manifest,
 executor (R7) — not to write it as ad hoc local code. This applies even when
 the need looks like plain infrastructure or plumbing (reading input,
@@ -113,7 +133,10 @@ capability (R4) — it gets its own contract declaring the generic ones as
 composes other capabilities" is a reason to give it a contract, never a
 reason to leave it local. The narrow exception to this — the single
 request-construction point itself, and the entry point that calls it — is a
-request-path concern, not an identity one: see R6.
+request-path concern, not an identity one: see R6. A project that has
+adopted only the Process and/or Evolution pillars, with no Bridge of its
+own, is not bound by this default at all — see "Scope" at the top of this
+file.
 
 ## R2 — Contract artifact
 
