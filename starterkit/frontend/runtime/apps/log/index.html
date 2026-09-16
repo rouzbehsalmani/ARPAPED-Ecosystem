@@ -45,17 +45,20 @@
 
   let app;
   try {
-    // selfBaseUrl stays "" -- this runtime's own catalog/executor assets
-    // are always relative to wherever THIS page was loaded from, whatever
-    // static host that is. backendBaseUrl is the one thing that must be
-    // told explicitly: adjust the field above if your backend isn't at the
-    // default `python -m starterkit.backend.runtime.app.main` port.
+    // selfBaseUrl stays "" -- app.js's own assembleFromCatalog call always
+    // anchors the catalog fetch and every executor import to the SERVER
+    // ROOT (a literal leading "/", never resolved relative to this page's
+    // own apps/log/ location), so this page's own catalog/executor assets
+    // are found correctly however deep under runtime/ the page itself
+    // lives. backendBaseUrl is the one thing that must be told explicitly:
+    // adjust the field above if your backend isn't at the default
+    // `python -m starterkit.backend.runtime.apps.log.main` port.
     //
     // This assembly step needs no backend connectivity at all (it only
     // fetches THIS page's own catalog/executor files) -- if it fails here,
     // the page itself wasn't served/loaded correctly (e.g. opened as a
     // file:// URL instead of through a real static server -- see
-    // ../README.md "Run"), never a backend problem.
+    // ../../../README.md "Run"), never a backend problem.
     app = await createApp({ backendBaseUrl: document.getElementById("backend").value });
     resultEl.textContent = "ready -- click Log";
     logButton.disabled = false;

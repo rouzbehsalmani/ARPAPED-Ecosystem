@@ -549,7 +549,7 @@ def _build_implementation(
             raise AssemblerError(
                 f"{implementation_id!r} declares executor_kind='process' but no Bridge was "
                 "given to build its Dependencies — construct the Bridge before assembling "
-                "(see app/requests.py's ordering)"
+                "(see apps/requests.py's ordering)"
             )
         from .process_executor import ProcessExecutorError, ProcessExecutorPool
 
@@ -564,7 +564,7 @@ def _build_implementation(
                 raise AssemblerError(
                     f"{implementation_id!r} declares executor_kind='factory' but no Bridge was "
                     "given to build its Dependencies — construct the Bridge before assembling "
-                    "(see app/requests.py's ordering)"
+                    "(see apps/requests.py's ordering)"
                 )
             from .bridge import Dependencies
 

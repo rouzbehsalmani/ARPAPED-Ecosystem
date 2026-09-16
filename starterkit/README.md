@@ -67,7 +67,7 @@ Backend and frontend are served SEPARATELY, on two different origins —
 not one process wearing two hats:
 
 ```
-python -m starterkit.backend.runtime.app.main
+python -m starterkit.backend.runtime.apps.log.main
 ```
 
 starts the backend's `web.serve` — an **API endpoint only** (`/bridge`
@@ -77,7 +77,7 @@ and `/health`), never a static file server. Separately:
 python -m starterkit.frontend.runtime.host.serve
 ```
 
-serves the frontend, then open `http://127.0.0.1:8421` in a browser (a
+serves the frontend, then open `http://127.0.0.1:8421/apps/log/` in a browser (a
 small wrapper around the stdlib static server, not a bare `python -m
 http.server` — see `frontend/README.md` "Run" for why: a Windows-only
 `mimetypes` quirk otherwise serves `.js` files with the wrong

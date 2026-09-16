@@ -1,5 +1,8 @@
 """Local static file server for ../ (this runtime's own browser-facing
-files -- index.html, app.js, bridge/, capabilities/, capability-catalog.jsonl).
+files -- bridge/, capabilities/, capability-catalog.jsonl, shared across
+every app; apps/<name>/index.html + app.js, one app's own page and
+Bridge Adapter, per subfolder -- apps/log/ is this starter kit's own
+worked example).
 
 Lives under runtime/, not implementation/, despite being build/dev-style
 tooling in spirit: implementation/ is defined as "never shipped, never
@@ -7,11 +10,12 @@ needed by a real deployment" (../../README.md's Layout), and that's
 exactly wrong for this file -- an actual deployment of this frontend
 DOES need something serving ../ over HTTP (this script, or nginx, or any
 other static host), the same way the backend's own deployment needs
-`../app/main.py` actually running, not merely available at build time.
+`../apps/log/main.py` actually running, not merely available at build
+time.
 It lives in its own `host/` subfolder rather than flat alongside
-index.html/app.js/etc. because it plays a different role from those:
-this script is never itself fetched by a browser, it's the thing that
-makes everything else in ../ fetchable in the first place -- worth
+apps/index.html/app.js/etc. because it plays a different role from
+those: this script is never itself fetched by a browser, it's the thing
+that makes everything else in ../ fetchable in the first place -- worth
 keeping visually separate from the files a client actually loads.
 
 Prefer this over a bare `python -m http.server` (see ../../README.md

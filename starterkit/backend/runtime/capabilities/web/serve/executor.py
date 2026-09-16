@@ -26,8 +26,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from starterkit.backend.runtime.bridge.bridge import BridgeError
-from starterkit.backend.runtime.bridge.policy import PolicyContext
+from ....bridge.bridge import BridgeError
+from ....bridge.policy import PolicyContext
 
 
 def make_executor(dependencies):

@@ -38,7 +38,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createApp } from "../../runtime/app.js";
+import { createApp } from "../../runtime/apps/log/app.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME_ROOT = path.resolve(__dirname, "../../runtime");

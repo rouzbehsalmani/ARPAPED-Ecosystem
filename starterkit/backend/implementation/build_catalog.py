@@ -11,7 +11,7 @@ Run whenever anything under capabilities/ or contracts/ changes:
 Uses rebuild_catalog (full rewalk, starterkit/backend/runtime/bridge/assembler.py) since this
 starter kit's tree predates the catalog. A growing ecosystem should call
 append_to_catalog per publish instead -- O(1), never re-walking what's
-already there. See ../runtime/app/requests.py, which reads the catalog at startup.
+already there. See ../runtime/apps/requests.py, which reads the catalog at startup.
 """
 
 from pathlib import Path

@@ -373,7 +373,7 @@ dep:
       already has toward ProcessExecutorPool (hasattr/getattr, never an
       import); an application's own request-construction point is what
       wires the two together (proven for real in
-      starterkit/backend/runtime/app/requests.py -- every real
+      starterkit/backend/runtime/apps/requests.py -- every real
       call through `main.py`/`web.serve`, AND every nested nested-call a
       factory/process executor makes through the same Bridge, lands in
       `state/runtime-events.jsonl` as its own independent event, not

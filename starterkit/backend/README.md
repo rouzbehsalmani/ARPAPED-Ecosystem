@@ -44,8 +44,10 @@ runtime/                          everything a real deployment needs; nothing he
   capabilities/                   executor.py per implementation ONLY — no manifest.yaml here
     log/write_process/bin/            the COMPILED C# binary — its source lives in implementation/, not here
   capability-catalog.jsonl        generated — the ONE thing assemble_from_catalog reads at process startup
-  app/
-    dependencies.yaml, requests.py, main.py
+  apps/
+    requests.py                    shared request-construction machinery (R6) -- make_resolver(app_dir), used by every app below
+    log/
+      dependencies.yaml, main.py, README.md
   clients/python/                 bridge_client.py, direct_adapter.py — runtime dependencies of process-kind executors
 state/                             generated, gitignored — never committed, always reproducible by running the commands above
   verification-record.json         written by verify.py, the harness's own last act on a green run
@@ -67,12 +69,12 @@ every consumer of it is a capability inside this one starter kit — it's
 meant to be copied into a real application's own tree, not depended on
 as shared infrastructure.
 
-`runtime/app/main.py` calls `requests.resolve("log_write", "write")` once and
+`runtime/apps/log/main.py` calls `resolve("log_write", "write")` once and
 gets back a handle, then calls `.call(...)` on that handle for each request
 (discover once, call many times) instead of re-running discovery every
 time. Neither `contract_version` nor `implementation_id` is passed at the
 call site — `resolve` reads both from the named entry in
-`runtime/app/dependencies.yaml`. Unlike a capability contract's own
+`runtime/apps/log/dependencies.yaml`. Unlike a capability contract's own
 `dependencies.capabilities` (keyed by capability_id, one entry per
 capability), this file is keyed by a name the app chooses, so the same
 capability_id (`log.write`) can be declared more than once under
@@ -80,14 +82,14 @@ different names, each pinned differently for a different purpose — see
 `log_write` vs. `log_write_process`, below. A
 name that isn't declared raises `BRIDGE_UNDECLARED_DEPENDENCY`; a declared
 entry missing `contract_version` fails just as loudly, at load time —
-there is no silent default anywhere in this chain (`runtime/app/dependencies.yaml`,
-`runtime/app/requests.py`, `Bridge.resolve`). Only the discovery stage is cached —
+there is no silent default anywhere in this chain (`runtime/apps/log/dependencies.yaml`,
+`runtime/apps/requests.py`, `Bridge.resolve`). Only the discovery stage is cached —
 policy is still evaluated and a candidate is still selected and executed
 fresh on every `call`, through the same `bridge.handle` every request goes
 through — and the handle re-checks its cached candidates' live state on
 each use (self-healing by re-discovering if they've all become unusable),
 so it can never return a stale result. `Bridge.resolve`/`BoundCapability`
-(`runtime/bridge/bridge.py`) are what actually build the request; `runtime/app/requests.py`
+(`runtime/bridge/bridge.py`) are what actually build the request; `runtime/apps/requests.py`
 stays the only application module that reaches the Bridge at all.
 
 ## What every executor here does NOT check, and why
@@ -177,9 +179,9 @@ reasoning as `contract_version` having none on resolve.
 
 Priority only breaks ties among candidates that already satisfy a given
 version constraint — it is never a substitute for stating that
-constraint. `runtime/app/main.py`'s calls resolve by declared name, never a
+constraint. `runtime/apps/log/main.py`'s calls resolve by declared name, never a
 restated version at the call site: `log_write`
-(`runtime/app/dependencies.yaml` pins `>=1.0.0,<2.0.0`, unpinned on
+(`runtime/apps/log/dependencies.yaml` pins `>=1.0.0,<2.0.0`, unpinned on
 `implementation_id`) lands on the highest-priority policy-allowed
 candidate, `log.write.default`; `log_write_process`, a deliberate proof
 rather than a normal dependency, pins `implementation_id: log.write.process`
@@ -249,7 +251,7 @@ a .NET project — there is no external package dependency here to lock).
 
 Its `priority` (50) is below `log.write.default`'s (100), so it's
 reached only by its own declared name, `log_write_process`, which
-pins `implementation_id` explicitly (`runtime/app/dependencies.yaml`) — it never
+pins `implementation_id` explicitly (`runtime/apps/log/dependencies.yaml`) — it never
 silently becomes the default for `log_write`'s own, separately
 declared, unpinned name (see "log.write's two implementations" above,
 and the permanent regression check that protects exactly this).
@@ -316,7 +318,7 @@ this already exists.
 
 ## Capability catalog
 
-`runtime/app/requests.py` registers capabilities from
+`runtime/apps/requests.py` registers capabilities from
 `runtime/capability-catalog.jsonl` instead of walking and
 re-parsing `implementation/capabilities/` at startup — that
 doesn't scale once an ecosystem has more than a handful of capabilities
@@ -344,7 +346,7 @@ what's already in the catalog.
 From the repository root:
 
 ```
-python -m starterkit.backend.runtime.app.main
+python -m starterkit.backend.runtime.apps.log.main
 ```
 
 (Build the C# executor first — see "A capability in another language" —
@@ -361,7 +363,7 @@ Expected terminal output:
 [INFO] API running at http://127.0.0.1:8420 (/bridge). Ctrl+C to stop.
 Now serve the frontend separately, e.g.:
     python -m starterkit.frontend.runtime.host.serve
-then open http://127.0.0.1:8421 in a browser.
+then open http://127.0.0.1:8421/apps/log/ in a browser.
 ```
 
 The first two lines are both printed by `log.write.default` (the
@@ -370,7 +372,7 @@ see "log.write's two implementations") — the second passes
 `level: "warn"`, the contract's own `enum`, not a domain-specific check
 either executor writes itself (see "What every executor here does NOT
 check"). The third `log.write`-shaped call, `log_write_process`, reached
-only because `app/dependencies.yaml` pins its `implementation_id`
+only because `apps/log/dependencies.yaml` pins its `implementation_id`
 explicitly, runs `log.write.process` — a genuinely separate,
 out-of-process C# program (see "A capability in another language") —
 but its own `Console.WriteLine` output is captured internally by
@@ -419,7 +421,7 @@ from blueprint.dep import process_supervisor
 
 pidfile = Path("starterkit/backend/state/backend.pid")
 process_supervisor.start(
-    ["python", "-m", "starterkit.backend.runtime.app.main"],
+    ["python", "-m", "starterkit.backend.runtime.apps.log.main"],
     pidfile=pidfile,
     ready_check=process_supervisor.tcp_ready_check("127.0.0.1", 8420),
 )
@@ -441,7 +443,7 @@ Every one of `main.py`'s calls lands in `state/runtime-events.jsonl` too
 `web.serve`'s own start, `main.py`'s own startup-status `log.write` call
 right after, and, on a clean Ctrl+C, `web.serve`'s stop and one final
 shutdown `log.write` call — up to six events from one full run, not
-four. `runtime/app/requests.py` passes a `blueprint.dep.runtime_log.RuntimeEventLog`
+four. `runtime/apps/requests.py` passes a `blueprint.dep.runtime_log.RuntimeEventLog`
 (`blueprint/dep/MANIFEST.yaml: runtime_log`) as this Bridge's own
 `event_sink`; `Bridge.handle` (`runtime/bridge/bridge.py`) calls it once
 per real call it ever handles, success or failure, whether that call

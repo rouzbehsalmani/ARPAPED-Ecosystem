@@ -27,7 +27,7 @@ from bridge_client import serve_direct, serve_factory  # noqa: E402 -- import ne
 
 # The target module:attr is resolved the same way "python -m ..." would
 # resolve it from the repository root (this starter kit's own convention,
-# see app/main.py's "Run from the repository root") -- the caller
+# see apps/log/main.py's "Run from the repository root") -- the caller
 # (ProcessExecutorPool) spawns this adapter with that as its working
 # directory, same as it does for every other process-kind executor.
 sys.path.insert(0, os.getcwd())

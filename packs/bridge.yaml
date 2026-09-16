@@ -169,7 +169,7 @@ worked_example: starterkit/
 # get either wrong and build_catalog.py's own relative-path computation
 # breaks. Also copy the shape of: the file order (contract -> manifest
 # -> executor), the single request-construction point pattern
-# (runtime/app/requests.py). See starterkit/backend/README.md. If the
+# (runtime/apps/requests.py). See starterkit/backend/README.md. If the
 # Bridge itself was ported to another language, the SHAPE still applies
 # -- only the engine's own implementation language changed.
 

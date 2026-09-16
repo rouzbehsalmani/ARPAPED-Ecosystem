@@ -4,8 +4,9 @@ blueprint/2-RULES.md "Verification contract"; blueprint/0-WALKTHROUGH.md step 6)
 Lives outside app/ and capabilities/ (blueprint/0-WALKTHROUGH.md step 6: "Lives
 outside the application packages"). Confirms every contract and manifest
 under this starter kit validates against its schema, reuses the SAME Bridge
-app/requests.py builds (never a second one), drives the same three calls
-app/main.py does through the same request-construction point, and
+apps/requests.py's make_resolver builds for the log app (never a second
+one), drives the same three calls apps/log/main.py does through the same
+request-construction point, and
 asserts every observed trace equals validated -> discovered ->
 policy_evaluated -> selected -> executed -- copied verbatim from the
 response, never hand-written. Each call runs under a bounded per-stage
@@ -53,9 +54,11 @@ sys.path.insert(0, str(_REPO_ROOT))
 import jsonschema  # noqa: E402
 import yaml  # noqa: E402
 
-from starterkit.backend.runtime.app.requests import resolve  # noqa: E402
+from starterkit.backend.runtime.apps.requests import make_resolver  # noqa: E402
 from blueprint.dep.episode_store import save_episode  # noqa: E402
 from blueprint.dep.state_ref import capture_state_ref  # noqa: E402
+
+resolve = make_resolver(_BACKEND_ROOT / "runtime" / "apps" / "log")
 
 
 def _load_schema(schemas_dir: Path, name: str) -> dict[str, Any]:
@@ -68,9 +71,9 @@ _VERIFICATION_RECORD_SCHEMA = _load_schema(_BLUEPRINT_SCHEMAS_DIR, "verification
 
 EXPECTED_TRACE = ("validated", "discovered", "policy_evaluated", "selected", "executed")
 
-# Mirrors app/main.py's three calls exactly -- the harness drives the same
+# Mirrors apps/log/main.py's three calls exactly -- the harness drives the same
 # consumer-visible interactions the real entry point does, through the
-# same dispatcher (app/requests.py's resolve), never a shortcut.
+# same dispatcher (apps/requests.py's resolve), never a shortcut.
 CALLS = [
     ("log_write", "write", {"message": "This is a test of the Bridge's log.write capability."}),
     ("log_write", "write", {"message": "Something worth flagging.", "level": "warn"}),
@@ -115,7 +118,7 @@ def check_contracts_and_manifests() -> list[dict[str, Any]]:
 
 def check_capability_operations() -> list[dict[str, Any]]:
     """Gate: every declared capability operation, called through the SAME
-    request-construction point app/main.py uses, under a bounded
+    request-construction point apps/log/main.py uses, under a bounded
     per-stage timeout (R5), with its full observed trace reaching
     executed -- copied from the real response, never hand-written.
 
@@ -163,7 +166,7 @@ def check_capability_operations() -> list[dict[str, Any]]:
 
 def _check_log_write_implementation_pinning(response: Any) -> dict[str, Any]:
     """Permanent regression check (regression_for
-    "log-write-priority-flip-2026-09"): `app/dependencies.yaml`'s
+    "log-write-priority-flip-2026-09"): `apps/log/dependencies.yaml`'s
     unpinned `log_write` name must keep resolving to `log.write.default`,
     its highest-priority (100) implementation -- not `log.write.process`
     (priority 50), a SECOND, equally version-compatible implementation
@@ -187,7 +190,7 @@ def _check_log_write_implementation_pinning(response: Any) -> dict[str, Any]:
         "check_id": "call:1:log_write:implementation-pinning-regression",
         "input": CALLS[0][2],
         "description": (
-            "The unpinned 'log_write' name (app/dependencies.yaml) keeps resolving to "
+            "The unpinned 'log_write' name (apps/log/dependencies.yaml) keeps resolving to "
             "log.write.default, its highest-priority policy-allowed candidate"
         ),
         "status": status,
@@ -304,7 +307,7 @@ def main() -> None:
         {
             "responsibility": name,
             "decision": "create",
-            "reason": f"{name!r} declared in app/dependencies.yaml and exercised this cycle.",
+            "reason": f"{name!r} declared in apps/log/dependencies.yaml and exercised this cycle.",
             "check_ids": check_ids_by_name[name],
         }
         for name in seen_names
@@ -379,9 +382,9 @@ def main() -> None:
         "new_capabilities": ["log.write", "web.serve", "client.log (frontend/runtime/capabilities/client/log)"],
         "reused_capabilities": [],
         "bridge_integration": (
-            "Backend: every call above resolved through app/requests.py's single "
-            "request-construction point and the same canonical Bridge app/main.py uses (R6/R8). "
-            "Frontend: client_log resolved through frontend/runtime/app.js's own Bridge Adapter and "
+            "Backend: every call above resolved through apps/requests.py's single "
+            "request-construction point and the same canonical Bridge apps/log/main.py uses (R6/R8). "
+            "Frontend: client_log resolved through frontend/runtime/apps/log/app.js's own Bridge Adapter and "
             "Bridge Core (frontend/runtime/bridge/core.js), whose log.write dependency (declared by ID, "
             "not by sharing backend's contract) resolved as executor_kind: remote to the SAME "
             "backend Bridge over web.serve's /bridge endpoint -- every observed trace, in both "

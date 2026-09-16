@@ -1,8 +1,9 @@
 """Process entry point (R1): decides nothing, constructs no request --
-resolves through app/requests.py and calls the handle it returns.
+resolves through ../requests.py's make_resolver (shared by every app
+under apps/, R6) and calls the handle it returns.
 
-Three calls, each resolved by a declared name (app/dependencies.yaml),
-never a restated contract_version/implementation_id:
+Three calls, each resolved by a declared name (dependencies.yaml, this
+same directory), never a restated contract_version/implementation_id:
   1-2. log_write (unpinned -> log.write.default) -- the highest-priority
        policy-allowed candidate for this name wins; plain, then
        `level: "warn"`.
@@ -13,11 +14,11 @@ never a restated contract_version/implementation_id:
 
 Then starts web.serve -- an API endpoint ONLY (/bridge), never static
 files: the frontend is served separately, by its own static host, not by
-this process (../../../README.md "Two servers, not one" -- nothing can
+this process (../../../../README.md "Two servers, not one" -- nothing can
 resolve a capability through a Bridge before its own hosting page has
 already loaded, so serving that page can never itself be reached through
-the Bridge it exists to bootstrap). See ../../README.md "Run" for this
-half's own build/run steps, and ../../../README.md "Two servers, not
+the Bridge it exists to bootstrap). See ../../../README.md "Run" for this
+half's own build/run steps, and ../../../../README.md "Two servers, not
 one" for the two commands together. Ctrl+C stops the API server cleanly.
 
 This entry point's own startup/shutdown status ("API running at...",
@@ -31,10 +32,14 @@ ever log on its own.
 
 Run from the repository root (build the C# executor first -- see
 capabilities/log/write_process/manifest.yaml):
-    python -m starterkit.backend.runtime.app.main
+    python -m starterkit.backend.runtime.apps.log.main
 """
 
-from starterkit.backend.runtime.app.requests import resolve
+from pathlib import Path
+
+from ..requests import make_resolver
+
+resolve = make_resolver(Path(__file__).resolve().parent)
 
 
 def main():
@@ -50,7 +55,7 @@ def main():
     log.call({"message": f"API running at {result.output['url']} (/bridge). Ctrl+C to stop."})
     print("Now serve the frontend separately, e.g.:")
     print("    python -m starterkit.frontend.runtime.host.serve")
-    print("then open http://127.0.0.1:8421 in a browser.")
+    print("then open http://127.0.0.1:8421/apps/log/ in a browser.")
     try:
         while True:
             pass

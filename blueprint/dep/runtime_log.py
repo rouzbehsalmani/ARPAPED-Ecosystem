@@ -16,7 +16,7 @@ normalized event matching runtime-event.schema.json. `bridge.py` itself
 never imports this module (stays fully decoupled from blueprint.dep, the
 same posture it already has toward ProcessExecutorPool via
 hasattr/getattr) -- an application's own request-construction point
-(e.g. starterkit/backend/runtime/app/requests.py) is what wires
+(e.g. starterkit/backend/runtime/apps/requests.py) is what wires
 a RuntimeEventLog in, by passing its `.record` method as `event_sink`.
 
 JSONL, not one-directory-per-event (episode_store's shape): a cycle

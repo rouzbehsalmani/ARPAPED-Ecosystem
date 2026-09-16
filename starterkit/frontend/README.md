@@ -51,11 +51,14 @@ runtime/                          everything a real deployment of this half need
     MANIFEST.yaml                  authoritative descriptor, mirrors the backend's own style
   capabilities/client/log/executor.js   the ONLY file this capability ships — no manifest.json here
   capability-catalog.jsonl        generated — the ONE thing assembleFromCatalog reads at page load
-  app.js                          the Bridge Adapter — this runtime's single request-construction point
-  index.html                      the page a real client loads; imports app.js as an ES module
+  apps/                            one subfolder per app (multiple apps can share this same Bridge/catalog)
+    log/
+      app.js                        the Bridge Adapter — this app's single request-construction point
+      index.html                    the page a real client loads; imports app.js as an ES module
+      README.md
 ```
 
-`host/serve.py` lives under `runtime/`, not `implementation/`, despite looking like build/dev tooling: `implementation/` is defined as "never shipped, never needed by a real deployment" — and that's exactly wrong for this file, since an actual deployment of this frontend DOES need something serving the rest of `runtime/` over HTTP. It sits in its own `host/` subfolder rather than flat alongside `index.html`/`app.js`/etc. specifically because it plays a different role from those: it's never itself fetched by a browser, it's what makes everything else in `runtime/` fetchable in the first place.
+`host/serve.py` lives under `runtime/`, not `implementation/`, despite looking like build/dev tooling: `implementation/` is defined as "never shipped, never needed by a real deployment" — and that's exactly wrong for this file, since an actual deployment of this frontend DOES need something serving the rest of `runtime/` over HTTP. It sits in its own `host/` subfolder rather than flat alongside `apps/`/`bridge/`/etc. specifically because it plays a different role from those: it's never itself fetched by a browser, it's what makes everything else in `runtime/` fetchable in the first place.
 
 `client.log` runs **Local** in this runtime's own Bridge Core and
 declares `log.write` as a dependency, pinned `>=1.0.0,<2.0.0` by ITS OWN
@@ -88,10 +91,13 @@ URLs, never one conflated `baseUrl` (backend and frontend are served
 separately — `../README.md` "Two servers, not one" — so they are never
 the same origin by design):
 - `selfBaseUrl` locates THIS runtime's own assets — the catalog itself
-  and any Local (factory/direct) executor module. `""` (relative to the
-  current page) in a real browser, since wherever this page was loaded
-  from also serves its own `capability-catalog.jsonl`; an explicit URL
-  only for Node, which has no page origin to be relative to.
+  and any Local (factory/direct) executor module. `""` in a real browser
+  — `assembleFromCatalog` always anchors both the catalog fetch and every
+  executor import to the SERVER ROOT (a literal leading `/`, never
+  resolved relative to whichever `apps/<name>/` subfolder the page itself
+  was loaded from), so this stays correct regardless of which app's own
+  page is asking; an explicit URL only for Node, which has no page origin
+  at all.
 - `backendBaseUrl` locates the REMOTE backend's `web.serve` — used ONLY
   for `executor_kind: remote` entries. Always explicit; there is no
   same-origin case for it, since the backend is never this runtime's own
@@ -193,8 +199,9 @@ process_supervisor.stop(pidfile)
 Start the backend the same way first (its own README section) — this
 runtime's `log.write` dependency is Remote and needs it up.
 
-Then open `http://127.0.0.1:8421`. The page (`runtime/index.html`) runs
-its OWN Bridge Core, entirely in your browser's JavaScript — not a
+Then open `http://127.0.0.1:8421/apps/log/`. The page
+(`runtime/apps/log/index.html`) runs its OWN Bridge Core, entirely in
+your browser's JavaScript — not a
 simulation, the actual `runtime/bridge/core.js` described above. It has
 a "Backend API base URL" field, defaulting to `http://127.0.0.1:8420`;
 adjust it if you started the API on a different port. Type a message,

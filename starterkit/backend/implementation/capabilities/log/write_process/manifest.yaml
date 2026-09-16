@@ -8,7 +8,7 @@
 # not the language.
 #
 # priority is below log.write.default's (100) -- reachable only via its
-# own declared name (app/dependencies.yaml's log_write_process), never
+# own declared name (apps/log/dependencies.yaml's log_write_process), never
 # silently becoming the default.
 #
 # A real .NET console-app project (LogWriteProcess.csproj, Program.cs),
