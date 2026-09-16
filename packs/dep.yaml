@@ -22,6 +22,18 @@ description: >
 
 files:
   required:
+    agent_orientation:
+      - AGENTS.md
+      # Not DEP-specific -- this is the entry-point orientation ANY agent
+      # working in a project descended from this Blueprint needs
+      # (regardless of pillar combination), including the pointer to
+      # check state/ecosystem-resolution.json before re-deriving what a
+      # Bootstrap agent already resolved. Required by all three packs
+      # (packs/cycles.yaml, packs/bridge.yaml, this one), same overlap
+      # posture as checkpoint.py/ecosystem_resolution.py below -- on
+      # purpose, not a copy error. A real, observed gap this closes: a
+      # Builder agent had no AGENTS.md at all in a freshly bootstrapped
+      # project, because nothing had ever listed it as something to copy.
     tooling:
       - blueprint/dep/
       # checkpoint.py, dataset_builder.py, episode_store.py,

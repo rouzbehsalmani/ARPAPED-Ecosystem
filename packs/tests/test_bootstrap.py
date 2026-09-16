@@ -19,10 +19,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from blueprint.dep import ecosystem_resolution
 from packs import bootstrap
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_PACKS_DIR = _REPO_ROOT / "packs"
+
+
+def _iter_path_strings(node):
+    """Yields every string leaf under a pack's own `files:` section,
+    recursively -- works regardless of nesting shape (required/
+    choose_at_least_one/optional, arbitrarily grouped) so this stays
+    correct if a pack's own internal grouping changes."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for value in node.values():
+            yield from _iter_path_strings(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_path_strings(item)
 
 
 class ListPillarsTests(unittest.TestCase):
@@ -41,6 +59,33 @@ class ListPillarsTests(unittest.TestCase):
         # in alphabetical order (names are sorted()) -- Bridge, Cycles, DEP.
         for combo in ["Bridge", "Cycles", "DEP", "Bridge + Cycles", "Bridge + DEP", "Cycles + DEP", "Bridge + Cycles + DEP"]:
             self.assertIn(combo, output)
+
+
+class PackFilesTests(unittest.TestCase):
+    """Every path any packs/*.yaml names under `files:` must actually
+    exist in this repo -- a pack that names a stale or misspelled path
+    would silently tell a Bootstrap agent to copy something that isn't
+    there. Also locks in AGENTS.md's own presence specifically: a real,
+    observed gap where a Builder agent had no AGENTS.md at all in a
+    freshly bootstrapped project, because no pack had ever listed it.
+    """
+
+    def _pack_files_section(self, pack_filename):
+        data = yaml.safe_load((_PACKS_DIR / pack_filename).read_text(encoding="utf-8"))
+        return data["files"]
+
+    def test_every_named_path_exists(self):
+        for pack_filename in ("dep.yaml", "cycles.yaml", "bridge.yaml"):
+            files_section = self._pack_files_section(pack_filename)
+            for path_str in _iter_path_strings(files_section):
+                full_path = _REPO_ROOT / path_str
+                self.assertTrue(full_path.exists(), f"{pack_filename} names {path_str!r}, which doesn't exist")
+
+    def test_agents_md_required_by_all_three_packs(self):
+        for pack_filename in ("dep.yaml", "cycles.yaml", "bridge.yaml"):
+            files_section = self._pack_files_section(pack_filename)
+            required_paths = set(_iter_path_strings(files_section["required"]))
+            self.assertIn("AGENTS.md", required_paths, f"{pack_filename}'s own files.required is missing AGENTS.md")
 
 
 class QuestionsTests(unittest.TestCase):

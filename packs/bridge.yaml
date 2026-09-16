@@ -36,6 +36,16 @@ description: >
 
 files:
   required:
+    agent_orientation:
+      - AGENTS.md
+      # Not Bridge-specific -- entry-point orientation any agent working
+      # in a project descended from this Blueprint needs, regardless of
+      # pillar combination, including the pointer to check
+      # state/ecosystem-resolution.json before re-deriving what a
+      # Bootstrap agent already resolved. Required by all three packs
+      # (packs/dep.yaml, packs/cycles.yaml, this one) -- deliberate
+      # overlap, same posture dep.yaml/cycles.yaml already share on
+      # checkpoint.py/ecosystem_resolution.py.
     schemas:
       - starterkit/schemas/
       # component-contract, capability-manifest, capability-catalog,

@@ -230,7 +230,12 @@ Bridge is among `pillars`: for each runtime named in `app_runtimes`,
 either copy `files.choose_at_least_one`'s matching entry directly (its
 own language answer matched the reference) or port it into that
 language yourself (it didn't). Either way (Bridge adopted or not), copy
-the rest of each adopted pack's own `files.required`. Wire any
+the rest of each adopted pack's own `files.required` — **every pack's
+own `files.required` now includes `AGENTS.md` itself** (real, observed
+gap this closes: a Builder agent had no `AGENTS.md` at all in a freshly
+bootstrapped project, because nothing had ever listed it as something to
+copy) — never skip it just because it isn't pillar-specific-looking among
+the rest of that list. Wire any
 `combine_with:` hooks the combination calls for. If `project_kind` is
 "existing," see "Adopting onto an existing project" below first — what
 "copy the files" means there is narrower than it sounds. Only THEN run

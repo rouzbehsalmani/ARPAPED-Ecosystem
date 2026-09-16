@@ -15,8 +15,24 @@ demonstrates, and the rest of this file is written for it.
 **Asked to start a genuinely new project** (however short the ask --
 "start", "bootstrap this", etc.), with no pillar combination or target
 location already given? Don't guess either one. See `packs/README.md`'s
-"Starting the Bootstrap agent" section for the two questions to ask
-before doing anything else.
+"Starting the Bootstrap agent" section for the questions to ask before
+doing anything else.
+
+**Check for `state/ecosystem-resolution.json` before answering "which
+pillar(s)" yourself.** If one already exists in this ecosystem root
+(`blueprint.dep.ecosystem_resolution.load_resolution_record`), a
+Bootstrap agent already resolved this exact question -- read it, don't
+re-derive it: which pillars, `project_kind`, `app_runtimes`, `use_git`,
+and (if Bridge was adopted) each runtime's own language are all recorded
+there, verbatim, precisely so a Builder agent with none of the Bootstrap
+conversation's own history never has to guess (2-RULES.md "No silent
+defaults on what resolution depends on"; 1-CYCLE.md Gate 33's
+bounded-resume discipline). This repository's own root has no such
+record -- it's the Blueprint source, not any single application's
+ecosystem -- so the "which pillar(s)" question above is answered per-goal
+here, the normal way. A project copied FROM this repo (any pack in
+`packs/*.yaml`, including this file itself) is different: once
+bootstrapped, it has exactly one real answer, already written down.
 
 **Read `blueprint/0-WALKTHROUGH.md` in full before writing any code here.** This
 applies regardless of which agent or model you are — the rules below are
