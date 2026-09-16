@@ -64,22 +64,50 @@ rules:
       content does not apply without packs/bridge.yaml."
 
 bridge_free_use: >
-  A project with no Bridge still runs the same Phase 0-9 spine, gate for
-  gate -- see 1-CYCLE.md's own worked example (its "Scope" section) for
-  a full goal walked through phase by phase with the Bridge-scoped
-  gates skipped. The short version: Phase 0's Gates 1/2 (resolve a
-  Bridge/Registry) are skipped outright, but Gate 35 still fully applies
-  in generalized form (decide continue-vs-new, offer the pillar
-  combination explicitly) and Gate 25 still applies generalized (write
-  the ecosystem-resolution record naming which pillar(s) were chosen,
-  just with no pillars.bridge sub-object); Phase 5-6's contract/manifest
-  gates (7, 13-16, 24, 26's literal mechanism) are skipped, but Gate
-  26's generalized "design before code" still applies; Phase 7's Bridge
-  trace/selection/evidence gates (18, 22, 27, 28, 30, 36, 37) are
-  skipped or vacuously satisfied; Gates 9, 14 (Registry publication) are
-  skipped. Everything else -- reuse-over-duplication (6), a headless
-  harness (17), regression checks (20), the operator decision window
-  (23), returning a legible resulting state (11) -- applies unchanged.
+  Concretely, non-negotiably, first: with no Bridge pillar adopted,
+  NEVER create a *.contract.yaml, a manifest.yaml with a capability_id or
+  implementations[], an executor.py/executor_kind, a
+  capability-catalog.jsonl, or anything else structurally shaped like
+  the Bridge's own contract/manifest/capability model -- that vocabulary
+  is exclusively the Bridge pillar's (packs/bridge.yaml). Without a
+  Bridge there is no Registry to publish a capability to and nothing to
+  select an implementation through, so there is nothing for a
+  "capability" to actually be; the application is just the application,
+  plain code in whatever language was answered, organized however that
+  language's own conventions call for -- never a scaffold mimicking this
+  Blueprint's own habitual pattern. Real, observed failure this exists
+  to prevent: a Builder agent, given a DEP+Cycles-only resolution with no
+  Bridge at all, built a full contract/manifest/executor tree anyway --
+  the exact Bridge shape, for a project that never adopted it, with none
+  of the actual Bridge schemas that would validate any of it even copied
+  in -- and did it again on a second, separate run after this very
+  sentence already existed, proving prose alone doesn't hold. Check
+  `pillars` before writing a single file that even resembles this shape,
+  every time -- defaulting to it out of habit is not safe -- and actually
+  RUN `python -m packs.bootstrap check-scope --ecosystem-root <root>`
+  (packs/README.md "No Bridge means no capability vocabulary") anytime
+  you're unsure; `blueprint/dep/finish_cycle.py` also refuses to publish
+  a cycle (Gate 31) while this same leakage exists, when called with
+  `catalog_path=None` and a real `ecosystem_root` -- pass it, always.
+
+  Beyond that: a project with no Bridge still runs the same Phase 0-9
+  spine, gate for gate -- see 1-CYCLE.md's own worked example (its
+  "Scope" section) for a full goal walked through phase by phase with
+  the Bridge-scoped gates skipped. The short version: Phase 0's Gates
+  1/2 (resolve a Bridge/Registry) are skipped outright, but Gate 35
+  still fully applies in generalized form (decide continue-vs-new, offer
+  the pillar combination explicitly) and Gate 25 still applies
+  generalized (write the ecosystem-resolution record naming which
+  pillar(s) were chosen, just with no pillars.bridge sub-object);
+  Phase 5-6's contract/manifest gates (7, 13-16, 24, 26's literal
+  mechanism) are skipped -- this is the gate-numbered form of the same
+  rule stated bluntly above -- but Gate 26's generalized "design before
+  code" still applies; Phase 7's Bridge trace/selection/evidence gates
+  (18, 22, 27, 28, 30, 36, 37) are skipped or vacuously satisfied; Gates
+  9, 14 (Registry publication) are skipped. Everything else --
+  reuse-over-duplication (6), a headless harness (17), regression checks
+  (20), the operator decision window (23), returning a legible resulting
+  state (11) -- applies unchanged.
 
 combine_with:
   bridge: >

@@ -3,7 +3,7 @@
 the pillar combinations, and what the Builder agent runs to read the
 handoff.
 
-Four commands:
+Five commands:
 
   python -m packs.bootstrap list-pillars
       Prints every adoptable pillar and every non-empty combination of
@@ -17,10 +17,15 @@ Four commands:
       Prints the ONE next question to ask -- id, text, kind
       (closed/open_with_default/open_with_options/open), and its real
       option set, if any -- as concrete data, never a question already
-      answered, and never one whose precondition isn't met yet (no
-      `bridge_runtimes` or `bridge_language_*` at all once `pillars`
-      excludes "bridge"; only `bridge_language_frontend` once
-      `bridge_runtimes` is "frontend"). Without --answers-file: the very
+      answered, and never one whose precondition isn't met yet. `pillars`,
+      `project_kind`, `app_runtimes`, `location` are unconditional --
+      asked for every pillar combination, since none of them describe
+      the Bridge specifically. Everything else needs BOTH `pillars` and
+      `app_runtimes` answered first, and comes in one of two mutually
+      exclusive pairs per runtime: `bridge_language_backend`/
+      `bridge_language_frontend` when Bridge IS among `pillars`, or
+      `app_language_backend`/`app_language_frontend` when it's NOT --
+      never both for the same runtime. Without --answers-file: the very
       first question (`pillars`). With one (a JSON object of
       `{question_id: answer}` accumulated so far, updated with the new
       answer and re-passed after EVERY question): the next one after
@@ -32,10 +37,11 @@ Four commands:
       without re-running it. This one-at-a-time default exists because
       of a real, observed bug: an agent ran this command once, saw a
       few unconditional questions all at once, asked all of them, and
-      moved on WITHOUT re-running it after `pillars` was answered --
-      `bridge_runtimes` and both Bridge-language questions behind it
-      never got asked at all, because they only become visible once
-      `pillars` names "bridge" and nothing forced a re-check.
+      moved on WITHOUT re-running it after `pillars` and `app_runtimes`
+      were answered -- the Bridge-language questions behind them never
+      got asked at all, because they only become visible once `pillars`
+      names "bridge" AND `app_runtimes` names a matching runtime, and
+      nothing forced a re-check.
       `--all` prints the full remaining list instead, for a human
       skimming the flow or previewing what's left -- never what an
       agent actually driving the live flow should act on. QUESTIONS
@@ -43,6 +49,8 @@ Four commands:
       declared -- read it here, once, never re-typed into a prompt.
 
   python -m packs.bootstrap resolve --ecosystem-root PATH --pillars-file FILE
+      --project-kind {new,existing} --app-runtimes {backend,frontend,both}
+      [--app-language-backend TEXT] [--app-language-frontend TEXT]
       [--combine-with-file FILE] [--out PATH] [--resolved-by NAME]
       Writes a new ecosystem-resolution record
       (ecosystem-resolution-record.schema.json,
@@ -64,6 +72,22 @@ Four commands:
       the Builder agent runs first, instead of hand-reading raw JSON, to
       confirm what the Bootstrap agent actually settled before building
       anything.
+
+  python -m packs.bootstrap check-scope --ecosystem-root PATH
+      [--resolution-record PATH]
+      Scans PATH for files/directories structurally shaped like the
+      Bridge pillar's own contract/manifest model (contracts/,
+      capabilities/, a manifest.yaml with capability_id+implementations,
+      capability-catalog.jsonl) when the resolution record says Bridge
+      was NOT adopted -- exits 0 clean or 1 naming every match. Run this
+      anytime during Phase 1-7, not just once at the very end:
+      blueprint/dep/finish_cycle.py runs the same underlying check
+      (ecosystem_resolution.detect_bridge_leakage) as a hard publish-time
+      gate, but catching this earlier means less to undo. Exists because
+      packs/README.md's own "No Bridge means no capability vocabulary"
+      prose, alone, was not enough -- a real Builder agent built a full
+      contracts/capabilities tree for a DEP+Cycles-only resolution
+      anyway.
 
 Nothing here duplicates a pack's own content -- `list-pillars` reads
 packs/*.yaml directly every time, so it can never go stale independently
@@ -177,32 +201,73 @@ _QUESTIONS: list[dict[str, Any]] = [
         "applies": lambda a: True,
     },
     {
-        "id": "bridge_runtimes",
-        "text": "If the Bridge pillar is among them: backend, frontend, or both?",
+        "id": "project_kind",
+        "text": "Is this a brand-new project, or are you adding this pillar combination to an existing one?",
+        "kind": "closed",
+        "options": ["new", "existing"],
+        # Changes what the Builder actually DOES after this flow, not just
+        # what gets copied -- "existing" means merge the adopted pillar(s)'
+        # own tooling into a project that's already there: never invent
+        # placeholder/example application code, never restructure anything
+        # already present beyond what adopting the pillar(s) genuinely
+        # requires (packs/README.md's own "existing project" paragraph has
+        # the concrete rules). Recorded verbatim in the ecosystem-resolution
+        # record's own top-level `project_kind` -- never left for the
+        # Builder to guess from what it happens to find on disk. Real,
+        # observed failure this exists to prevent: given an existing
+        # project, a Builder scaffolded an entire fake application from
+        # scratch instead of recognizing there was nothing to build.
+        "applies": lambda a: True,
+    },
+    {
+        "id": "app_runtimes",
+        "text": "Does this project have a backend, frontend, or both?",
         "kind": "closed",
         "options": ["backend", "frontend", "both"],
-        "applies": lambda a: "bridge" in (a.get("pillars") or ()),
+        # A property of the APPLICATION, not of the Bridge -- asked
+        # regardless of which pillars are adopted. "No Bridge" doesn't
+        # mean "no backend or no frontend": a DEP+Cycles-only project can
+        # still have a real backend and/or frontend, in some language,
+        # with no Bridge capability-execution pattern involved at all.
+        # Only the Bridge-language questions right below (and, for
+        # Bridge, which files get copied) are gated on Bridge being
+        # adopted -- this one never is.
+        "applies": lambda a: True,
     },
     {
         "id": "bridge_language_backend",
         "text": "What language should the backend Bridge be written in?",
         "kind": "open_with_default",
         "options": ["Python"],  # starterkit/'s own reference implementation
-        "applies": lambda a: a.get("bridge_runtimes") in ("backend", "both"),
+        "applies": lambda a: "bridge" in (a.get("pillars") or ()) and a.get("app_runtimes") in ("backend", "both"),
     },
     {
         "id": "bridge_language_frontend",
         "text": "What language should the frontend Bridge be written in?",
         "kind": "open_with_default",
         "options": ["JavaScript"],  # starterkit/'s own reference implementation
-        "applies": lambda a: a.get("bridge_runtimes") in ("frontend", "both"),
+        "applies": lambda a: "bridge" in (a.get("pillars") or ()) and a.get("app_runtimes") in ("frontend", "both"),
     },
     {
-        "id": "capability_language",
-        "text": "What language will the rest of the application (the capabilities) be implemented in, if you already know?",
-        "kind": "open_with_options",
-        "options": ["Same language as the Bridge", "Not yet / I don't know"],
-        "applies": lambda a: True,
+        "id": "app_language_backend",
+        "text": "What language should the backend be written in, if you already know?",
+        "kind": "open_with_default",
+        "options": ["Not yet / I don't know"],
+        # Mutually exclusive with `bridge_language_backend`, never both:
+        # with a Bridge, the Bridge itself IS the backend's own language
+        # boundary (`bridge_language_backend` already answers this)
+        # -- asking again would be redundant and could contradict it.
+        # Without one, there's no reference language to suggest the way
+        # `bridge_language_backend` suggests "Python" -- a Bridge-free
+        # backend can be anything, hence the plain fallback option.
+        "applies": lambda a: "bridge" not in (a.get("pillars") or ()) and a.get("app_runtimes") in ("backend", "both"),
+    },
+    {
+        "id": "app_language_frontend",
+        "text": "What language should the frontend be written in, if you already know?",
+        "kind": "open_with_default",
+        "options": ["Not yet / I don't know"],
+        "applies": lambda a: "bridge" not in (a.get("pillars") or ()) and a.get("app_runtimes") in ("frontend", "both"),
     },
     {
         "id": "location",
@@ -231,16 +296,22 @@ def applicable_questions(answers: Optional[dict[str, Any]] = None) -> list[dict[
 
     `answers` is `{}`/None for the very start (nothing decided yet):
     only questions with no precondition show up then (`pillars`,
-    `capability_language`, `location`) -- `bridge_runtimes` and the
-    `bridge_language_*` questions stay hidden until `pillars` itself has
-    been answered, same as a human reading the flow top to bottom would
-    naturally reach them in order, never all six at once regardless of
-    what's known so far.
+    `project_kind`, `app_runtimes`, `location` -- all four unconditional).
+    Every other question needs BOTH `pillars` and `app_runtimes` answered
+    first, and is one of exactly two mutually exclusive kinds per runtime,
+    never both for the same runtime: `bridge_language_backend`/
+    `bridge_language_frontend` when Bridge IS among `pillars` (the Bridge
+    itself is that runtime's own language boundary), or
+    `app_language_backend`/`app_language_frontend` when it's NOT (nothing
+    else would ever answer "what language is this runtime in" otherwise)
+    -- which pair applies depends only on `pillars`; which member(s) of
+    that pair depend on `app_runtimes` naming that runtime
+    (backend/frontend/both), same rule for both pairs.
 
     Expected value per id, when present: `pillars` a list of lowercase
-    pillar names; `bridge_runtimes` one of "backend"/"frontend"/"both";
-    the rest are free text and don't affect any other question's
-    `applies`.
+    pillar names; `project_kind` one of "new"/"existing"; `app_runtimes`
+    one of "backend"/"frontend"/"both"; the rest are free text and don't
+    affect any other question's `applies`.
     """
 
     answers = answers or {}
@@ -263,11 +334,11 @@ def next_question(answers: Optional[dict[str, Any]] = None) -> Optional[dict[str
     Drive off THIS, in a loop, not `applicable_questions()`'s full
     remaining list -- seeing several questions at once invites asking
     more than one before re-checking, which is exactly how a real,
-    observed run skipped questions entirely: `bridge_runtimes` (and both
-    Bridge-language questions behind it) never got asked because the
-    agent queried once, saw the handful of unconditional questions,
-    asked all of them, and moved on without ever re-running the command
-    after `pillars` was answered to discover what THAT unlocked. Call
+    observed run skipped questions entirely: both Bridge-language
+    questions never got asked because the agent queried once, saw the
+    handful of unconditional questions, asked all of them, and moved on
+    without ever re-running the command after `pillars` and
+    `app_runtimes` were answered to discover what THOSE unlocked. Call
     this, ask its `text`, get a real answer, write `{id: answer}` into
     your answers file, call this again -- stop only once it returns
     `None`. Never skip a re-check because you think you already know
@@ -334,6 +405,10 @@ def _has_real_content_besides_state(ecosystem_root: Path) -> bool:
 def resolve(
     ecosystem_root: Path,
     pillars_file: Path,
+    project_kind: str,
+    app_runtimes: str,
+    app_language_backend: Optional[str] = None,
+    app_language_frontend: Optional[str] = None,
     combine_with_file: Optional[Path] = None,
     out: Optional[Path] = None,
     resolved_by: Optional[str] = None,
@@ -341,16 +416,42 @@ def resolve(
     """Builds and saves a new ecosystem-resolution record. `pillars_file`
     is a JSON file holding exactly the schema's own `pillars` object
     (e.g. `{"process": {...}, "evolution": {...}}`) -- whichever pillars
-    were chosen after `list_pillars()` presented the options. Raises
+    were chosen after `list_pillars()` presented the options. `project_kind`
+    is `"new"` or `"existing"` (the `project_kind` question's own answer,
+    schema-validated to exactly those two values) -- stored verbatim,
+    never inferred from what's actually found under `ecosystem_root`: for
+    `"existing"`, this check below will typically pass trivially (the
+    existing project's own files already satisfy it before any pillar
+    adoption even starts) -- that's expected, not a loophole; the real
+    governance for `"existing"` is behavioral, not this check (never
+    invent placeholder application code, packs/README.md's own "existing
+    project" paragraph). `app_runtimes` is that matching Bootstrap
+    question's own answer, ALSO stored verbatim -- real, observed failure
+    this param fixes: the question was asked and answered, but the answer
+    was never written into the record anywhere, so the Builder agent had
+    no way to know it. `app_language_backend`/`app_language_frontend` are
+    each `None` UNLESS the matching `app_language_backend`/
+    `app_language_frontend` Bootstrap question was actually asked and
+    answered -- which only happens when Bridge is NOT among `pillars`
+    (with a Bridge, that runtime's own `bridge_language_backend`/
+    `bridge_language_frontend` answer already covers this, reflected in
+    `pillars.bridge.runtimes[].language`; recording it twice would risk
+    the two ever disagreeing). Never pass a value here just because one
+    happens to be known -- pass `None` whenever the matching question
+    never actually applied, so the record's own `app_language` key stays
+    absent exactly when `pillars.bridge.runtimes[].language` is the
+    single source of truth instead. Raises
     ecosystem_resolution.EcosystemResolutionError if the resulting record
     fails schema validation (an empty `pillars`, a malformed runtime
-    entry, an unknown pillar key), OR if `ecosystem_root` shows no real
-    evidence that any pack files were actually copied or ported into it
-    yet (see `_has_real_content_besides_state`) -- a real, observed
-    failure this refusal exists to catch: an agent ran every question,
-    got real answers, then called this function directly, WITHOUT ever
-    doing the copy/port step packs/README.md's own closing paragraph
-    describes, producing a fully schema-valid record naming files (e.g.
+    entry, an unknown pillar key, a `project_kind` other than "new"/
+    "existing", an `app_runtimes` other than "backend"/"frontend"/"both"),
+    OR if `ecosystem_root` shows no real evidence that any
+    pack files were actually copied or ported into it yet (see
+    `_has_real_content_besides_state`) -- a real, observed failure this
+    refusal exists to catch: an agent ran every question, got real
+    answers, then called this function directly, WITHOUT ever doing the
+    copy/port step packs/README.md's own closing paragraph describes,
+    producing a fully schema-valid record naming files (e.g.
     `starterkit/backend/runtime/bridge/bridge.py`, copied verbatim from
     THIS repo's own source paths) that don't exist anywhere under the
     target ecosystem_root at all. A resolution record describing an
@@ -369,7 +470,9 @@ def resolve(
     only makes it absolute and normalizes `.`/`..` segments -- but a
     not-yet-existing directory always fails the real-content check above,
     as it should: nothing has been copied into a directory that isn't
-    even there yet.
+    even there yet (and, for `project_kind="existing"`, a genuinely
+    not-yet-existing directory is itself a contradiction worth surfacing
+    as this same refusal, not a separate error).
     """
 
     ecosystem_root = ecosystem_root.resolve()
@@ -385,9 +488,18 @@ def resolve(
     record: dict[str, Any] = {
         "resolution_id": f"res-{uuid.uuid4().hex[:12]}",
         "ecosystem_root": str(ecosystem_root),
+        "project_kind": project_kind,
+        "app_runtimes": app_runtimes,
         "pillars": pillars,
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }
+    app_language: dict[str, str] = {}
+    if app_language_backend is not None:
+        app_language["backend"] = app_language_backend
+    if app_language_frontend is not None:
+        app_language["frontend"] = app_language_frontend
+    if app_language:
+        record["app_language"] = app_language
     if combine_with_file is not None:
         record["combine_with_applied"] = json.loads(combine_with_file.read_text(encoding="utf-8"))
     if resolved_by is not None:
@@ -405,6 +517,11 @@ def describe(path: Path) -> None:
 
     print(f"resolution_id:  {record['resolution_id']}")
     print(f"ecosystem_root: {record['ecosystem_root']}")
+    print(f"project_kind:   {record['project_kind']}")
+    print(f"app_runtimes:   {record['app_runtimes']}")
+    if "app_language" in record:
+        for runtime, language in record["app_language"].items():
+            print(f"app_language:   {runtime}: {language}")
     print(f"resolved_at:    {record['resolved_at']}")
     if "resolved_by" in record:
         print(f"resolved_by:    {record['resolved_by']}")
@@ -420,6 +537,46 @@ def describe(path: Path) -> None:
         for hook in hooks:
             mark = "x" if hook["applied"] else " "
             print(f"  [{mark}] {hook['hook']} ({hook['from_pillar']} -> {hook['to_pillar']}): {hook.get('detail', '')}")
+
+
+def check_scope(ecosystem_root: Path, resolution_record_path: Optional[Path] = None) -> list[str]:
+    """The proactive half of the same check `finish_cycle` now runs as a
+    hard publish-time gate (blueprint/dep/finish_cycle.py,
+    ecosystem_resolution.detect_bridge_leakage) -- run this ANYTIME during
+    Phase 1-7, not just at Phase 8 publish time, so a Builder agent
+    catches Bridge-shaped leakage (contracts/, capabilities/,
+    manifest.yaml with capability_id+implementations,
+    capability-catalog.jsonl) the moment it's created, not several phases
+    later when finish_cycle finally refuses to publish. Real, observed
+    failure both checks exist for: a Builder agent, given a
+    DEP+Cycles-only resolution with no Bridge pillar adopted at all, built
+    a full contracts/capabilities tree anyway -- packs/README.md's own
+    prose telling it not to was not enough on its own.
+
+    Reads the resolution record at `resolution_record_path` (default:
+    `<ecosystem_root>/state/ecosystem-resolution.json`, `resolve()`'s own
+    default `out` path) to find out whether Bridge was actually adopted --
+    if it was, this returns `[]` unconditionally: a real contracts/
+    directory is exactly what a Bridge-adopting ecosystem is SUPPOSED to
+    have, never a violation. Only scans for leakage when Bridge is NOT
+    among the resolved `pillars`. Raises
+    ecosystem_resolution.EcosystemResolutionError (via
+    load_resolution_record) if no record exists yet or it fails schema
+    validation -- this check needs to know what was actually resolved,
+    never guesses.
+    """
+
+    record_path = resolution_record_path if resolution_record_path is not None else ecosystem_root / "state" / "ecosystem-resolution.json"
+    record = ecosystem_resolution.load_resolution_record(record_path)
+    if record is None:
+        raise ecosystem_resolution.EcosystemResolutionError(
+            f"no resolution record at {record_path} -- run `resolve` first (packs/README.md "
+            "\"Starting the Bootstrap agent\"); this check needs to know which pillars were "
+            "actually adopted before it can tell leakage from a legitimate Bridge adoption."
+        )
+    if "bridge" in record["pillars"]:
+        return []
+    return ecosystem_resolution.detect_bridge_leakage(ecosystem_root)
 
 
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
@@ -450,12 +607,40 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         "--pillars-file", required=True, type=Path,
         help="JSON file matching the schema's own 'pillars' object shape directly.",
     )
+    p_resolve.add_argument(
+        "--project-kind", required=True, choices=["new", "existing"],
+        help="The project_kind question's own answer -- whether ecosystem-root is a brand-new project or an already-existing one this pillar combination is being added to. Never defaulted.",
+    )
+    p_resolve.add_argument(
+        "--app-runtimes", required=True, choices=["backend", "frontend", "both"],
+        help="The app_runtimes question's own answer. Recorded even with no Bridge adopted -- there is nowhere else it would ever be written down.",
+    )
+    p_resolve.add_argument(
+        "--app-language-backend", default=None,
+        help="The app_language_backend question's own answer, if it was actually asked (Bridge NOT among --pillars-file's own pillars, and --app-runtimes names backend/both). Omit entirely when it wasn't -- never pass a guessed value.",
+    )
+    p_resolve.add_argument(
+        "--app-language-frontend", default=None,
+        help="Same as --app-language-backend, for app_language_frontend.",
+    )
     p_resolve.add_argument("--combine-with-file", type=Path, default=None)
     p_resolve.add_argument("--out", type=Path, default=None, help="Default: <ecosystem-root>/state/ecosystem-resolution.json")
     p_resolve.add_argument("--resolved-by", default=None)
 
     p_describe = sub.add_parser("describe", help="Pretty-print an existing ecosystem-resolution record.")
     p_describe.add_argument("path", type=Path)
+
+    p_check_scope = sub.add_parser(
+        "check-scope",
+        help="Scan an ecosystem for Bridge-shaped leakage (contracts/, capabilities/, manifests) "
+        "when the Bridge pillar was never adopted. Run this anytime during Phase 1-7, not just at "
+        "Phase 8 publish time (finish_cycle runs the same check as a hard gate there).",
+    )
+    p_check_scope.add_argument("--ecosystem-root", required=True, type=Path)
+    p_check_scope.add_argument(
+        "--resolution-record", type=Path, default=None, dest="resolution_record_path",
+        help="Default: <ecosystem-root>/state/ecosystem-resolution.json",
+    )
 
     return parser.parse_args(argv)
 
@@ -477,7 +662,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command == "resolve":
         try:
             out_path = resolve(
-                args.ecosystem_root, args.pillars_file, args.combine_with_file, args.out, args.resolved_by,
+                args.ecosystem_root, args.pillars_file, args.project_kind,
+                args.app_runtimes, args.app_language_backend, args.app_language_frontend,
+                args.combine_with_file, args.out, args.resolved_by,
             )
         except ecosystem_resolution.EcosystemResolutionError as exc:
             print(f"bootstrap resolve: refused -- {exc}", file=sys.stderr)
@@ -488,6 +675,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command == "describe":
         describe(args.path)
         return 0
+
+    if args.command == "check-scope":
+        try:
+            leaks = check_scope(args.ecosystem_root, args.resolution_record_path)
+        except ecosystem_resolution.EcosystemResolutionError as exc:
+            print(f"bootstrap check-scope: {exc}", file=sys.stderr)
+            return 1
+        if not leaks:
+            print("No pillar-scope leakage found.")
+            return 0
+        print(f"Bridge-shaped leakage found with no Bridge pillar adopted ({len(leaks)}):", file=sys.stderr)
+        for leak in leaks:
+            print(f"  {leak}", file=sys.stderr)
+        return 1
 
     return 1  # unreachable -- argparse enforces one of the subcommands above
 

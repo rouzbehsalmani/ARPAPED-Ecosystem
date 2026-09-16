@@ -1,5 +1,5 @@
-"""Publish-time gate for closing two confirmed, structural enforcement gaps
-in this Blueprint, together, because they were never really separate
+"""Publish-time gate for closing three confirmed, structural enforcement
+gaps in this Blueprint, together, because they were never really separate
 problems (blueprint/dep/MANIFEST.yaml: finish_cycle):
 
 1. 1-CYCLE.md Phase 8 Gate 31 ("recorded into the episode store, then the
@@ -15,12 +15,18 @@ problems (blueprint/dep/MANIFEST.yaml: finish_cycle):
 2. 2-RULES.md R4's acyclic-dependency-graph claim ("an ecosystem's assembler
    verifies this before anything is registered") had ZERO implementation
    anywhere -- not in blueprint/dep/, not in any application's own assembler.
+3. packs/README.md's own "No Bridge means no capability vocabulary" section
+   had ZERO mechanical enforcement -- prose telling an agent not to invent
+   Bridge-shaped contracts/manifests without a Bridge pillar adopted, and
+   nothing stopping it if it did anyway. Confirmed insufficient: a real
+   Builder agent, given a DEP+Cycles-only resolution, built a full
+   contracts/capabilities tree regardless.
 
-Both are decided here, together, as one publish-time act, the same way
+All three are decided here, together, as one publish-time act, the same way
 episode_store/checkpoint already refuse half-measures elsewhere (an episode
 is never partially written; a checkpoint clear is idempotent, never
 silently skipped). `finish_cycle` refuses to record anything at all unless
-BOTH hold:
+ALL hold:
 
   - the verification record's own `status` is "verified" -- an unverified
     state is never published (2-RULES.md "Fail closed"); this is an
@@ -32,9 +38,14 @@ BOTH hold:
     implementation, `capability_id` + `dependencies: {capability_id:
     version_constraint}`) is acyclic -- naming the exact cycle found (e.g.
     "a -> b -> a"), never just "a cycle exists somewhere", since Gate 30
-    asks an agent to go fix a specific cycle, not learn one exists.
+    asks an agent to go fix a specific cycle, not learn one exists. Only
+    checked when `catalog_path` is a real Path (Bridge adopted);
+  - when `catalog_path` is `None` instead (no Bridge adopted) AND
+    `ecosystem_root` was given: no Bridge-shaped leakage anywhere in
+    `ecosystem_root` (ecosystem_resolution.detect_bridge_leakage) -- the
+    mechanical version of the prose rule that alone wasn't enough.
 
-Only past both refusals does it call episode_store.save_episode, then
+Only past every refusal does it call episode_store.save_episode, then
 checkpoint.clear_checkpoint if a checkpoint_path was given -- unchanged,
 still the same two underlying operations, just no longer two
 separately-callable, separately-forgettable steps.
@@ -70,16 +81,25 @@ pillar at all: no Bridge, no capabilities, no acyclic-graph check to run
 Two entry points, for two different callers:
 
   - `finish_cycle(cycle_report, verification_record, catalog_path,
-    episodes_dir, checkpoint_path=None)` -- the importable Python function,
-    for a harness that already holds both records as in-memory dicts (the
-    normal shape immediately after Phase 7 builds them) -- a drop-in
-    replacement for what used to be two separate calls.
+    episodes_dir, checkpoint_path=None, ecosystem_root=None)` -- the
+    importable Python function, for a harness that already holds both
+    records as in-memory dicts (the normal shape immediately after Phase 7
+    builds them) -- a drop-in replacement for what used to be two separate
+    calls.
   - `finish_cycle_from_paths(...)` + `python -m blueprint.dep.finish_cycle
     --cycle-report PATH --verification-record PATH --catalog PATH
-    --episodes-dir PATH [--checkpoint PATH]` -- for a harness that cannot
-    import Python at all (a JS frontend's own verify.js, or any future
-    language). A subprocess call works from any language; this CLI is what
-    actually makes Gate 31 satisfiable outside Python.
+    --episodes-dir PATH [--checkpoint PATH] [--ecosystem-root PATH]` -- for
+    a harness that cannot import Python at all (a JS frontend's own
+    verify.js, or any future language). A subprocess call works from any
+    language; this CLI is what actually makes Gate 31 satisfiable outside
+    Python.
+
+`ecosystem_root` is Optional too, same posture as `catalog_path`: only
+consulted (for the Bridge-leakage check above) when `catalog_path` is
+`None`, and even then only if actually given -- STRONGLY recommended
+whenever `catalog_path` is `None`, since omitting it just means that one
+check silently doesn't run, the same class of gap this parameter exists
+to close.
 """
 
 from __future__ import annotations
@@ -92,7 +112,7 @@ from typing import Any, Optional
 
 import jsonschema
 
-from blueprint.dep import checkpoint, episode_store
+from blueprint.dep import checkpoint, ecosystem_resolution, episode_store
 
 _BLUEPRINT_ROOT = Path(__file__).resolve().parent.parent
 _SCHEMAS_DIR = _BLUEPRINT_ROOT / "schemas"
@@ -213,6 +233,7 @@ def finish_cycle(
     catalog_path: Optional[Path],
     episodes_dir: Path,
     checkpoint_path: Optional[Path] = None,
+    ecosystem_root: Optional[Path] = None,
 ) -> Path:
     """The ONE call 1-CYCLE.md Phase 8 Gate 31 now names for turning a
     verified cycle into a published one. Order is fixed, not
@@ -227,7 +248,17 @@ def finish_cycle(
        refuse if it contains a cycle, naming the exact cycle (Gate 30) --
        skipped outright when catalog_path is None (no Bridge pillar, no
        capabilities, nothing to have a cycle among; see this function's
-       own module docstring);
+       own module docstring). Otherwise (catalog_path IS None) AND
+       ecosystem_root was given: refuse if
+       ecosystem_resolution.detect_bridge_leakage(ecosystem_root) finds
+       anything -- a real, observed failure this closes: a Builder agent
+       built a whole Bridge-shaped contracts/manifests tree for a project
+       that never adopted the Bridge pillar at all, and packs/README.md's
+       own prose telling it not to was not enough to stop it. Skipped
+       (not refused) when `ecosystem_root` is omitted -- STRONGLY
+       recommended whenever `catalog_path` is None: pass it whenever this
+       cycle's own ecosystem root is known, which it always should be by
+       Phase 8 (1-CYCLE.md Phase 0 already resolved and recorded it);
     4. only past both refusals, episode_store.save_episode(cycle_report,
        verification_record, episodes_dir);
     5. if checkpoint_path is given, checkpoint.clear_checkpoint(checkpoint_path)
@@ -266,6 +297,19 @@ def finish_cycle(
                 "offending contract's dependencies.capabilities, rebuild the catalog, and only "
                 "then call finish_cycle again"
             )
+    elif ecosystem_root is not None:
+        leaks = ecosystem_resolution.detect_bridge_leakage(ecosystem_root)
+        if leaks:
+            raise FinishCycleError(
+                f"{ecosystem_root} has no Bridge pillar adopted (catalog_path=None) but contains "
+                f"{len(leaks)} file(s)/dir(s) structurally shaped like the Bridge's own "
+                "contract/manifest model: " + ", ".join(leaks) + " -- packs/README.md \"No Bridge "
+                "means no capability vocabulary\": without a Bridge there is no Registry to "
+                "publish a capability to and nothing to select an implementation through, so "
+                "these can never be read by anything real. Remove them (or actually adopt the "
+                "Bridge pillar, packs/bridge.yaml, if capabilities genuinely belong here), then "
+                "call finish_cycle again."
+            )
 
     episode_dir = episode_store.save_episode(cycle_report, verification_record, episodes_dir)
 
@@ -281,6 +325,7 @@ def finish_cycle_from_paths(
     catalog_path: Optional[Path],
     episodes_dir: Path,
     checkpoint_path: Optional[Path] = None,
+    ecosystem_root: Optional[Path] = None,
 ) -> Path:
     """Same contract as finish_cycle, for a caller with these two records
     as files on disk rather than already-loaded dicts -- the normal shape
@@ -289,7 +334,7 @@ def finish_cycle_from_paths(
     finish_cycle directly instead."""
     cycle_report = json.loads(cycle_report_path.read_text(encoding="utf-8"))
     verification_record = json.loads(verification_record_path.read_text(encoding="utf-8"))
-    return finish_cycle(cycle_report, verification_record, catalog_path, episodes_dir, checkpoint_path)
+    return finish_cycle(cycle_report, verification_record, catalog_path, episodes_dir, checkpoint_path, ecosystem_root)
 
 
 def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
@@ -312,6 +357,13 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--episodes-dir", required=True, type=Path, dest="episodes_dir")
     parser.add_argument("--checkpoint", required=False, default=None, type=Path, dest="checkpoint_path")
+    parser.add_argument(
+        "--ecosystem-root", required=False, default=None, type=Path, dest="ecosystem_root",
+        help="Only used when --catalog is omitted: refuses to publish if this ecosystem contains "
+        "files/directories shaped like the Bridge pillar's own contract/manifest model despite "
+        "having no Bridge adopted. STRONGLY recommended whenever --catalog is omitted -- omitting "
+        "this too just means that specific check silently doesn't run.",
+    )
     return parser.parse_args(argv)
 
 
@@ -332,6 +384,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.catalog_path,
             args.episodes_dir,
             args.checkpoint_path,
+            args.ecosystem_root,
         )
     except (
         FinishCycleError,

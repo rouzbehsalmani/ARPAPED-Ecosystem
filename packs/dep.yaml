@@ -67,7 +67,15 @@ no_bridge_required: >
   note like "N/A -- this project has not adopted the Bridge pillar"
   round-trips through finish_cycle and dataset_builder cleanly --
   proven by `blueprint/dep/tests/test_finish_cycle.py`'s own
-  `test_no_catalog_episode_feeds_dataset_builder`.
+  `test_no_catalog_episode_feeds_dataset_builder`. ALSO pass
+  finish_cycle's own `ecosystem_root` parameter (this project's real
+  root) whenever `catalog_path` is `None` -- it activates a second
+  refusal, `ecosystem_resolution.detect_bridge_leakage`, that catches a
+  DEP-only (or DEP+Cycles) project that somehow ended up with
+  Bridge-shaped contracts/manifests despite never adopting the Bridge
+  pillar (packs/README.md "No Bridge means no capability vocabulary") --
+  a real, observed failure this closes. Omitting `ecosystem_root` just
+  means that specific check silently doesn't run.
 
 combine_with:
   bridge: >

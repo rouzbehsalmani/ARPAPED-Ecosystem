@@ -2,7 +2,11 @@
 the vcs probe's graceful degrade when repo_root isn't a real git working
 tree (proving DEP's own storage model never depends on git), plus a real
 positive probe against this repository's own actual git history (proving
-the git-aware half genuinely works, not just that it fails safely).
+the git-aware half genuinely works, not just that it fails safely) --
+that last one skips itself if this copy of the repo has no git history
+yet (e.g. freshly copied into a new project per packs/dep.yaml, not yet
+`git init`ed), rather than failing on an environment fact outside this
+module's own control.
 
 Run from the repository root:
     python -m unittest blueprint.dep.tests.test_state_ref -v
@@ -63,6 +67,21 @@ class StateRefTests(unittest.TestCase):
         self.assertNotIn("vcs", result)
 
     def test_real_git_repo_root_populates_vcs(self):
+        # Real, observed failure this guards against: `blueprint/dep/`,
+        # tests/ included, is meant to be copied into a brand-new project
+        # (packs/dep.yaml) -- one that may not be `git init`ed yet. This
+        # test's whole point is to prove the git-aware half of
+        # capture_state_ref works when a real git repo IS present; it
+        # can't prove that from a copy that isn't one yet, so it skips
+        # rather than failing -- test_non_git_repo_root_omits_vcs_not_raises
+        # above already proves the graceful-degrade path (no git present)
+        # works correctly regardless, and does so unconditionally, in a
+        # genuinely non-git temp dir, whether or not this test runs.
+        if state_ref._probe_git(_REPO_ROOT) is None:  # noqa: SLF001 -- same probe capture_state_ref itself uses
+            self.skipTest(
+                f"{_REPO_ROOT} is not a committed git repository yet -- git-init and "
+                "commit it to exercise this test's real git-history assertions."
+            )
         f = _REPO_ROOT / "blueprint" / "dep" / "state_ref.py"
         result = state_ref.capture_state_ref([f], repo_root=_REPO_ROOT)
         self.assertIn("vcs", result)

@@ -20,6 +20,8 @@ def _bridge_only_record() -> dict:
     return {
         "resolution_id": "res-bridge-0001",
         "ecosystem_root": "test/app",
+        "project_kind": "new",
+        "app_runtimes": "backend",
         "pillars": {
             "bridge": {
                 "runtimes": [
@@ -44,6 +46,8 @@ def _dep_only_record() -> dict:
     return {
         "resolution_id": "res-dep-0001",
         "ecosystem_root": "test/app",
+        "project_kind": "existing",
+        "app_runtimes": "backend",
         "pillars": {
             "dep": {
                 "dep_root": "test/app/dep",
@@ -58,6 +62,8 @@ def _cycles_only_record() -> dict:
     return {
         "resolution_id": "res-cycles-0001",
         "ecosystem_root": "test/app",
+        "project_kind": "new",
+        "app_runtimes": "both",
         "pillars": {
             "cycles": {
                 "cycle_doc": "blueprint/1-CYCLE.md",
@@ -65,6 +71,7 @@ def _cycles_only_record() -> dict:
             }
         },
         "resolved_at": "2026-09-14T00:00:00Z",
+        "app_language": {"backend": "C#", "frontend": "TypeScript"},
     }
 
 
@@ -140,6 +147,76 @@ class EcosystemResolutionTests(unittest.TestCase):
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
 
+    def test_missing_project_kind_refused(self):
+        # Never left implicit, same reasoning as a Bridge runtime's own
+        # language -- the wrong guess here (a Builder assuming "new" when
+        # a project already existed) is a real, observed failure: it
+        # scaffolded a whole fake application instead of recognizing an
+        # existing one just needed pillar tooling merged into it.
+        record = _cycles_only_record()
+        del record["project_kind"]
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_invalid_project_kind_refused(self):
+        record = _cycles_only_record()
+        record["project_kind"] = "not-a-real-value"
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_existing_project_kind_round_trips(self):
+        record = _dep_only_record()
+        self.assertEqual(record["project_kind"], "existing")
+        ecosystem_resolution.save_resolution_record(record, self.path)
+        loaded = ecosystem_resolution.load_resolution_record(self.path)
+        self.assertEqual(loaded["project_kind"], "existing")
+
+    def test_missing_app_runtimes_refused(self):
+        record = _dep_only_record()
+        del record["app_runtimes"]
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_invalid_app_runtimes_refused(self):
+        record = _dep_only_record()
+        record["app_runtimes"] = "not-a-real-runtime"
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_app_language_absent_for_bridge_only_is_valid(self):
+        # A Bridge-adopting ecosystem has nothing to put in app_language --
+        # pillars.bridge.runtimes[].language is the single source of truth
+        # for that runtime's language instead. Absence here is expected,
+        # not a gap this schema should flag.
+        record = _bridge_only_record()
+        self.assertNotIn("app_language", record)
+        ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_app_language_round_trips_for_bridge_free_ecosystem(self):
+        # The real, observed failure this whole field exists to fix: a
+        # Bridge-free ecosystem's app_language answer ("C#") was asked,
+        # given, and never stored anywhere the Builder could ever read it.
+        record = _cycles_only_record()
+        self.assertEqual(record["app_language"], {"backend": "C#", "frontend": "TypeScript"})
+        ecosystem_resolution.save_resolution_record(record, self.path)
+        loaded = ecosystem_resolution.load_resolution_record(self.path)
+        self.assertEqual(loaded["app_language"], {"backend": "C#", "frontend": "TypeScript"})
+
+    def test_app_language_empty_object_refused(self):
+        # minProperties: 1 -- an empty app_language is indistinguishable
+        # from "nothing was ever recorded," so it's refused outright
+        # rather than accepted as a valid-but-useless value.
+        record = _cycles_only_record()
+        record["app_language"] = {}
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_app_language_unknown_runtime_key_refused(self):
+        record = _cycles_only_record()
+        record["app_language"] = {"mobile": "Kotlin"}
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
     def test_ported_runtime_language_round_trips(self):
         # The reference implementation is Python (backend) / JavaScript
         # (frontend), but a runtime's own Bridge can genuinely be ported
@@ -166,6 +243,66 @@ class EcosystemResolutionTests(unittest.TestCase):
         self.path.write_text('{"resolution_id": "bad", "pillars": {}}', encoding="utf-8")
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.load_resolution_record(self.path)
+
+
+class DetectBridgeLeakageTests(unittest.TestCase):
+    """Deliberate, explicit coverage for detect_bridge_leakage() -- the
+    real, observed failure this exists to catch: a Builder agent, given a
+    DEP+Cycles-only resolution with no Bridge pillar adopted at all, built
+    a full contracts/capabilities/manifest.yaml tree anyway, despite
+    packs/README.md's own prose already saying not to.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_missing_root_returns_empty(self):
+        self.assertEqual(ecosystem_resolution.detect_bridge_leakage(self.root / "nope"), [])
+
+    def test_clean_project_returns_empty(self):
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        (self.root / "appsettings.json").write_text('{"key": "value"}', encoding="utf-8")
+        self.assertEqual(ecosystem_resolution.detect_bridge_leakage(self.root), [])
+
+    def test_contract_yaml_file_detected(self):
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "simcity.build.contract.yaml").write_text("identity: {}", encoding="utf-8")
+        leaks = ecosystem_resolution.detect_bridge_leakage(self.root)
+        self.assertIn("contracts/", leaks)
+        self.assertIn(str(Path("contracts") / "simcity.build.contract.yaml"), leaks)
+
+    def test_capability_manifest_content_detected(self):
+        (self.root / "capabilities" / "build").mkdir(parents=True)
+        (self.root / "capabilities" / "build" / "manifest.yaml").write_text(
+            "capability_id: simcity.build\nimplementations: []\n", encoding="utf-8",
+        )
+        leaks = ecosystem_resolution.detect_bridge_leakage(self.root)
+        self.assertIn(str(Path("capabilities") / "build" / "manifest.yaml"), leaks)
+
+    def test_unrelated_manifest_yaml_not_flagged(self):
+        # Content-checked, not filename-matched -- "manifest.yaml" alone
+        # is too common a name to treat as a violation on its own.
+        (self.root / "manifest.yaml").write_text("app_name: MyGame\nversion: 1.0\n", encoding="utf-8")
+        self.assertEqual(ecosystem_resolution.detect_bridge_leakage(self.root), [])
+
+    def test_capability_catalog_jsonl_detected(self):
+        (self.root / "capability-catalog.jsonl").write_text("{}", encoding="utf-8")
+        leaks = ecosystem_resolution.detect_bridge_leakage(self.root)
+        self.assertIn("capability-catalog.jsonl", leaks)
+
+    def test_state_directory_never_scanned(self):
+        # A stale artifact under state/ (e.g. from a prior, since-reverted
+        # Bridge adoption) is a cleanup problem, not evidence of a
+        # currently-leaking ecosystem.
+        (self.root / "state").mkdir()
+        (self.root / "state" / "capability-catalog.jsonl").write_text("{}", encoding="utf-8")
+        (self.root / "state" / "contracts").mkdir()
+        (self.root / "state" / "contracts" / "x.contract.yaml").write_text("identity: {}", encoding="utf-8")
+        self.assertEqual(ecosystem_resolution.detect_bridge_leakage(self.root), [])
 
 
 if __name__ == "__main__":

@@ -244,6 +244,110 @@ class FinishCycleTests(unittest.TestCase):
         episodes = list(episode_store.load_episodes(self.episodes_dir))
         self.assertEqual(len(episodes), 1)
 
+    def test_no_catalog_with_ecosystem_root_but_clean_still_publishes(self):
+        # ecosystem_root given AND catalog_path=None -- the leakage check
+        # runs, finds nothing, and publishing proceeds exactly as if
+        # ecosystem_root had been omitted.
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        episode_dir = finish_cycle.finish_cycle(
+            _minimal_cycle_report(),
+            _minimal_verification_record(verification_id="clean-ecosystem-0001"),
+            None,
+            self.episodes_dir,
+            ecosystem_root=self.root,
+        )
+        self.assertTrue(episode_dir.exists())
+
+    def test_no_catalog_with_bridge_leakage_refuses(self):
+        # The real, observed failure this whole gate exists to close: a
+        # Builder agent built a Bridge-shaped contracts/capabilities tree
+        # for a project that never adopted the Bridge pillar at all.
+        # packs/README.md's own prose telling it not to was not enough --
+        # this is the mechanical check that actually stops the cycle from
+        # being marked published while it's still true.
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "simcity.build.contract.yaml").write_text("identity: {}", encoding="utf-8")
+
+        with self.assertRaises(finish_cycle.FinishCycleError) as ctx:
+            finish_cycle.finish_cycle(
+                _minimal_cycle_report(),
+                _minimal_verification_record(verification_id="leaky-ecosystem-0001"),
+                None,
+                self.episodes_dir,
+                ecosystem_root=self.root,
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("contracts", message)
+        self.assertIn("simcity.build.contract.yaml", message)
+        self.assertFalse(self.episodes_dir.exists() and any(self.episodes_dir.iterdir()))
+
+    def test_no_catalog_without_ecosystem_root_skips_leakage_check(self):
+        # Omitting ecosystem_root (its default) means the leakage check
+        # simply doesn't run -- backward compatible with every existing
+        # DEP-only caller that has no such concept, never a silent
+        # "assume clean." This is what "STRONGLY recommended" (not
+        # required) means in practice: leakage in self.root is real here,
+        # but nothing refuses because ecosystem_root was never passed.
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "leaky.contract.yaml").write_text("identity: {}", encoding="utf-8")
+
+        episode_dir = finish_cycle.finish_cycle(
+            _minimal_cycle_report(),
+            _minimal_verification_record(verification_id="no-root-passed-0001"),
+            None,
+            self.episodes_dir,
+        )
+        self.assertTrue(episode_dir.exists())
+
+    def test_bridge_adopted_never_runs_leakage_check_even_if_passed(self):
+        # catalog_path is a real Path (Bridge adopted) -- the leakage
+        # check is specific to "Bridge vocabulary with no Bridge," so it
+        # never runs here even if ecosystem_root is also given; a real
+        # contracts/ dir is exactly what a Bridge-adopting ecosystem is
+        # supposed to have.
+        _write_catalog(self.catalog_path, _ACYCLIC_ENTRIES)
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "real.contract.yaml").write_text("identity: {}", encoding="utf-8")
+
+        episode_dir = finish_cycle.finish_cycle(
+            _minimal_cycle_report(),
+            _minimal_verification_record(verification_id="bridge-adopted-0001"),
+            self.catalog_path,
+            self.episodes_dir,
+            ecosystem_root=self.root,
+        )
+        self.assertTrue(episode_dir.exists())
+
+    def test_cli_ecosystem_root_flag_refuses_on_leakage(self):
+        (self.root / "capabilities").mkdir()
+        (self.root / "capabilities" / "manifest.yaml").write_text(
+            "capability_id: x\nimplementations: []\n", encoding="utf-8",
+        )
+        cycle_report_path = self.root / "agent-cycle-report.json"
+        verification_record_path = self.root / "verification-record.json"
+        cycle_report_path.write_text(json.dumps(_minimal_cycle_report()), encoding="utf-8")
+        verification_record_path.write_text(
+            json.dumps(_minimal_verification_record(verification_id="cli-leaky-0001")), encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "blueprint.dep.finish_cycle",
+                "--cycle-report", str(cycle_report_path),
+                "--verification-record", str(verification_record_path),
+                "--episodes-dir", str(self.episodes_dir),
+                "--ecosystem-root", str(self.root),
+            ],
+            cwd=str(_REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("NOT published", result.stderr)
+        self.assertIn("capabilities", result.stderr)
+
     def test_no_catalog_unverified_status_still_refuses(self):
         # Fail-closed (2-RULES.md) holds regardless of whether the Runtime
         # pillar is in play -- catalog_path=None never bypasses the

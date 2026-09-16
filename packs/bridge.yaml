@@ -47,20 +47,24 @@ files:
       # validates against these same shapes; porting a Bridge to a new
       # language never means porting these too.
   choose_at_least_one:
-    # Ask which: backend, frontend, or both (packs/README.md "Starting
-    # the Bootstrap agent") -- never assume backend just because it's
+    # Driven by `app_runtimes` -- backend, frontend, or both
+    # (packs/README.md "Starting the Bootstrap agent") -- asked for EVERY
+    # pillar combination, not just this one, since it describes the
+    # application's own shape; here it also picks which of the two
+    # entries below to copy. Never assume backend just because it's
     # the more detailed of the two to resolve. A frontend-only ecosystem
     # is a real, valid choice (e.g. a browser-only app whose capabilities
     # are all Local, with no backend at all); so is backend-only; so is
     # both, wired together exactly as starterkit/ demonstrates.
     #
-    # Each chosen runtime ALSO needs its own answer to "what language?"
-    # (packs/README.md, same section) -- open question, no offered menu.
-    # backend's reference is Python, frontend's is JavaScript: an answer
-    # matching the reference means copy the files below directly; a
-    # different answer means port them into that language instead (see
-    # this file's own header comment for what must carry over
-    # unchanged). Record whichever language was actually used in the
+    # Each chosen runtime ALSO needs its own answer to
+    # `bridge_language_backend`/`bridge_language_frontend` (packs/README.md,
+    # same section) -- open question, no offered menu beyond the
+    # reference. backend's reference is Python, frontend's is JavaScript:
+    # an answer matching the reference means copy the files below
+    # directly; a different answer means port them into that language
+    # instead (see this file's own header comment for what must carry
+    # over unchanged). Record whichever language was actually used in the
     # ecosystem-resolution record's own `pillars.bridge.runtimes[].language`
     # (ecosystem-resolution-record.schema.json) -- never left implicit.
     backend:
@@ -106,21 +110,24 @@ files:
     out_of_process_python_client:
       - starterkit/backend/runtime/clients/python/bridge_client.py
       - starterkit/backend/runtime/clients/python/direct_adapter.py
-      # For "what language will the REST of the application (the
-      # capabilities) be implemented in?" -- a separate question from
-      # the Bridge's own language above (packs/README.md, same
-      # section), open, no offered menu. Relevant only if backend was
-      # chosen, and only for OUT-OF-PROCESS capabilities
-      # (executor_kind: process) -- a plain in-process capability in the
-      # backend Bridge's own language needs nothing extra here. Copy
-      # these two if the answer was Python: the reference client, and
-      # direct_adapter.py's prepared-ahead-of-need role if the Bridge
-      # itself is ever reimplemented in a different language.
+      # NOT part of the Bootstrap question flow -- no fixed question asks
+      # "what language will an out-of-process capability be in," because
+      # that's a per-capability implementation decision made later, by
+      # whoever writes that specific capability, not a whole-ecosystem
+      # answer to settle upfront. Relevant only if backend was chosen,
+      # and only for OUT-OF-PROCESS capabilities (executor_kind: process)
+      # -- a plain in-process capability in the backend Bridge's own
+      # language needs nothing extra here. Copy these two once a real
+      # out-of-process capability actually needs a Python client: the
+      # reference client, and direct_adapter.py's prepared-ahead-of-need
+      # role if the Bridge itself is ever reimplemented in a different
+      # language.
     out_of_process_csharp_client:
       - starterkit/backend/implementation/clients/csharp/BridgeClient.cs
       - starterkit/backend/implementation/clients/csharp/BridgeClient.csproj
-      # Same question, answer was C# -- never the obj/ build output
-      # alongside these two files, that's generated.
+      # Same situation, for a capability that needs a C# client instead --
+      # never the obj/ build output alongside these two files, that's
+      # generated.
     # Answer was something else entirely? No reference client exists yet
     # for it. The wire protocol itself is language-agnostic
     # (starterkit/schemas/process-executor-protocol.schema.json, already

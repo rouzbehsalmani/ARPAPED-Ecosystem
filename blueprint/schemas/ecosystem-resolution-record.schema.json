@@ -3,7 +3,7 @@
   "title": "ARPAPED Ecosystem Resolution Record",
   "description": "The written record blueprint/1-CYCLE.md Phase 0 Gate 25 requires -- naming which pillar(s) this ecosystem adopts (README.md 'Three independently adoptable pillars') and, for each adopted pillar, what actually got resolved. Written ONCE when a genuinely NEW ecosystem root is established (never re-decided by a cycle continuing an existing one -- 1-CYCLE.md Phase 0 step 2/Gate 35); a continuing cycle's own checkpoint.ecosystem_resolution_ref just points back at this same file. Mutable, current-composition truth, not a historical log -- contrast verification-record/episode (never overwritten): re-save this if the ecosystem's own pillar composition genuinely changes later (e.g. adding the DEP pillar to a project that started Bridge-only).",
   "type": "object",
-  "required": ["resolution_id", "ecosystem_root", "pillars", "resolved_at"],
+  "required": ["resolution_id", "ecosystem_root", "project_kind", "app_runtimes", "pillars", "resolved_at"],
   "properties": {
     "resolution_id": {
       "type": "string",
@@ -12,6 +12,26 @@
     "ecosystem_root": {
       "type": "string",
       "description": "This application's own authoritative root (2-RULES.md 'ecosystem root' glossary entry) -- scoped per application, never per repo."
+    },
+    "project_kind": {
+      "type": "string",
+      "enum": ["new", "existing"],
+      "description": "Whether `ecosystem_root` was a brand-new, empty project or an already-existing one this pillar combination is being added to (packs/README.md 'Starting the Bootstrap agent'). Never inferred from what the Builder happens to find on disk, and never left implicit -- the wrong guess here is exactly how a real run went wrong: given an existing project, a Builder invented a whole fake application (Bridge-shaped capability/contract/manifest/executor files, and in the wrong language) instead of recognizing the existing project just needed the adopted pillar(s)' own tooling merged into it, untouched otherwise."
+    },
+    "app_runtimes": {
+      "type": "string",
+      "enum": ["backend", "frontend", "both"],
+      "description": "The `app_runtimes` Bootstrap question's own answer -- does this application have a backend, a frontend, or both (packs/README.md 'Starting the Bootstrap agent'). Recorded here regardless of whether the Bridge pillar was adopted: when it was, this is ALSO reflected as one `pillars.bridge.runtimes[]` entry per runtime named here, but a Bridge-free ecosystem has nowhere else this answer would ever be written down, and the Builder still needs to know it."
+    },
+    "app_language": {
+      "type": "object",
+      "description": "The application's own implementation language, per runtime -- the `app_language_backend`/`app_language_frontend` Bootstrap questions' own answers (packs/bootstrap.py's own `_QUESTIONS`), recorded verbatim. Present ONLY when at least one of those questions was actually asked and answered, which only happens when the Bridge pillar was NOT adopted for that runtime: with a Bridge, `pillars.bridge.runtimes[].language` already answers this per runtime, so this key is legitimately ABSENT for a Bridge-adopting ecosystem -- expected, not a gap; look there instead. Never both silently absent AND actually relevant: a Bridge-free runtime with a genuinely undecided language still records the literal string \"Not yet / I don't know\", never omits the key. Real, observed failure this field exists to fix: an ecosystem was resolved with a real app_language answer (\"C#\") that was asked, given, and then never stored anywhere -- the Builder agent had no way to know it and built the application in the wrong language entirely.",
+      "properties": {
+        "backend": {"type": "string", "minLength": 1},
+        "frontend": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false,
+      "minProperties": 1
     },
     "pillars": {
       "type": "object",

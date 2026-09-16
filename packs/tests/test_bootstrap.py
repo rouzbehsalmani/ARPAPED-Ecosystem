@@ -48,60 +48,100 @@ class QuestionsTests(unittest.TestCase):
         return [q["id"] for q in bootstrap.applicable_questions(answers)]
 
     def test_start_of_flow_has_no_bridge_questions(self):
-        # Nothing answered yet -- bridge_runtimes/bridge_language_* all
-        # depend on `pillars` being answered first, so none of them
-        # should appear, only the unconditional questions.
-        self.assertEqual(self._ids(), ["pillars", "capability_language", "location"])
+        # Nothing answered yet. `project_kind`/`app_runtimes` are
+        # unconditional (neither describes the Bridge) so both show up
+        # immediately; every language question needs `pillars` AND
+        # `app_runtimes` answered first, so none of them appear yet.
+        self.assertEqual(self._ids(), ["pillars", "project_kind", "app_runtimes", "location"])
 
-    def test_bridge_not_chosen_skips_all_bridge_questions(self):
-        ids = self._ids({"pillars": ["dep", "cycles"]})
-        self.assertNotIn("bridge_runtimes", ids)
+    def test_project_kind_is_closed_with_new_and_existing_options(self):
+        questions = {q["id"]: q for q in bootstrap.applicable_questions()}
+        self.assertEqual(questions["project_kind"]["kind"], "closed")
+        self.assertEqual(questions["project_kind"]["options"], ["new", "existing"])
+
+    def test_bridge_not_chosen_asks_app_language_not_bridge_language(self):
+        # Real, observed failure this locks in: a dep+cycles-only run (no
+        # Bridge pillar at all) was asked a Bridge-worded question with no
+        # Bridge to compare to. The fix: mutually exclusive question
+        # pairs per runtime -- bridge_language_* only WITH a Bridge,
+        # app_language_* only WITHOUT one, never both, never neither.
+        ids = self._ids({"pillars": ["dep", "cycles"], "app_runtimes": "both"})
         self.assertNotIn("bridge_language_backend", ids)
         self.assertNotIn("bridge_language_frontend", ids)
+        self.assertIn("app_language_backend", ids)
+        self.assertIn("app_language_frontend", ids)
 
-    def test_bridge_chosen_shows_runtime_question_only(self):
+    def test_bridge_chosen_asks_bridge_language_not_app_language(self):
+        ids = self._ids({"pillars": ["bridge"], "app_runtimes": "both"})
+        self.assertIn("bridge_language_backend", ids)
+        self.assertIn("bridge_language_frontend", ids)
+        self.assertNotIn("app_language_backend", ids)
+        self.assertNotIn("app_language_frontend", ids)
+
+    def test_no_runtime_yet_shows_no_language_question_of_either_kind(self):
+        # pillars answered, app_runtimes not yet -- neither language
+        # question pair can apply until app_runtimes says which
+        # runtime(s) actually exist, with a Bridge or without one.
         ids = self._ids({"pillars": ["bridge"]})
-        self.assertIn("bridge_runtimes", ids)
-        self.assertNotIn("bridge_language_backend", ids)
-        self.assertNotIn("bridge_language_frontend", ids)
+        self.assertIn("app_runtimes", ids)
+        for missing in ("bridge_language_backend", "bridge_language_frontend", "app_language_backend", "app_language_frontend"):
+            self.assertNotIn(missing, ids)
+
+        ids_no_bridge = self._ids({"pillars": ["dep"]})
+        for missing in ("bridge_language_backend", "bridge_language_frontend", "app_language_backend", "app_language_frontend"):
+            self.assertNotIn(missing, ids_no_bridge)
 
     def test_backend_only_asks_backend_language_only(self):
-        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "backend"})
+        ids = self._ids({"pillars": ["bridge"], "app_runtimes": "backend"})
         self.assertIn("bridge_language_backend", ids)
         self.assertNotIn("bridge_language_frontend", ids)
 
+        ids_no_bridge = self._ids({"pillars": ["dep"], "app_runtimes": "backend"})
+        self.assertIn("app_language_backend", ids_no_bridge)
+        self.assertNotIn("app_language_frontend", ids_no_bridge)
+
     def test_frontend_only_asks_frontend_language_only(self):
-        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "frontend"})
+        ids = self._ids({"pillars": ["bridge"], "app_runtimes": "frontend"})
         self.assertIn("bridge_language_frontend", ids)
         self.assertNotIn("bridge_language_backend", ids)
 
+        ids_no_bridge = self._ids({"pillars": ["dep"], "app_runtimes": "frontend"})
+        self.assertIn("app_language_frontend", ids_no_bridge)
+        self.assertNotIn("app_language_backend", ids_no_bridge)
+
     def test_both_asks_both_languages(self):
-        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "both"})
+        ids = self._ids({"pillars": ["bridge"], "app_runtimes": "both"})
         self.assertIn("bridge_language_backend", ids)
         self.assertIn("bridge_language_frontend", ids)
 
+        ids_no_bridge = self._ids({"pillars": ["dep"], "app_runtimes": "both"})
+        self.assertIn("app_language_backend", ids_no_bridge)
+        self.assertIn("app_language_frontend", ids_no_bridge)
+
     def test_already_answered_questions_never_reappear(self):
-        # pillars and bridge_runtimes are both already answered -- neither
-        # should show up again even though bridge_runtimes still
-        # technically "applies" given these answers.
-        ids = self._ids({"pillars": ["bridge"], "bridge_runtimes": "both"})
+        # pillars and app_runtimes are both already answered -- neither
+        # should show up again even though app_runtimes still
+        # technically "applies" (it's unconditional) given these answers.
+        ids = self._ids({"pillars": ["bridge"], "app_runtimes": "both"})
         self.assertNotIn("pillars", ids)
-        self.assertNotIn("bridge_runtimes", ids)
+        self.assertNotIn("app_runtimes", ids)
 
     def test_bridge_language_options_are_the_reference_language_only(self):
         # Exactly one real option each -- the reference implementation's
         # own language -- never a second, redundant "write your own"
         # entry duplicating the free-text fallback.
-        questions = {q["id"]: q for q in bootstrap.applicable_questions({"pillars": ["bridge"], "bridge_runtimes": "both"})}
+        questions = {q["id"]: q for q in bootstrap.applicable_questions({"pillars": ["bridge"], "app_runtimes": "both"})}
         self.assertEqual(questions["bridge_language_backend"]["options"], ["Python"])
         self.assertEqual(questions["bridge_language_frontend"]["options"], ["JavaScript"])
 
-    def test_capability_language_options_are_two_genuine_choices(self):
-        questions = {q["id"]: q for q in bootstrap.applicable_questions()}
-        self.assertEqual(
-            questions["capability_language"]["options"],
-            ["Same language as the Bridge", "Not yet / I don't know"],
-        )
+    def test_app_language_options_are_just_the_fallback(self):
+        # No reference language to suggest for a Bridge-free runtime
+        # (unlike bridge_language_backend's "Python") -- just the one
+        # honest fallback option, same as every other Bridge-free case.
+        questions = {q["id"]: q for q in bootstrap.applicable_questions({"pillars": ["dep"], "app_runtimes": "both"})}
+        self.assertEqual(questions["app_language_backend"]["options"], ["Not yet / I don't know"])
+        self.assertEqual(questions["app_language_backend"]["kind"], "open_with_default")
+        self.assertEqual(questions["app_language_frontend"]["options"], ["Not yet / I don't know"])
 
     def test_location_has_no_options_at_all(self):
         # Genuinely open -- options: None AND no options_source, unlike
@@ -131,7 +171,9 @@ class QuestionsTests(unittest.TestCase):
 
     def test_next_question_returns_none_when_nothing_left(self):
         answers = {
-            "pillars": ["cycles"], "capability_language": "Python", "location": "/tmp/x",
+            "pillars": ["cycles"], "project_kind": "new", "app_runtimes": "both",
+            "app_language_backend": "Python", "app_language_frontend": "TypeScript",
+            "location": "/tmp/x",
         }
         self.assertIsNone(bootstrap.next_question(answers))
 
@@ -141,27 +183,38 @@ class QuestionsTests(unittest.TestCase):
         # re-checking in between. Default output must be exactly one.
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            bootstrap.print_questions({"pillars": ["bridge"], "bridge_runtimes": "backend"})
+            bootstrap.print_questions({"pillars": ["bridge"], "project_kind": "new", "app_runtimes": "backend"})
         output = buf.getvalue()
         self.assertIn("[bridge_language_backend]", output)
         self.assertIn("Python", output)
         self.assertNotIn("bridge_language_frontend", output)
-        self.assertNotIn("capability_language", output)
+        self.assertNotIn("app_language", output)
         self.assertNotIn("location", output)
 
     def test_print_questions_all_shows_every_remaining_one(self):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            bootstrap.print_questions({"pillars": ["bridge"], "bridge_runtimes": "backend"}, show_all=True)
+            bootstrap.print_questions({"pillars": ["bridge"], "project_kind": "new", "app_runtimes": "backend"}, show_all=True)
         output = buf.getvalue()
         self.assertIn("[bridge_language_backend]", output)
-        self.assertIn("capability_language", output)
+        self.assertIn("location", output)
+
+    def test_print_questions_all_shows_app_language_when_bridge_free(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bootstrap.print_questions({"pillars": ["dep"], "project_kind": "new", "app_runtimes": "backend"}, show_all=True)
+        output = buf.getvalue()
+        self.assertNotIn("bridge_language_backend", output)
+        self.assertIn("[app_language_backend]", output)
         self.assertIn("location", output)
 
     def test_print_questions_nothing_left_message(self):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            bootstrap.print_questions({"pillars": ["cycles"], "capability_language": "x", "location": "y"})
+            bootstrap.print_questions({
+                "pillars": ["cycles"], "project_kind": "new", "app_runtimes": "both",
+                "app_language_backend": "x", "app_language_frontend": "y", "location": "y",
+            })
         self.assertIn("Nothing left to ask.", buf.getvalue())
 
     def test_full_loop_never_skips_a_question(self):
@@ -174,10 +227,10 @@ class QuestionsTests(unittest.TestCase):
         seen_ids = []
         canned = {
             "pillars": ["bridge", "dep"],
-            "bridge_runtimes": "both",
+            "project_kind": "new",
+            "app_runtimes": "both",
             "bridge_language_backend": "Python",
             "bridge_language_frontend": "JavaScript",
-            "capability_language": "Python",
             "location": "/tmp/my-app",
         }
         for _ in range(20):  # hard cap -- a real infinite loop is itself a test failure
@@ -192,7 +245,35 @@ class QuestionsTests(unittest.TestCase):
 
         self.assertEqual(
             seen_ids,
-            ["pillars", "bridge_runtimes", "bridge_language_backend", "bridge_language_frontend", "capability_language", "location"],
+            ["pillars", "project_kind", "app_runtimes", "bridge_language_backend", "bridge_language_frontend", "location"],
+        )
+
+    def test_full_loop_never_skips_a_question_bridge_free(self):
+        # Mirror of the above for the app_language_backend/frontend pair
+        # -- proves that path surfaces every question too, none skipped.
+        answers: dict = {}
+        seen_ids = []
+        canned = {
+            "pillars": ["dep", "cycles"],
+            "project_kind": "existing",
+            "app_runtimes": "both",
+            "app_language_backend": "C#",
+            "app_language_frontend": "TypeScript",
+            "location": "D:/simcity",
+        }
+        for _ in range(20):
+            q = bootstrap.next_question(answers)
+            if q is None:
+                break
+            self.assertNotIn(q["id"], seen_ids, f"{q['id']} was asked twice")
+            seen_ids.append(q["id"])
+            answers[q["id"]] = canned[q["id"]]
+        else:
+            self.fail("loop never terminated -- next_question() kept returning something")
+
+        self.assertEqual(
+            seen_ids,
+            ["pillars", "project_kind", "app_runtimes", "app_language_backend", "app_language_frontend", "location"],
         )
 
     def test_cli_questions_subprocess_no_answers(self):
@@ -202,12 +283,12 @@ class QuestionsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[pillars]", result.stdout)
-        self.assertNotIn("bridge_runtimes", result.stdout)
+        self.assertNotIn("app_runtimes", result.stdout)
 
     def test_cli_questions_subprocess_with_answers_file_shows_only_next(self):
         with tempfile.TemporaryDirectory() as tmp:
             answers_path = Path(tmp) / "answers.json"
-            answers_path.write_text(json.dumps({"pillars": ["bridge"], "bridge_runtimes": "both"}), encoding="utf-8")
+            answers_path.write_text(json.dumps({"pillars": ["bridge"], "project_kind": "new", "app_runtimes": "both"}), encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, "-m", "packs.bootstrap", "questions", "--answers-file", str(answers_path)],
                 cwd=str(_REPO_ROOT), capture_output=True, text=True,
@@ -220,7 +301,7 @@ class QuestionsTests(unittest.TestCase):
     def test_cli_questions_subprocess_all_flag_shows_everything(self):
         with tempfile.TemporaryDirectory() as tmp:
             answers_path = Path(tmp) / "answers.json"
-            answers_path.write_text(json.dumps({"pillars": ["bridge"], "bridge_runtimes": "both"}), encoding="utf-8")
+            answers_path.write_text(json.dumps({"pillars": ["bridge"], "project_kind": "new", "app_runtimes": "both"}), encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, "-m", "packs.bootstrap", "questions", "--answers-file", str(answers_path), "--all"],
                 cwd=str(_REPO_ROOT), capture_output=True, text=True,
@@ -251,7 +332,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "dep": {"dep_root": "blueprint/dep", "episodes_dir": "state/episodes"},
         }), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file, resolved_by="test-agent")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "both", resolved_by="test-agent")
         self.assertTrue(out_path.exists())
 
         record = ecosystem_resolution.load_resolution_record(out_path)
@@ -272,7 +353,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "cycles": {"cycle_doc": "x", "rules_doc": "y"},
         }), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file)
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
         self.assertEqual(out_path, self.root / "state" / "ecosystem-resolution.json")
 
     def test_relative_ecosystem_root_stored_as_absolute(self):
@@ -289,7 +370,7 @@ class ResolveDescribeTests(unittest.TestCase):
         original_cwd = Path.cwd()
         try:
             os.chdir(self.root)
-            out_path = bootstrap.resolve(Path("my-app"), self.pillars_file)
+            out_path = bootstrap.resolve(Path("my-app"), self.pillars_file, "new", "backend")
         finally:
             os.chdir(original_cwd)
 
@@ -308,7 +389,7 @@ class ResolveDescribeTests(unittest.TestCase):
             {"hook": "dep.finish_cycle_catalog_path", "from_pillar": "dep", "to_pillar": "cycles", "applied": True, "detail": "catalog_path=None"},
         ]), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file, combine_with_file=combine_file)
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", combine_with_file=combine_file)
         record = ecosystem_resolution.load_resolution_record(out_path)
         self.assertEqual(len(record["combine_with_applied"]), 1)
         self.assertTrue(record["combine_with_applied"][0]["applied"])
@@ -316,7 +397,7 @@ class ResolveDescribeTests(unittest.TestCase):
     def test_empty_pillars_refused(self):
         self.pillars_file.write_text("{}", encoding="utf-8")
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
-            bootstrap.resolve(self.root, self.pillars_file)
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
 
     def test_describe_missing_file_exits_1(self):
         with self.assertRaises(SystemExit) as ctx:
@@ -342,6 +423,8 @@ class ResolveDescribeTests(unittest.TestCase):
                 sys.executable, "-m", "packs.bootstrap", "resolve",
                 "--ecosystem-root", str(self.root),
                 "--pillars-file", str(self.pillars_file),
+                "--project-kind", "new",
+                "--app-runtimes", "backend",
                 "--out", str(out_path),
             ],
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
@@ -355,6 +438,7 @@ class ResolveDescribeTests(unittest.TestCase):
         )
         self.assertEqual(describe_result.returncode, 0, describe_result.stderr)
         self.assertIn("bridge", describe_result.stdout)
+        self.assertIn("project_kind:   new", describe_result.stdout)
 
     def test_cli_list_pillars_subprocess(self):
         result = subprocess.run(
@@ -390,12 +474,12 @@ class RealContentCheckTests(unittest.TestCase):
     def test_refuses_when_ecosystem_root_does_not_exist(self):
         missing = self.root / "does-not-exist-yet"
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(missing, self.pillars_file)
+            bootstrap.resolve(missing, self.pillars_file, "new", "backend")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_refuses_when_ecosystem_root_is_completely_empty(self):
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(self.root, self.pillars_file)
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_refuses_when_ecosystem_root_has_only_a_state_directory(self):
@@ -404,13 +488,13 @@ class RealContentCheckTests(unittest.TestCase):
         (self.root / "state").mkdir()
         (self.root / "state" / "leftover.json").write_text("{}", encoding="utf-8")
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(self.root, self.pillars_file)
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_succeeds_once_real_content_exists_alongside_state(self):
         (self.root / "state").mkdir()
         (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file)
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
         self.assertTrue(out_path.exists())
 
     def test_succeeds_with_real_content_and_no_state_dir_yet(self):
@@ -418,8 +502,32 @@ class RealContentCheckTests(unittest.TestCase):
         # itself when writing the record; only "is there real content"
         # matters, not "does state/ already exist".
         (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file)
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
         self.assertTrue(out_path.exists())
+
+    def test_existing_project_kind_trivially_satisfies_real_content_check(self):
+        # An "existing" project already has real files before any pillar
+        # adoption starts -- resolve() never needs new scaffold content
+        # written first for this case, unlike "new".
+        (self.root / "MyExistingApp.csproj").write_text("real pre-existing project", encoding="utf-8")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "existing", "backend")
+        record = ecosystem_resolution.load_resolution_record(out_path)
+        self.assertEqual(record["project_kind"], "existing")
+
+    def test_app_language_recorded_for_bridge_free_ecosystem(self):
+        (self.root / "MyExistingApp.csproj").write_text("real pre-existing project", encoding="utf-8")
+        out_path = bootstrap.resolve(
+            self.root, self.pillars_file, "existing", "both",
+            app_language_backend="C#", app_language_frontend="TypeScript",
+        )
+        record = ecosystem_resolution.load_resolution_record(out_path)
+        self.assertEqual(record["app_language"], {"backend": "C#", "frontend": "TypeScript"})
+
+    def test_app_language_absent_when_not_passed(self):
+        (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        record = ecosystem_resolution.load_resolution_record(out_path)
+        self.assertNotIn("app_language", record)
 
     def test_cli_resolve_refuses_on_empty_ecosystem_root(self):
         result = subprocess.run(
@@ -427,12 +535,103 @@ class RealContentCheckTests(unittest.TestCase):
                 sys.executable, "-m", "packs.bootstrap", "resolve",
                 "--ecosystem-root", str(self.root),
                 "--pillars-file", str(self.pillars_file),
+                "--project-kind", "new",
+                "--app-runtimes", "backend",
             ],
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("no real content", result.stderr)
         self.assertFalse((self.root / "state").exists(), "refused resolve must not write anything at all")
+
+
+class CheckScopeTests(unittest.TestCase):
+    """Coverage for check_scope() -- the proactive, run-anytime-during-
+    Phase-1-7 half of the same check blueprint/dep/finish_cycle.py now
+    runs as a hard publish-time gate. Real, observed failure both exist
+    for: a Builder agent, given a DEP+Cycles-only resolution with no
+    Bridge pillar adopted at all, built a full contracts/capabilities
+    tree anyway -- packs/README.md's own prose telling it not to was not
+    enough on its own.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.pillars_file = self.root / ".." / "pillars.json"
+        self.pillars_file = self.pillars_file.resolve()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+        self.pillars_file.unlink(missing_ok=True)
+
+    def _resolve_no_bridge(self):
+        self.pillars_file.write_text(json.dumps({
+            "dep": {"dep_root": "d", "episodes_dir": "e"},
+            "cycles": {"cycle_doc": "x", "rules_doc": "y"},
+        }), encoding="utf-8")
+        bootstrap.resolve(self.root, self.pillars_file, "existing", "backend")
+
+    def _resolve_with_bridge(self):
+        self.pillars_file.write_text(json.dumps({
+            "bridge": {
+                "runtimes": [
+                    {
+                        "name": "backend", "language": "Python",
+                        "bridge": "x", "registry": "x", "policy": "x", "selector": "x",
+                        "contracts_dir": "x", "implementation_map": {},
+                    }
+                ]
+            },
+        }), encoding="utf-8")
+        bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+
+    def test_no_resolution_record_raises(self):
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            bootstrap.check_scope(self.root)
+
+    def test_clean_no_bridge_ecosystem_returns_empty(self):
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        self._resolve_no_bridge()
+        self.assertEqual(bootstrap.check_scope(self.root), [])
+
+    def test_leaky_no_bridge_ecosystem_returns_violations(self):
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "x.contract.yaml").write_text("identity: {}", encoding="utf-8")
+        self._resolve_no_bridge()
+        leaks = bootstrap.check_scope(self.root)
+        self.assertIn("contracts/", leaks)
+
+    def test_bridge_adopted_never_flags_contracts(self):
+        # A real contracts/ dir is exactly what a Bridge-adopting
+        # ecosystem is SUPPOSED to have -- never a violation.
+        (self.root / "contracts").mkdir()
+        (self.root / "contracts" / "x.contract.yaml").write_text("identity: {}", encoding="utf-8")
+        self._resolve_with_bridge()
+        self.assertEqual(bootstrap.check_scope(self.root), [])
+
+    def test_cli_clean_exits_0(self):
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        self._resolve_no_bridge()
+        result = subprocess.run(
+            [sys.executable, "-m", "packs.bootstrap", "check-scope", "--ecosystem-root", str(self.root)],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No pillar-scope leakage found.", result.stdout)
+
+    def test_cli_leaky_exits_1(self):
+        (self.root / "capabilities").mkdir()
+        (self.root / "capabilities" / "manifest.yaml").write_text(
+            "capability_id: x\nimplementations: []\n", encoding="utf-8",
+        )
+        self._resolve_no_bridge()
+        result = subprocess.run(
+            [sys.executable, "-m", "packs.bootstrap", "check-scope", "--ecosystem-root", str(self.root)],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("capabilities", result.stderr)
 
 
 if __name__ == "__main__":
