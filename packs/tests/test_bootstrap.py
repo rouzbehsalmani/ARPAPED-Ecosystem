@@ -48,11 +48,11 @@ class QuestionsTests(unittest.TestCase):
         return [q["id"] for q in bootstrap.applicable_questions(answers)]
 
     def test_start_of_flow_has_no_bridge_questions(self):
-        # Nothing answered yet. `project_kind`/`app_runtimes` are
-        # unconditional (neither describes the Bridge) so both show up
-        # immediately; every language question needs `pillars` AND
+        # Nothing answered yet. `project_kind`/`app_runtimes`/`use_git`
+        # are unconditional (none describes the Bridge) so all three show
+        # up immediately; every language question needs `pillars` AND
         # `app_runtimes` answered first, so none of them appear yet.
-        self.assertEqual(self._ids(), ["pillars", "project_kind", "app_runtimes", "location"])
+        self.assertEqual(self._ids(), ["pillars", "project_kind", "app_runtimes", "use_git", "location"])
 
     def test_project_kind_is_closed_with_new_and_existing_options(self):
         questions = {q["id"]: q for q in bootstrap.applicable_questions()}
@@ -173,7 +173,7 @@ class QuestionsTests(unittest.TestCase):
         answers = {
             "pillars": ["cycles"], "project_kind": "new", "app_runtimes": "both",
             "app_language_backend": "Python", "app_language_frontend": "TypeScript",
-            "location": "/tmp/x",
+            "use_git": "no", "location": "/tmp/x",
         }
         self.assertIsNone(bootstrap.next_question(answers))
 
@@ -213,7 +213,8 @@ class QuestionsTests(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             bootstrap.print_questions({
                 "pillars": ["cycles"], "project_kind": "new", "app_runtimes": "both",
-                "app_language_backend": "x", "app_language_frontend": "y", "location": "y",
+                "app_language_backend": "x", "app_language_frontend": "y",
+                "use_git": "no", "location": "y",
             })
         self.assertIn("Nothing left to ask.", buf.getvalue())
 
@@ -231,6 +232,7 @@ class QuestionsTests(unittest.TestCase):
             "app_runtimes": "both",
             "bridge_language_backend": "Python",
             "bridge_language_frontend": "JavaScript",
+            "use_git": "yes",
             "location": "/tmp/my-app",
         }
         for _ in range(20):  # hard cap -- a real infinite loop is itself a test failure
@@ -245,7 +247,7 @@ class QuestionsTests(unittest.TestCase):
 
         self.assertEqual(
             seen_ids,
-            ["pillars", "project_kind", "app_runtimes", "bridge_language_backend", "bridge_language_frontend", "location"],
+            ["pillars", "project_kind", "app_runtimes", "bridge_language_backend", "bridge_language_frontend", "use_git", "location"],
         )
 
     def test_full_loop_never_skips_a_question_bridge_free(self):
@@ -259,6 +261,7 @@ class QuestionsTests(unittest.TestCase):
             "app_runtimes": "both",
             "app_language_backend": "C#",
             "app_language_frontend": "TypeScript",
+            "use_git": "no",
             "location": "D:/simcity",
         }
         for _ in range(20):
@@ -273,7 +276,7 @@ class QuestionsTests(unittest.TestCase):
 
         self.assertEqual(
             seen_ids,
-            ["pillars", "project_kind", "app_runtimes", "app_language_backend", "app_language_frontend", "location"],
+            ["pillars", "project_kind", "app_runtimes", "app_language_backend", "app_language_frontend", "use_git", "location"],
         )
 
     def test_cli_questions_subprocess_no_answers(self):
@@ -332,7 +335,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "dep": {"dep_root": "blueprint/dep", "episodes_dir": "state/episodes"},
         }), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "both", resolved_by="test-agent")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "both", "no", resolved_by="test-agent")
         self.assertTrue(out_path.exists())
 
         record = ecosystem_resolution.load_resolution_record(out_path)
@@ -353,7 +356,7 @@ class ResolveDescribeTests(unittest.TestCase):
             "cycles": {"cycle_doc": "x", "rules_doc": "y"},
         }), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         self.assertEqual(out_path, self.root / "state" / "ecosystem-resolution.json")
 
     def test_relative_ecosystem_root_stored_as_absolute(self):
@@ -370,7 +373,7 @@ class ResolveDescribeTests(unittest.TestCase):
         original_cwd = Path.cwd()
         try:
             os.chdir(self.root)
-            out_path = bootstrap.resolve(Path("my-app"), self.pillars_file, "new", "backend")
+            out_path = bootstrap.resolve(Path("my-app"), self.pillars_file, "new", "backend", "no")
         finally:
             os.chdir(original_cwd)
 
@@ -389,7 +392,7 @@ class ResolveDescribeTests(unittest.TestCase):
             {"hook": "dep.finish_cycle_catalog_path", "from_pillar": "dep", "to_pillar": "cycles", "applied": True, "detail": "catalog_path=None"},
         ]), encoding="utf-8")
 
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", combine_with_file=combine_file)
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no", combine_with_file=combine_file)
         record = ecosystem_resolution.load_resolution_record(out_path)
         self.assertEqual(len(record["combine_with_applied"]), 1)
         self.assertTrue(record["combine_with_applied"][0]["applied"])
@@ -397,7 +400,7 @@ class ResolveDescribeTests(unittest.TestCase):
     def test_empty_pillars_refused(self):
         self.pillars_file.write_text("{}", encoding="utf-8")
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
-            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
 
     def test_describe_missing_file_exits_1(self):
         with self.assertRaises(SystemExit) as ctx:
@@ -425,6 +428,7 @@ class ResolveDescribeTests(unittest.TestCase):
                 "--pillars-file", str(self.pillars_file),
                 "--project-kind", "new",
                 "--app-runtimes", "backend",
+                "--use-git", "no",
                 "--out", str(out_path),
             ],
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
@@ -474,12 +478,12 @@ class RealContentCheckTests(unittest.TestCase):
     def test_refuses_when_ecosystem_root_does_not_exist(self):
         missing = self.root / "does-not-exist-yet"
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(missing, self.pillars_file, "new", "backend")
+            bootstrap.resolve(missing, self.pillars_file, "new", "backend", "no")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_refuses_when_ecosystem_root_is_completely_empty(self):
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_refuses_when_ecosystem_root_has_only_a_state_directory(self):
@@ -488,13 +492,13 @@ class RealContentCheckTests(unittest.TestCase):
         (self.root / "state").mkdir()
         (self.root / "state" / "leftover.json").write_text("{}", encoding="utf-8")
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError) as ctx:
-            bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+            bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         self.assertIn("no real content", str(ctx.exception))
 
     def test_succeeds_once_real_content_exists_alongside_state(self):
         (self.root / "state").mkdir()
         (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         self.assertTrue(out_path.exists())
 
     def test_succeeds_with_real_content_and_no_state_dir_yet(self):
@@ -502,7 +506,7 @@ class RealContentCheckTests(unittest.TestCase):
         # itself when writing the record; only "is there real content"
         # matters, not "does state/ already exist".
         (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         self.assertTrue(out_path.exists())
 
     def test_existing_project_kind_trivially_satisfies_real_content_check(self):
@@ -510,14 +514,14 @@ class RealContentCheckTests(unittest.TestCase):
         # adoption starts -- resolve() never needs new scaffold content
         # written first for this case, unlike "new".
         (self.root / "MyExistingApp.csproj").write_text("real pre-existing project", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "existing", "backend")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "existing", "backend", "no")
         record = ecosystem_resolution.load_resolution_record(out_path)
         self.assertEqual(record["project_kind"], "existing")
 
     def test_app_language_recorded_for_bridge_free_ecosystem(self):
         (self.root / "MyExistingApp.csproj").write_text("real pre-existing project", encoding="utf-8")
         out_path = bootstrap.resolve(
-            self.root, self.pillars_file, "existing", "both",
+            self.root, self.pillars_file, "existing", "both", "no",
             app_language_backend="C#", app_language_frontend="TypeScript",
         )
         record = ecosystem_resolution.load_resolution_record(out_path)
@@ -525,7 +529,7 @@ class RealContentCheckTests(unittest.TestCase):
 
     def test_app_language_absent_when_not_passed(self):
         (self.root / "1-CYCLE.md").write_text("real copied content", encoding="utf-8")
-        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        out_path = bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
         record = ecosystem_resolution.load_resolution_record(out_path)
         self.assertNotIn("app_language", record)
 
@@ -537,6 +541,7 @@ class RealContentCheckTests(unittest.TestCase):
                 "--pillars-file", str(self.pillars_file),
                 "--project-kind", "new",
                 "--app-runtimes", "backend",
+                "--use-git", "no",
             ],
             cwd=str(_REPO_ROOT), capture_output=True, text=True,
         )
@@ -570,7 +575,7 @@ class CheckScopeTests(unittest.TestCase):
             "dep": {"dep_root": "d", "episodes_dir": "e"},
             "cycles": {"cycle_doc": "x", "rules_doc": "y"},
         }), encoding="utf-8")
-        bootstrap.resolve(self.root, self.pillars_file, "existing", "backend")
+        bootstrap.resolve(self.root, self.pillars_file, "existing", "backend", "no")
 
     def _resolve_with_bridge(self):
         self.pillars_file.write_text(json.dumps({
@@ -584,7 +589,7 @@ class CheckScopeTests(unittest.TestCase):
                 ]
             },
         }), encoding="utf-8")
-        bootstrap.resolve(self.root, self.pillars_file, "new", "backend")
+        bootstrap.resolve(self.root, self.pillars_file, "new", "backend", "no")
 
     def test_no_resolution_record_raises(self):
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
@@ -632,6 +637,101 @@ class CheckScopeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("capabilities", result.stderr)
+
+
+class EnsureGitRepoTests(unittest.TestCase):
+    """Coverage for ensure_git_repo() -- the real action a "yes" answer to
+    the use_git question actually takes (git init), not just a fact
+    recorded in the resolution record. Real, observed pattern this
+    follows: prose alone ("this project should use git") does not make a
+    project a git repository; something has to actually run `git init`.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_initializes_a_fresh_directory(self):
+        self.assertFalse((self.root / ".git").exists())
+        status = bootstrap.ensure_git_repo(self.root)
+        self.assertIn("initialized", status)
+        self.assertTrue((self.root / ".git").exists())
+
+    def test_already_a_repo_does_nothing_and_says_so(self):
+        subprocess.run(["git", "init"], cwd=str(self.root), capture_output=True, text=True)
+        status = bootstrap.ensure_git_repo(self.root)
+        self.assertIn("already a git repository", status)
+
+    def test_idempotent_across_repeated_calls(self):
+        first = bootstrap.ensure_git_repo(self.root)
+        second = bootstrap.ensure_git_repo(self.root)
+        self.assertIn("initialized", first)
+        self.assertIn("already a git repository", second)
+
+    def test_creates_missing_directory_first(self):
+        # A not-yet-existing ecosystem_root must never be misreported as
+        # "git is not available" -- that's what a naive implementation
+        # would do if it probed git before ensuring the cwd exists.
+        missing = self.root / "does-not-exist-yet"
+        self.assertFalse(missing.exists())
+        status = bootstrap.ensure_git_repo(missing)
+        self.assertIn("initialized", status)
+        self.assertNotIn("not available", status)
+        self.assertTrue((missing / ".git").exists())
+
+    def test_resolve_use_git_yes_via_cli_actually_initializes_git(self):
+        # End-to-end: the exact real-world ask -- "if the user wants git,
+        # make sure the project has it" -- driven through the same CLI
+        # command a live Bootstrap agent would actually run.
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        pillars_file = self.root / "pillars.json"
+        pillars_file.write_text(json.dumps({"dep": {"dep_root": "d", "episodes_dir": "e"}}), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "packs.bootstrap", "resolve",
+                "--ecosystem-root", str(self.root),
+                "--pillars-file", str(pillars_file),
+                "--project-kind", "existing",
+                "--app-runtimes", "backend",
+                "--use-git", "yes",
+            ],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("initialized a new git repository", result.stdout)
+        self.assertTrue((self.root / ".git").exists())
+
+    def test_resolve_use_git_no_via_cli_never_touches_git(self):
+        (self.root / "MyApp.csproj").write_text("real content", encoding="utf-8")
+        pillars_file = self.root / "pillars.json"
+        pillars_file.write_text(json.dumps({"dep": {"dep_root": "d", "episodes_dir": "e"}}), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "packs.bootstrap", "resolve",
+                "--ecosystem-root", str(self.root),
+                "--pillars-file", str(pillars_file),
+                "--project-kind", "existing",
+                "--app-runtimes", "backend",
+                "--use-git", "no",
+            ],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.root / ".git").exists())
+
+    def test_cli_ensure_git_standalone(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "packs.bootstrap", "ensure-git", "--ecosystem-root", str(self.root)],
+            cwd=str(_REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("initialized", result.stdout)
+        self.assertTrue((self.root / ".git").exists())
 
 
 if __name__ == "__main__":

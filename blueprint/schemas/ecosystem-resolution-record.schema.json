@@ -3,7 +3,7 @@
   "title": "ARPAPED Ecosystem Resolution Record",
   "description": "The written record blueprint/1-CYCLE.md Phase 0 Gate 25 requires -- naming which pillar(s) this ecosystem adopts (README.md 'Three independently adoptable pillars') and, for each adopted pillar, what actually got resolved. Written ONCE when a genuinely NEW ecosystem root is established (never re-decided by a cycle continuing an existing one -- 1-CYCLE.md Phase 0 step 2/Gate 35); a continuing cycle's own checkpoint.ecosystem_resolution_ref just points back at this same file. Mutable, current-composition truth, not a historical log -- contrast verification-record/episode (never overwritten): re-save this if the ecosystem's own pillar composition genuinely changes later (e.g. adding the DEP pillar to a project that started Bridge-only).",
   "type": "object",
-  "required": ["resolution_id", "ecosystem_root", "project_kind", "app_runtimes", "pillars", "resolved_at"],
+  "required": ["resolution_id", "ecosystem_root", "project_kind", "app_runtimes", "use_git", "pillars", "resolved_at"],
   "properties": {
     "resolution_id": {
       "type": "string",
@@ -22,6 +22,11 @@
       "type": "string",
       "enum": ["backend", "frontend", "both"],
       "description": "The `app_runtimes` Bootstrap question's own answer -- does this application have a backend, a frontend, or both (packs/README.md 'Starting the Bootstrap agent'). Recorded here regardless of whether the Bridge pillar was adopted: when it was, this is ALSO reflected as one `pillars.bridge.runtimes[]` entry per runtime named here, but a Bridge-free ecosystem has nowhere else this answer would ever be written down, and the Builder still needs to know it."
+    },
+    "use_git": {
+      "type": "string",
+      "enum": ["yes", "no"],
+      "description": "The `use_git` Bootstrap question's own answer -- whether this project wants git version control. Never inferred (e.g. from whether a .git directory happens to already exist) and never left implicit: DEP's own git-aware tooling (blueprint/dep/state_ref.py's `vcs` probe, blueprint/dep/git_commit_event.py) already fails gracefully -- not loudly -- when there's no real git repository, so a project that wanted git but never got it actually initialized would silently get the same graceful-nothing forever, for a reason the user never chose. \"yes\" is a real action taken at resolve time (packs/bootstrap.py's own `ensure_git_repo`), not just a fact noted here."
     },
     "app_language": {
       "type": "object",

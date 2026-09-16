@@ -135,7 +135,7 @@ mechanism is the AskUserQuestion tool; if you're running as some other
 agent, use whatever equivalent choice/menu mechanism you have — do not
 fall back to prose-and-free-text just because rendering a real choice
 takes one more tool call. `"closed"` (`pillars`, `project_kind`,
-`app_runtimes`) has no free-text fallback at all: its `options` are the complete, only
+`app_runtimes`, `use_git`) has no free-text fallback at all: its `options` are the complete, only
 valid answers, offered as clickable choices. `"open_with_default"` /
 `"open_with_options"` pair their `options` with whatever free-text/
 "Other" fallback your mechanism provides automatically — never add a
@@ -199,6 +199,19 @@ only the flow and options are:
     ecosystem-resolution record (omit either flag entirely if its
     matching question never applied) — see "No Bridge means no
     capability vocabulary" below for what this answer constrains.
+- **`use_git`**: independent of every pillar — version control is a
+  property of the project, not of any adopted pillar. "yes" is a real
+  action, not just a fact noted: the `resolve` command below actually
+  calls `ensure_git_repo(<location>)` right after a successful write,
+  running `git init` there if it isn't already a real git repository (and
+  doing nothing, safely, if it already is — safe to answer "yes" for an
+  `project_kind: "existing"` project that may already have git). Worth
+  asking explicitly rather than silently assuming either way: DEP's own
+  git-aware tooling (`blueprint/dep/state_ref.py`'s `vcs` probe,
+  `blueprint/dep/git_commit_event.py`) already fails gracefully — not
+  loudly — with no real git repository, so a "yes" that never actually
+  got `git init` run would silently get that same graceful-nothing
+  forever, for a reason the user never chose.
 - **`location`**: given by the user, never proposed or suggested by
   you. A relative location or plain description ("a folder called
   my-app next to this repo", "in my usual projects folder") is also
@@ -225,8 +238,10 @@ the rest of each adopted pack's own `files.required`. Wire any
 --pillars-file <a JSON file you write, matching the schema's `pillars`
 shape -- one `runtimes[]` entry per runtime named in `app_runtimes`,
 each with its own `language`, if Bridge was adopted> --project-kind
-{new,existing} --app-runtimes {backend,frontend,both}
-[--app-language-backend <answer>] [--app-language-frontend <answer>]`.
+{new,existing} --app-runtimes {backend,frontend,both} --use-git {yes,no}
+[--app-language-backend <answer>] [--app-language-frontend <answer>]`
+— prints the written record's path, then (only if `--use-git yes`) a
+second line reporting what `ensure_git_repo` actually did.
 
 **Pass `--app-runtimes` even when Bridge was never adopted — there is
 nowhere else that answer would ever be written down.** Pass

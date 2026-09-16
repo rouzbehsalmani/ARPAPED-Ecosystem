@@ -22,6 +22,7 @@ def _bridge_only_record() -> dict:
         "ecosystem_root": "test/app",
         "project_kind": "new",
         "app_runtimes": "backend",
+        "use_git": "yes",
         "pillars": {
             "bridge": {
                 "runtimes": [
@@ -48,6 +49,7 @@ def _dep_only_record() -> dict:
         "ecosystem_root": "test/app",
         "project_kind": "existing",
         "app_runtimes": "backend",
+        "use_git": "no",
         "pillars": {
             "dep": {
                 "dep_root": "test/app/dep",
@@ -64,6 +66,7 @@ def _cycles_only_record() -> dict:
         "ecosystem_root": "test/app",
         "project_kind": "new",
         "app_runtimes": "both",
+        "use_git": "yes",
         "pillars": {
             "cycles": {
                 "cycle_doc": "blueprint/1-CYCLE.md",
@@ -182,6 +185,29 @@ class EcosystemResolutionTests(unittest.TestCase):
         record["app_runtimes"] = "not-a-real-runtime"
         with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
             ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_missing_use_git_refused(self):
+        # Never left implicit -- same reasoning as project_kind/app_runtimes:
+        # DEP's own git-aware tooling already fails gracefully with no
+        # real git repo, so a silently-absent use_git could never be told
+        # apart from "wanted git, but nobody ever ran git init".
+        record = _dep_only_record()
+        del record["use_git"]
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_invalid_use_git_refused(self):
+        record = _dep_only_record()
+        record["use_git"] = "sure"
+        with self.assertRaises(ecosystem_resolution.EcosystemResolutionError):
+            ecosystem_resolution.save_resolution_record(record, self.path)
+
+    def test_use_git_round_trips(self):
+        record = _bridge_only_record()
+        self.assertEqual(record["use_git"], "yes")
+        ecosystem_resolution.save_resolution_record(record, self.path)
+        loaded = ecosystem_resolution.load_resolution_record(self.path)
+        self.assertEqual(loaded["use_git"], "yes")
 
     def test_app_language_absent_for_bridge_only_is_valid(self):
         # A Bridge-adopting ecosystem has nothing to put in app_language --

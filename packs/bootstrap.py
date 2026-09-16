@@ -3,7 +3,7 @@
 the pillar combinations, and what the Builder agent runs to read the
 handoff.
 
-Five commands:
+Six commands:
 
   python -m packs.bootstrap list-pillars
       Prints every adoptable pillar and every non-empty combination of
@@ -18,9 +18,9 @@ Five commands:
       (closed/open_with_default/open_with_options/open), and its real
       option set, if any -- as concrete data, never a question already
       answered, and never one whose precondition isn't met yet. `pillars`,
-      `project_kind`, `app_runtimes`, `location` are unconditional --
-      asked for every pillar combination, since none of them describe
-      the Bridge specifically. Everything else needs BOTH `pillars` and
+      `project_kind`, `app_runtimes`, `use_git`, `location` are
+      unconditional -- asked for every pillar combination, since none of
+      them describe the Bridge specifically. Everything else needs BOTH `pillars` and
       `app_runtimes` answered first, and comes in one of two mutually
       exclusive pairs per runtime: `bridge_language_backend`/
       `bridge_language_frontend` when Bridge IS among `pillars`, or
@@ -50,8 +50,9 @@ Five commands:
 
   python -m packs.bootstrap resolve --ecosystem-root PATH --pillars-file FILE
       --project-kind {new,existing} --app-runtimes {backend,frontend,both}
-      [--app-language-backend TEXT] [--app-language-frontend TEXT]
-      [--combine-with-file FILE] [--out PATH] [--resolved-by NAME]
+      --use-git {yes,no} [--app-language-backend TEXT]
+      [--app-language-frontend TEXT] [--combine-with-file FILE]
+      [--out PATH] [--resolved-by NAME]
       Writes a new ecosystem-resolution record
       (ecosystem-resolution-record.schema.json,
       blueprint.dep.ecosystem_resolution) from a `pillars-file` -- a JSON
@@ -64,7 +65,10 @@ Five commands:
       stdout, or 1 with why not on stderr (schema-invalid input, OR --
       real, observed failure -- ecosystem_root has no actual files
       copied/ported into it yet: this refuses rather than writing a
-      record that describes an ecosystem that doesn't exist).
+      record that describes an ecosystem that doesn't exist). When
+      `--use-git yes`, ALSO calls `ensure_git_repo` right after a
+      successful write and prints its result -- a real `git init`, not
+      just a note in the record.
 
   python -m packs.bootstrap describe PATH
       Pretty-prints an existing resolution record -- which pillars, what
@@ -89,6 +93,14 @@ Five commands:
       contracts/capabilities tree for a DEP+Cycles-only resolution
       anyway.
 
+  python -m packs.bootstrap ensure-git --ecosystem-root PATH
+      Makes PATH a real git working tree if it isn't one already (`git
+      init`); does nothing if it already is. Idempotent, non-fatal if
+      git isn't on PATH (reports that instead of raising). `resolve
+      --use-git yes` already calls this once automatically -- run it
+      again standalone anytime to confirm, or if `--use-git` was
+      answered after the fact.
+
 Nothing here duplicates a pack's own content -- `list-pillars` reads
 packs/*.yaml directly every time, so it can never go stale independently
 of them. `questions`' own option sets (e.g. the Bridge-language
@@ -104,6 +116,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -270,6 +283,25 @@ _QUESTIONS: list[dict[str, Any]] = [
         "applies": lambda a: "bridge" not in (a.get("pillars") or ()) and a.get("app_runtimes") in ("frontend", "both"),
     },
     {
+        "id": "use_git",
+        "text": "Do you want this project to use git for version control?",
+        "kind": "closed",
+        "options": ["yes", "no"],
+        # Independent of every pillar -- version control is a property of
+        # the project, not of any adopted pillar. Worth asking explicitly
+        # rather than silently assuming: DEP's own git-aware tooling
+        # (blueprint/dep/state_ref.py's `vcs` probe,
+        # blueprint/dep/git_commit_event.py) only produces anything if the
+        # project is a REAL git repository, and both already fail
+        # gracefully rather than loudly when it isn't -- a "yes" answer
+        # that never actually got `git init` run would silently get that
+        # same graceful-nothing forever, for a reason the user never
+        # chose. See `ensure_git_repo()` below: a "yes" here is a real
+        # action taken (git init, if not already a repo), not just a fact
+        # noted in the resolution record.
+        "applies": lambda a: True,
+    },
+    {
         "id": "location",
         "text": "Where should the new project live?",
         "kind": "open",
@@ -402,11 +434,66 @@ def _has_real_content_besides_state(ecosystem_root: Path) -> bool:
     return any(entry.name != "state" for entry in ecosystem_root.iterdir())
 
 
+def ensure_git_repo(ecosystem_root: Path) -> str:
+    """Makes `ecosystem_root` a real git working tree when the Bootstrap
+    `use_git` question was answered "yes" -- a real action taken, not a
+    fact recorded and left for someone else to act on (the same
+    discipline packs/README.md's own "actually copy the files" already
+    established for pillar files). Returns a short, human-readable status
+    string; NEVER raises -- git is optional infrastructure DEP's own
+    tooling already treats as best-effort
+    (blueprint/dep/state_ref.py's own `vcs` probe never fails the caller
+    over a missing git, `blueprint/dep/git_commit_event.py`'s posture is
+    the deliberate inverse, loud, because THAT module's whole job is
+    recording a real git action that must have already happened) -- this
+    one is closer to state_ref's posture: report, don't crash a Bootstrap
+    flow over git being absent.
+
+    Three outcomes:
+      - `ecosystem_root` is already a real git working tree (`git
+        rev-parse --is-inside-work-tree` succeeds) -- does nothing,
+        reports that.
+      - It isn't yet, and `git` is on PATH -- runs `git init` there,
+        reports confirmation.
+      - `git` isn't installed/on PATH at all -- reports that instead of
+        raising; whoever is driving the Bootstrap flow decides whether to
+        install git and re-run, or proceed without it.
+    """
+
+    ecosystem_root = ecosystem_root.resolve()
+    # Created BEFORE any subprocess call, unconditionally -- a
+    # not-yet-existing cwd would make `run()` fail with the SAME OSError
+    # a genuinely-missing git binary produces, misreporting "git is not
+    # available" for what's actually "this directory doesn't exist yet".
+    ecosystem_root.mkdir(parents=True, exist_ok=True)
+
+    def run(*args: str) -> Optional[subprocess.CompletedProcess]:
+        try:
+            return subprocess.run(
+                ["git", *args], cwd=str(ecosystem_root), capture_output=True, text=True, timeout=10.0,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    probe = run("rev-parse", "--is-inside-work-tree")
+    if probe is None:
+        return f"git is not available on PATH -- install it, then run `git init` in {ecosystem_root} yourself."
+    if probe.returncode == 0 and probe.stdout.strip() == "true":
+        return f"{ecosystem_root} is already a git repository -- nothing to do."
+
+    init_result = run("init")
+    if init_result is not None and init_result.returncode == 0:
+        return f"initialized a new git repository at {ecosystem_root}."
+    detail = (init_result.stderr.strip() or init_result.stdout.strip()) if init_result is not None else "git init could not be run"
+    return f"`git init` failed in {ecosystem_root}: {detail}"
+
+
 def resolve(
     ecosystem_root: Path,
     pillars_file: Path,
     project_kind: str,
     app_runtimes: str,
+    use_git: str,
     app_language_backend: Optional[str] = None,
     app_language_frontend: Optional[str] = None,
     combine_with_file: Optional[Path] = None,
@@ -429,7 +516,16 @@ def resolve(
     question's own answer, ALSO stored verbatim -- real, observed failure
     this param fixes: the question was asked and answered, but the answer
     was never written into the record anywhere, so the Builder agent had
-    no way to know it. `app_language_backend`/`app_language_frontend` are
+    no way to know it. `use_git` (`"yes"`/`"no"`, that matching question's
+    own answer) is stored the same way. This function itself only
+    RECORDS `use_git` -- it never calls `ensure_git_repo` itself, staying
+    a pure record-writer (no subprocess side effects to account for when
+    testing `resolve` in isolation); the `resolve` CLI command is what
+    actually calls `ensure_git_repo(ecosystem_root)` right after a
+    successful resolve when `use_git` is `"yes"`, printing its result.
+    A caller using this function directly (not the CLI) that wants the
+    same real action should call `ensure_git_repo` itself.
+    `app_language_backend`/`app_language_frontend` are
     each `None` UNLESS the matching `app_language_backend`/
     `app_language_frontend` Bootstrap question was actually asked and
     answered -- which only happens when Bridge is NOT among `pillars`
@@ -490,6 +586,7 @@ def resolve(
         "ecosystem_root": str(ecosystem_root),
         "project_kind": project_kind,
         "app_runtimes": app_runtimes,
+        "use_git": use_git,
         "pillars": pillars,
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -519,6 +616,7 @@ def describe(path: Path) -> None:
     print(f"ecosystem_root: {record['ecosystem_root']}")
     print(f"project_kind:   {record['project_kind']}")
     print(f"app_runtimes:   {record['app_runtimes']}")
+    print(f"use_git:        {record['use_git']}")
     if "app_language" in record:
         for runtime, language in record["app_language"].items():
             print(f"app_language:   {runtime}: {language}")
@@ -616,6 +714,12 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="The app_runtimes question's own answer. Recorded even with no Bridge adopted -- there is nowhere else it would ever be written down.",
     )
     p_resolve.add_argument(
+        "--use-git", required=True, choices=["yes", "no"],
+        help="The use_git question's own answer. \"yes\" makes this command also run "
+        "ensure_git_repo(ecosystem-root) right after a successful resolve -- a real git init, not "
+        "just a note in the record.",
+    )
+    p_resolve.add_argument(
         "--app-language-backend", default=None,
         help="The app_language_backend question's own answer, if it was actually asked (Bridge NOT among --pillars-file's own pillars, and --app-runtimes names backend/both). Omit entirely when it wasn't -- never pass a guessed value.",
     )
@@ -642,6 +746,14 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="Default: <ecosystem-root>/state/ecosystem-resolution.json",
     )
 
+    p_ensure_git = sub.add_parser(
+        "ensure-git",
+        help="Make --ecosystem-root a real git working tree if it isn't one already (git init). "
+        "Idempotent -- safe to run again anytime, e.g. to double-check after `resolve --use-git yes` "
+        "already ran it once.",
+    )
+    p_ensure_git.add_argument("--ecosystem-root", required=True, type=Path)
+
     return parser.parse_args(argv)
 
 
@@ -663,13 +775,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         try:
             out_path = resolve(
                 args.ecosystem_root, args.pillars_file, args.project_kind,
-                args.app_runtimes, args.app_language_backend, args.app_language_frontend,
+                args.app_runtimes, args.use_git, args.app_language_backend, args.app_language_frontend,
                 args.combine_with_file, args.out, args.resolved_by,
             )
         except ecosystem_resolution.EcosystemResolutionError as exc:
             print(f"bootstrap resolve: refused -- {exc}", file=sys.stderr)
             return 1
         print(out_path)
+        if args.use_git == "yes":
+            print(ensure_git_repo(args.ecosystem_root))
         return 0
 
     if args.command == "describe":
@@ -689,6 +803,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         for leak in leaks:
             print(f"  {leak}", file=sys.stderr)
         return 1
+
+    if args.command == "ensure-git":
+        print(ensure_git_repo(args.ecosystem_root))
+        return 0
 
     return 1  # unreachable -- argparse enforces one of the subcommands above
 
