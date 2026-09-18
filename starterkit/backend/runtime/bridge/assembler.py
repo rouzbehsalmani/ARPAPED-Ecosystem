@@ -45,6 +45,7 @@ from __future__ import annotations
 import importlib
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence
@@ -56,8 +57,72 @@ from .registry import INPUT_TYPE_CHECKS, CapabilityImplementation, CapabilityReg
 if TYPE_CHECKING:
     from .bridge import Bridge
 
-#: Executor reference format, e.g. "package.module:execute".
+#: Executor reference format, e.g. "capabilities/log/write/executor.py:execute".
 _EXECUTOR_SPLIT = ":"
+
+#: Optional readability marker a manifest's `executor:`/`contract:` field may
+#: lead with (e.g. "@app/capabilities/log/write/executor.py:execute") to make
+#: explicit that the path is anchored to this component's own root -- always
+#: stripped and resolved via self-location (`_RUNTIME_ROOT_DIR` below, or
+#: `implementation/build_catalog.py`'s own `_IMPLEMENTATION_ROOT` for
+#: `contract:`), never a value read from a config file: there is nothing to
+#: edit after copying or renaming, because neither anchor was ever hardcoded
+#: to begin with (see backend/README.md "Copying runtime/ elsewhere").
+_APP_MARKER = "@app/"
+
+
+def _strip_app_marker(path: str) -> str:
+    return path[len(_APP_MARKER):] if path.startswith(_APP_MARKER) else path
+
+#: This runtime's own root directory (bridge/ -> its parent), located from
+#: THIS file's own disk location -- never a hardcoded package name, never
+#: the current process's cwd -- so a `runtime/` folder copied, renamed, and
+#: run from EITHER its own parent directory (`python -m <name>.apps.log.main`)
+#: OR from inside itself (`python -m apps.log.main`) resolves its own
+#: siblings (`apps`, `capabilities`, `clients`) the same way every time (see
+#: backend/README.md "Copying runtime/ elsewhere"). Inserted onto `sys.path`
+#: (idempotent) so `bridge`/`capabilities`/`clients` are always importable as
+#: bare top-level packages, regardless of whether this runtime itself is
+#: ALSO reachable under some wrapper name (e.g. "my_app.bridge") from
+#: however the entry point was actually invoked.
+_RUNTIME_ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(_RUNTIME_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_ROOT_DIR))
+
+
+def _runtime_module_name(rel_path: str) -> str:
+    """Converts a manifest/catalog executor path's file-path half (relative
+    to this runtime's own root, forward slashes, optionally led with the
+    `@app/` marker, e.g. "@app/capabilities/log/write/executor.py") into a
+    bare dotted module name -- resolvable because `_RUNTIME_ROOT_DIR` above
+    is always on `sys.path` -- never a name tied to whatever this runtime's
+    own folder happens to be called or nested under."""
+
+    rel_path = _strip_app_marker(rel_path)
+    if rel_path.endswith(".py"):
+        rel_path = rel_path[: -len(".py")]
+    return rel_path.replace("/", ".")
+
+
+def _resolve_process_argv(executor_path: str | Sequence[str]) -> str | Sequence[str]:
+    """Resolves a process-kind executor's path(s) against this runtime's own
+    root directory (`_RUNTIME_ROOT_DIR`) instead of the current process's
+    cwd -- makes a copied-and-renamed `runtime/` work regardless of where
+    it's invoked from. A bare command name with no path separator (e.g. an
+    interpreter like "python3") is left alone -- resolved via PATH, same as
+    always -- and an already-absolute path is left alone too. An optional
+    leading `@app/` marker (same convention as `_runtime_module_name`) is
+    stripped before resolving."""
+
+    def _resolve_one(part: str) -> str:
+        part = _strip_app_marker(part)
+        if Path(part).is_absolute() or not any(sep in part for sep in ("/", "\\")):
+            return part
+        return str(_RUNTIME_ROOT_DIR / part)
+
+    if isinstance(executor_path, str):
+        return _resolve_one(executor_path)
+    return [_resolve_one(part) for part in executor_path]
 
 
 class AssemblerError(Exception):
@@ -342,7 +407,7 @@ def _read_contract_metadata(manifest: dict[str, Any], root: Optional[Path]) -> C
     if not isinstance(contract_path, str) or not contract_path.strip():
         return ContractMetadata()
 
-    resolved = root / contract_path
+    resolved = root / _strip_app_marker(contract_path)
     try:
         contract_doc = yaml.safe_load(resolved.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -485,16 +550,19 @@ def from_manifest(manifest: dict[str, Any], *, root: Optional[Path] = None) -> l
 
 
 def _load_executor(executor_path: str):
-    """Returns the callable referenced by a 'module:attr' executor path."""
+    """Returns the callable referenced by a 'relative/file/path.py:attr'
+    executor path (relative to this runtime's own root -- see
+    `_runtime_module_name`), never a hardcoded package name."""
 
     try:
-        module_name, attribute = executor_path.split(_EXECUTOR_SPLIT, 1)
+        rel_path, attribute = executor_path.split(_EXECUTOR_SPLIT, 1)
     except ValueError:
         raise AssemblerError(f"invalid executor path {executor_path!r}") from None
+    module_name = _runtime_module_name(rel_path)
     try:
         module = importlib.import_module(module_name)
     except ImportError as exc:
-        raise AssemblerError(f"cannot import executor module {module_name!r}: {exc}") from exc
+        raise AssemblerError(f"cannot import executor module {module_name!r} (from {rel_path!r}): {exc}") from exc
     if not hasattr(module, attribute):
         raise AssemblerError(
             f"executor module {module_name!r} has no attribute {attribute!r}"
@@ -554,7 +622,9 @@ def _build_implementation(
         from .process_executor import ProcessExecutorError, ProcessExecutorPool
 
         try:
-            executor = ProcessExecutorPool(executor_path, bridge=bridge, declared=dict(dependencies))
+            executor = ProcessExecutorPool(
+                _resolve_process_argv(executor_path), bridge=bridge, declared=dict(dependencies)
+            )
         except ProcessExecutorError as exc:
             raise AssemblerError(f"{implementation_id!r}: {exc}") from exc
     else:
@@ -741,7 +811,7 @@ def _read_operation_descriptions(
     if not isinstance(contract_path, str) or not contract_path.strip():
         return ""
     try:
-        contract_doc = yaml.safe_load((root / contract_path).read_text(encoding="utf-8"))
+        contract_doc = yaml.safe_load((root / _strip_app_marker(contract_path)).read_text(encoding="utf-8"))
     except OSError:
         return ""
     contract = (contract_doc or {}).get("contract", {})

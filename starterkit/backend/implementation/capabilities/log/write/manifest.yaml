@@ -5,11 +5,11 @@
 # resolve; the process-kind implementation stays reachable only by
 # whoever explicitly pins it (apps/log/dependencies.yaml's log_write_process).
 capability_id: log.write
-contract: starterkit/backend/implementation/contracts/log.write.contract.yaml
+contract: '@app/contracts/log.write.contract.yaml'
 contract_version: "1.0.0"
 implementations:
   - implementation_id: log.write.default
     version: "1.0.0"
     operations: [write]
-    executor: starterkit.backend.runtime.capabilities.log.write.executor:execute
+    executor: '@app/capabilities/log/write/executor.py:execute'
     priority: 100

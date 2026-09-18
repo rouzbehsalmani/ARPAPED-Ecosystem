@@ -13,6 +13,26 @@ placeholder — see `../README.md` "A real starter kit"); what's still
 worth replacing is the implementation bodies themselves, which are
 intentionally minimal (a line to stdout), not real logging behavior.
 
+## Quick start
+
+Three commands, in order, from the repository root:
+
+```
+dotnet build --output starterkit/backend/runtime/capabilities/log/write_process/bin starterkit/backend/implementation/capabilities/log/write_process
+python -m starterkit.backend.implementation.build_catalog
+python -m starterkit.backend.runtime.apps.log.main
+```
+
+The first builds the one out-of-process (C#) capability this starter kit
+ships — one-time, until you touch that project's own source (see "A
+capability in another language" for why `--output` is required, not
+optional). The second generates `runtime/capability-catalog.jsonl` from
+`implementation/`'s own contracts/manifests — re-run it after editing
+anything under `implementation/capabilities/` (see "Capability catalog").
+The third actually runs it — see "## Run" below for expected output, what
+each printed line means, and how to run it unattended (agent/script)
+instead of from an interactive terminal.
+
 ## Layout
 
 Files split into `implementation/` (contracts, manifests, build/verify
@@ -200,7 +220,7 @@ written in C# for this worked example — its name identifies what it
 proves, out-of-process vs. in-process, not the language) is a SECOND,
 real implementation of `log.write` — same contract, same
 `contract_version`, but its manifest sets `executor_kind: process` and
-its `executor:` names a compiled program instead of a `module:attr` path.
+its `executor:` names a compiled program instead of a `relative/file/path.py:attr` executor.
 `runtime/bridge/assembler.py` spawns it once, at assembly time, into a
 `ProcessExecutorPool` (`runtime/bridge/process_executor.py`) instead of importing
 anything; the pool becomes the executor and is verified to have actually
@@ -299,7 +319,7 @@ Python call — genuinely coupled to the Bridge's own language, unlike
 If this runtime's Bridge is ever reimplemented in a different language,
 those capabilities' own files must not be edited or deleted to
 keep them reachable (blueprint/2-RULES.md R4) — `direct_adapter.py` is the fix:
-given a capability's `module:attr` executor path at runtime, it imports
+given a capability's `relative/file/path.py:attr` executor path at runtime, it imports
 that exact callable and hands it straight to
 `bridge_client.serve_direct`/`serve_factory` — so a non-Python assembler
 can spawn this adapter instead of importing the capability directly,
@@ -361,21 +381,18 @@ Expected terminal output:
 [INFO] This is a test of the Bridge's log.write capability.
 [WARN] Something worth flagging.
 [INFO] API running at http://127.0.0.1:8420 (/bridge). Ctrl+C to stop.
-Now serve the frontend separately, e.g.:
-    python -m starterkit.frontend.runtime.host.serve
-then open http://127.0.0.1:8421/apps/log/ in a browser.
 ```
 
-The first two lines are both printed by `log.write.default` (the
-unpinned `log_write` name's highest-priority policy-allowed candidate,
-see "log.write's two implementations") — the second passes
-`level: "warn"`, the contract's own `enum`, not a domain-specific check
-either executor writes itself (see "What every executor here does NOT
-check"). The third `log.write`-shaped call, `log_write_process`, reached
-only because `apps/log/dependencies.yaml` pins its `implementation_id`
-explicitly, runs `log.write.process` — a genuinely separate,
-out-of-process C# program (see "A capability in another language") —
-but its own `Console.WriteLine` output is captured internally by
+All three lines are printed by `log.write.default` (the unpinned
+`log_write` name's highest-priority policy-allowed candidate, see
+"log.write's two implementations") — the second passes `level: "warn"`,
+the contract's own `enum`, not a domain-specific check either executor
+writes itself (see "What every executor here does NOT check"). The
+third `log.write`-shaped call, `log_write_process`, reached only because
+`apps/log/dependencies.yaml` pins its `implementation_id` explicitly,
+runs `log.write.process` — a genuinely separate, out-of-process C#
+program (see "A capability in another language") — but its own
+`Console.WriteLine` output is captured internally by
 `ProcessExecutorPool` as this call's own recorded `evidence.stdout`
 (`verification-record.schema.json`), never inherited by this terminal.
 That's the exact same property that once made a genuinely healthy run
@@ -385,18 +402,17 @@ design, so its absence here proves nothing is wrong. Inspect
 `state/verification-record.json` (after a `verify.py` run) to see that
 line for real.
 
-The fourth line IS printed by `log.write.default` too — `main.py` logs
+The third line IS printed by `log.write.default` too — `main.py` logs
 its own startup status through the same `log` handle the first two calls
 use, right after `web.serve.start` returns (an API endpoint only,
 `/bridge` and `/health`, never a static file server), the same way a
 real backend logs its own lifecycle rather than using a bare `print()`.
-The two lines after that ARE a plain `print()`, deliberately: CLI
-guidance for the human at this terminal (how to bring the frontend up
-against this API), not an event this service would ever log on its own
-— see `../README.md` "Two servers, not one" for why they're separate
-processes at all, and `../frontend/README.md` "Run" to act on them.
-Ctrl+C stops the server and logs one more line, `[INFO] server stopped`,
-the same way.
+See `../frontend/README.md` "Run" for bringing the frontend up
+separately against this API (`../README.md` "Two servers, not one" for
+why they're separate processes at all) — this backend's own entry point
+never prints or logs anything about the frontend; it has no way to know
+whether one is even running. Ctrl+C stops the server and logs one more
+line, `[INFO] server stopped`, the same way.
 
 ### Run (agent-driven / automated)
 

@@ -7,14 +7,21 @@ app's own folder, because none of this is specific to one app -- copying
 it into every apps/<name>/ folder would just be the same ~90 lines
 duplicated verbatim each time; a second app just calls make_resolver too.
 
-Imports everything under runtime/ (the Bridge, below) by RELATIVE
-import, on purpose -- `runtime/` is the actual standalone, copyable unit
+Imports everything under runtime/ (the Bridge, below) as a BARE absolute
+import (`bridge.X`, never `..bridge.X`) after inserting this runtime's own
+root onto `sys.path` -- `runtime/` is the actual standalone, copyable unit
 (not this apps/ folder, not any one app's own folder): drop it anywhere,
-under any package name, and these imports still resolve, because they
-never hardcode "starterkit.backend" or any other name above runtime/
-itself. Only `blueprint.dep.runtime_log` (further below) reaches OUTSIDE
-runtime/ -- a real, optional companion (packs/dep.yaml), never assumed
-present.
+under any package name (or none -- run `python -m apps.log.main` from
+INSIDE a copied `runtime/` itself, no wrapper name at all), and these
+imports still resolve, because `bridge`/`capabilities`/`clients` are
+always reached as top-level names relative to THIS file's own disk
+location, never a hardcoded name above runtime/ itself, and never a
+relative import that assumes `apps` has some particular parent (a plain
+`from ..bridge.X import Y` breaks the moment `apps` itself has no parent
+package, e.g. exactly the "run from inside runtime/" case above -- see
+backend/README.md "Copying runtime/ elsewhere"). Only
+`blueprint.dep.runtime_log` (further below) reaches OUTSIDE runtime/ -- a
+real, optional companion (packs/dep.yaml), never assumed present.
 
 Each app's own main.py calls make_resolver(Path(__file__).resolve().parent)
 once, at import time, and gets back resolve(name, operation) -- name and
@@ -35,15 +42,24 @@ share Bridge state between them even though they share the same
 underlying catalog file.
 """
 
+import sys
 from pathlib import Path
 
 import yaml
 
-from ..bridge.assembler import assemble_from_catalog
-from ..bridge.bridge import Bridge, BridgeError
-from ..bridge.policy import StaticPolicyEngine
-from ..bridge.registry import CapabilityRegistry
-from ..bridge.selector import DeterministicSelector
+# runtime/apps/requests.py -> parent=apps, parent.parent=runtime -- inserted
+# onto sys.path (idempotent) BEFORE the bridge.* imports below so they
+# resolve as bare top-level names regardless of whether this runtime is
+# reached via some wrapper package or run directly from inside itself.
+_RUNTIME_ROOT = Path(__file__).resolve().parent.parent
+if str(_RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_ROOT))
+
+from bridge.assembler import assemble_from_catalog
+from bridge.bridge import Bridge, BridgeError
+from bridge.policy import StaticPolicyEngine
+from bridge.registry import CapabilityRegistry
+from bridge.selector import DeterministicSelector
 
 try:
     # Optional, duck-typed, same posture packs/bridge.yaml's own
@@ -56,9 +72,6 @@ try:
     from blueprint.dep.runtime_log import RuntimeEventLog
 except ImportError:
     RuntimeEventLog = None
-
-# runtime/apps/requests.py -> parent=apps, parent.parent=runtime.
-_RUNTIME_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _load_declared_dependencies(raw):

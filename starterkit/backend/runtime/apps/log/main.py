@@ -25,10 +25,7 @@ This entry point's own startup/shutdown status ("API running at...",
 "server stopped") is logged through the SAME `log` handle as the three
 calls above -- a real backend logs its own lifecycle through its logger,
 not a bare `print()`, now that `log.write` is real domain content rather
-than a disposable placeholder. The frontend-serving instructions
-immediately after stay a plain `print()` deliberately: that's CLI
-guidance for the human at this terminal, not an event this service would
-ever log on its own.
+than a disposable placeholder.
 
 Run from the repository root (build the C# executor first -- see
 capabilities/log/write_process/manifest.yaml):
@@ -53,9 +50,6 @@ def main():
     server = resolve("web_serve", "start")
     result = server.call({"host": "127.0.0.1", "port": 8420})
     log.call({"message": f"API running at {result.output['url']} (/bridge). Ctrl+C to stop."})
-    print("Now serve the frontend separately, e.g.:")
-    print("    python -m starterkit.frontend.runtime.host.serve")
-    print("then open http://127.0.0.1:8421/apps/log/ in a browser.")
     try:
         while True:
             pass

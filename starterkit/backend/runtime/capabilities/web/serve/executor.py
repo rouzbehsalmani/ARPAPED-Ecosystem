@@ -21,13 +21,23 @@ its own /health route before replying with the URL.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from ....bridge.bridge import BridgeError
-from ....bridge.policy import PolicyContext
+# capabilities/web/serve/executor.py -> runtime root is 3 parents up --
+# inserted onto sys.path (idempotent) so the bare imports below resolve
+# whether this runtime is reached via a wrapper package or run directly
+# from inside itself (see backend/README.md "Copying runtime/ elsewhere").
+_RUNTIME_ROOT = Path(__file__).resolve().parents[3]
+if str(_RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_ROOT))
+
+from bridge.bridge import BridgeError
+from bridge.policy import PolicyContext
 
 
 def make_executor(dependencies):

@@ -6,12 +6,12 @@
 # to dispatch an incoming remote request, so its executor is a factory:
 # (dependencies) -> executor, invoked once at assembly time. See executor.py.
 capability_id: web.serve
-contract: starterkit/backend/implementation/contracts/web.serve.contract.yaml
+contract: '@app/contracts/web.serve.contract.yaml'
 contract_version: "1.0.0"
 implementations:
   - implementation_id: web.serve.default
     version: "1.0.0"
     operations: [start, stop]
-    executor: starterkit.backend.runtime.capabilities.web.serve.executor:make_executor
+    executor: '@app/capabilities/web/serve/executor.py:make_executor'
     executor_kind: factory
     priority: 100
