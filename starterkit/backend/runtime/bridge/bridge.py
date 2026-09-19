@@ -59,6 +59,24 @@ class BridgeResponse:
     evidence: Optional[dict[str, Any]] = None
 
 
+#: Cap on any single `details` value's own printed length in
+#: `BridgeError.__str__` -- a raw traceback is not the place to dump an
+#: entire subprocess's stdout, but silently showing NOTHING (the previous
+#: behavior) is worse: `details` (e.g. a failed subprocess's real stderr)
+#: is exactly the payload someone reading this error needs, and it used to
+#: be invisible unless you already knew to inspect `exc.details` by hand.
+_DETAIL_PREVIEW_LIMIT = 300
+
+
+def _preview_detail(value: Any) -> str:
+    text = value if isinstance(value, str) else repr(value)
+    text = text.strip()
+    if len(text) <= _DETAIL_PREVIEW_LIMIT:
+        return repr(text) if isinstance(value, str) else text
+    omitted = len(text) - _DETAIL_PREVIEW_LIMIT
+    return f"{text[:_DETAIL_PREVIEW_LIMIT]!r}... (+{omitted} more chars)"
+
+
 @dataclass
 class BridgeError(Exception):
     code: str
@@ -67,7 +85,11 @@ class BridgeError(Exception):
     details: Optional[dict[str, Any]] = None
 
     def __str__(self) -> str:
-        return f"{self.code}@{self.stage}: {self.message}"
+        base = f"{self.code}@{self.stage}: {self.message}"
+        if not self.details:
+            return base
+        preview = ", ".join(f"{key}={_preview_detail(value)}" for key, value in self.details.items())
+        return f"{base} ({preview})"
 
 
 def _event_envelope() -> dict[str, str]:
@@ -177,12 +199,35 @@ class BoundCapability:
         capability_id: str,
         operation: str,
         contract_version: str,
+        *,
+        caller: Optional[str] = None,
     ) -> None:
         self._bridge = bridge
         self._resolved = resolved
         self._capability_id = capability_id
         self._operation = operation
         self._contract_version = contract_version
+        # Set only when this handle was resolved through a `Dependencies`
+        # instance (a composing capability's own capability_id, e.g.
+        # "doc.align") -- never for a top-level app resolve (R6's single
+        # request-construction point has no "caller" above it to name).
+        # Lets a nested-call failure carry its own calling chain as ONE
+        # readable line, self-composing through however many levels deep a
+        # real failure actually is, instead of forcing whoever reads the
+        # error to reconstruct that chain from a raw Python traceback (see
+        # `_wrap_nested_failure`).
+        self._caller = caller
+
+    def _wrap_nested_failure(self, exc: BridgeError) -> BridgeError:
+        if not self._caller:
+            return exc
+        wrapped = BridgeError(
+            exc.code, exc.stage,
+            f"{self._caller} -> {self._capability_id}.{self._operation} failed: {exc.message}",
+            exc.details,
+        )
+        wrapped.__cause__ = exc
+        return wrapped
 
     def call(
         self,
@@ -199,7 +244,10 @@ class BoundCapability:
             policy_context=policy_context
             or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
         )
-        return self._bridge.handle(request, resolved=self._resolved, on_stage=on_stage)
+        try:
+            return self._bridge.handle(request, resolved=self._resolved, on_stage=on_stage)
+        except BridgeError as exc:
+            raise self._wrap_nested_failure(exc) from exc
 
     def call_with_timeout(
         self,
@@ -224,7 +272,10 @@ class BoundCapability:
             policy_context=policy_context
             or PolicyContext(user={}, consumer={}, ecosystem={}, provider={}, module={}),
         )
-        return self._bridge.handle_with_timeout(request, resolved=self._resolved, stage_timeout=stage_timeout)
+        try:
+            return self._bridge.handle_with_timeout(request, resolved=self._resolved, stage_timeout=stage_timeout)
+        except BridgeError as exc:
+            raise self._wrap_nested_failure(exc) from exc
 
 
 class Dependencies:
@@ -260,9 +311,18 @@ class Dependencies:
     or fails loudly (`BRIDGE_NO_IMPLEMENTATION`) if nothing does.
     """
 
-    def __init__(self, bridge: "Bridge", declared: dict[str, str]) -> None:
+    def __init__(self, bridge: "Bridge", declared: dict[str, str], *, owner: Optional[str] = None) -> None:
         self._bridge = bridge
         self._declared = declared
+        # This Dependencies instance's own owning capability_id (e.g.
+        # "doc.align") -- the composing capability whose factory/process
+        # this was constructed for (assembler.py's own `_build_implementation`
+        # passes it). Threaded into every `BoundCapability` this resolves so
+        # a nested call's own failure carries a one-line calling-chain
+        # breadcrumb (see `BoundCapability._wrap_nested_failure`) instead of
+        # only being reconstructable from a raw Python traceback. `None` for
+        # a `Dependencies` with no real owner to name.
+        self._owner = owner
 
     def resolve(self, capability_id: str, operation: str, **kwargs: Any) -> BoundCapability:
         if capability_id not in self._declared:
@@ -271,7 +331,9 @@ class Dependencies:
                 f"{capability_id!r} is not declared in this Dependencies' declared "
                 "capabilities — add it there before depending on it",
             )
-        return self._bridge.resolve(capability_id, operation, self._declared[capability_id], **kwargs)
+        return self._bridge.resolve(
+            capability_id, operation, self._declared[capability_id], caller=self._owner, **kwargs
+        )
 
 
 class Bridge:
@@ -296,7 +358,10 @@ class Bridge:
         # parameter -- passing it is strictly opt-in.
         self._event_sink = event_sink
 
-    def resolve(self, capability_id: str, operation: str, contract_version: str, **kwargs: Any) -> BoundCapability:
+    def resolve(
+        self, capability_id: str, operation: str, contract_version: str, *, caller: Optional[str] = None,
+        **kwargs: Any,
+    ) -> BoundCapability:
         """Discovers `capability_id`+`operation` once and returns a handle whose
         `call(...)` re-runs policy, selection, and execution on every use but
         reuses that discovery (see `BoundCapability`). `kwargs` forward to
@@ -310,9 +375,15 @@ class Bridge:
         resolve to the wrong candidate. Pass `"*"` explicitly if any
         version genuinely will do; the point is that the caller decides,
         never the Bridge.
+
+        `caller` is kept separate from `**kwargs` (never forwarded to
+        `registry.resolve`, which has no such parameter) -- it's the
+        resolved `BoundCapability`'s own calling-chain context (see
+        `Dependencies`/`BoundCapability._wrap_nested_failure`), `None` for a
+        top-level resolve with nothing above it to name.
         """
         resolved = self.registry.resolve(capability_id, operation, contract_version, **kwargs)
-        return BoundCapability(self, resolved, capability_id, operation, contract_version)
+        return BoundCapability(self, resolved, capability_id, operation, contract_version, caller=caller)
 
     def handle(
         self,

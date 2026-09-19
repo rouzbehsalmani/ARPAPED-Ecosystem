@@ -623,7 +623,8 @@ def _build_implementation(
 
         try:
             executor = ProcessExecutorPool(
-                _resolve_process_argv(executor_path), bridge=bridge, declared=dict(dependencies)
+                _resolve_process_argv(executor_path), bridge=bridge, declared=dict(dependencies),
+                owner=capability_id,
             )
         except ProcessExecutorError as exc:
             raise AssemblerError(f"{implementation_id!r}: {exc}") from exc
@@ -638,7 +639,7 @@ def _build_implementation(
                 )
             from .bridge import Dependencies
 
-            executor = raw(Dependencies(bridge, dict(dependencies)))
+            executor = raw(Dependencies(bridge, dict(dependencies), owner=capability_id))
             if not callable(executor):
                 raise AssemblerError(
                     f"executor factory {executor_path!r} must return a callable executor, "

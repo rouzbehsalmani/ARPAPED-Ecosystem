@@ -561,6 +561,25 @@ defines the shape, not the representation.
    failed, policy denied, no implementation available) — never let one
    propagate unhandled.
 
+**Error diagnostics.** `details` is real diagnostic payload (a failed
+subprocess's actual stderr, a timeout's partial trace, ...) — the
+canonical Bridge's own error type surfaces it directly in its string
+form (truncated if large), never silently drops it behind an attribute
+someone has to already know to inspect. When one capability composes
+another through `Dependencies` (R4) and the nested call fails, the
+canonical Bridge automatically prefixes the failure with the calling
+capability's own id (e.g. `doc.render -> doc.align.fix failed: ... ->
+agent.run.run failed: ...`) — a one-line calling-chain breadcrumb built
+into `Dependencies`/the resolved handle itself, the one place every
+nested call already passes through (R6), never something each composing
+executor has to reconstruct or wrap by hand. A capability whose own
+failure needs more context than a code/message/details triple can carry
+(e.g. an external process's full stdout, worth keeping even on success)
+should log it through whatever logging capability the ecosystem provides
+(`packs/cycles.yaml`'s `log.write`, if adopted) around the risky call, the
+same way any other capability-to-capability composition works — never a
+bespoke, capability-specific logging mechanism that bypasses the Bridge.
+
 **Bridge-specific rules.**
 
 1. Use the canonical Bridge; never create a local copy or second request

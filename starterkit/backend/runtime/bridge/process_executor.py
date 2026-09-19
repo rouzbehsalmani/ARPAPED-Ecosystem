@@ -151,7 +151,7 @@ class ProcessExecutorPool:
 
     def __init__(
         self, command: str | Sequence[str], *, bridge: "Bridge", declared: dict[str, str],
-        pool_size: int = 2, startup_timeout: float = 10.0,
+        pool_size: int = 2, startup_timeout: float = 10.0, owner: Optional[str] = None,
     ) -> None:
         # A manifest's executor: is written with forward slashes, same
         # convention as a contract: path -- normalized to the native
@@ -163,7 +163,12 @@ class ProcessExecutorPool:
         self._argv = [str(Path(part)) for part in parts]
         from .bridge import Dependencies  # deferred: see starterkit/backend/runtime/bridge/assembler.py's own Dependencies import
 
-        self._dependencies = Dependencies(bridge, dict(declared))
+        # `owner` (this implementation's own capability_id, e.g.
+        # "log.write.process") threads through to `Dependencies` so a nested
+        # call this process makes back through the Bridge carries a
+        # calling-chain breadcrumb on failure, same as a factory-kind
+        # executor's own Dependencies (assembler.py's `_build_implementation`).
+        self._dependencies = Dependencies(bridge, dict(declared), owner=owner)
         self._workers: "queue.Queue[_Worker]" = queue.Queue()
         # Evidence (2-RULES.md glossary) for the call this thread most
         # recently completed through this pool -- thread-local because one

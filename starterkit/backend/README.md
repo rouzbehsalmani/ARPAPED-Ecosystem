@@ -180,6 +180,21 @@ The dependency is pinned, not left open: `log.write` is declared as
 bare id. `Dependencies.resolve` always resolves at exactly that declared
 constraint — never `"*"`, never a value the factory chooses.
 
+A nested call made through `Dependencies` (like `web.serve`'s own call
+into `log.write` above) carries its OWN calling-capability context
+automatically: if that nested call fails, the raised `BridgeError`'s
+message is prefixed with `"web.serve -> log.write.write failed: ..."` —
+built into `Dependencies`/`BoundCapability` themselves (`runtime/bridge/bridge.py`), the
+one place every such call already passes through, never something
+`web.serve`'s own executor has to catch and wrap by hand. `BridgeError`'s
+own string form also always includes `details` (truncated if large) —
+the actual diagnostic payload (a failed subprocess's real stderr, a
+timeout's partial trace) was always there on the exception, this just
+stops it from being invisible in a raw traceback. See
+`blueprint/2-RULES.md` "Error diagnostics" for the full rule, including
+when a capability should also log through a logging capability (e.g.
+`log.write`) rather than relying on the error message alone.
+
 ## log.write's two implementations
 
 `implementation/contracts/log.write.contract.yaml` has exactly one
