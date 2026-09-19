@@ -37,10 +37,28 @@ gate-by-gate answer; the packs' own `combine_with` notes summarize it,
 they don't replace it.
 
 **All three together** is `starterkit/` itself — not a fourth pack to
-copy, a worked, runnable proof that the three combine cleanly. Copy
-`starterkit/` directly (README.md "A real starter kit") rather than
-assembling the three packs by hand if you want the full, integrated
-configuration.
+copy, a worked, runnable proof that the three combine cleanly. It is a
+reference to verify against and to copy the SHAPE from (README.md "A
+real starter kit"), never a single directory to copy wholesale, even for
+this full combination: assemble it the SAME way as any other
+combination below — each adopted pack's own `files.required`/
+`choose_at_least_one`, respecting `app_runtimes` (never copy `frontend/`
+when it wasn't chosen, and never `backend/` when it wasn't either) and
+each runtime's own resolved language (copy the reference files verbatim
+only when the language answer actually matched Python/JavaScript; port
+them otherwise, packs/bridge.yaml's own header). `log.write`/`web.serve`
+(in whatever language was actually resolved, ported if that wasn't
+Python) are the only capabilities a fresh bootstrap gets by default.
+**`log.write.process` (the C# out-of-process demo) and its own toolchain
+are never part of that default, for any language answer** — copy them
+only when the project genuinely needs to demonstrate or adopt
+cross-language capability composition, a deliberate, separate decision.
+Real, observed failure this note exists to prevent: a "copy starterkit/
+directly" bootstrap silently pulled in that C# project regardless of
+the resolved backend language, and with it a real .NET SDK/runtime
+version dependency nobody asked for — breaking the very first run on any
+machine whose installed .NET didn't happen to match what the project was
+built against.
 
 ## Two-agent split: the Bootstrap agent prepares the ecosystem, the Builder agent builds on it
 

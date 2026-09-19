@@ -103,7 +103,14 @@ worked C# process-kind capability) that already does everything
 `blueprint/0-WALKTHROUGH.md` describes: contract → manifest → executor →
 Bridge, one request-construction point, an entry point that decides
 nothing, a real verification harness, and real DEP recording. Copy it
-into a new project and start replacing its capabilities with real ones.
+into a new project and start replacing its capabilities with real ones —
+but never wholesale, and never as a substitute for what the Bootstrap
+agent's own language/runtime answers already resolved (`packs/README.md`
+"Starting the Bootstrap agent"): copy `backend/` only if `app_runtimes`
+named it, `frontend/` only if it named that, and only the files whose
+own language actually matches what was resolved for that runtime,
+porting instead where it doesn't (`packs/bridge.yaml`'s own
+`choose_at_least_one`).
 
 Its one capability, `log.write` (plus the frontend's `client.log`, which
 reports to it remotely), is deliberately real domain content, not a
@@ -116,3 +123,22 @@ themselves are intentionally minimal (a line to stdout) — a real
 deployment likely wants file output, rotation, structured JSON, or a
 real logging library behind the same contract, not this exact executor
 code verbatim.
+
+**`log.write.process` is not part of that default, for any language
+answer.** It's a SECOND, deliberately different-language (C#)
+implementation of `log.write` that exists only to prove out-of-process,
+cross-language composition works at all (`backend/README.md` "A
+capability in another language") — real, observed failure this note
+exists to prevent: bootstrapping a project by copying `starterkit/`
+wholesale silently pulled in a C# project, and with it a real .NET SDK/
+runtime version dependency nobody asked for or even knew was there,
+breaking the very first run on a machine whose installed .NET didn't
+happen to match (an easy mismatch: a `TargetFramework` pinned when this
+was built can go end-of-life on any machine that's since been updated).
+Whatever language was actually resolved for the backend, `log.write`
+(ported if that language isn't Python) is what a fresh bootstrap gets;
+`log.write.process` and its own toolchain (`implementation/clients/csharp/`,
+`runtime/clients/python/direct_adapter.py`) are copied only when a
+project genuinely needs to demonstrate or adopt cross-language capability
+composition — a deliberate, separate decision, never a side effect of
+copying the reference stack.
