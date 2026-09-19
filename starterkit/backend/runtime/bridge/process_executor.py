@@ -221,9 +221,39 @@ class ProcessExecutorPool:
         try:
             connection, _ = server.accept()
         except socket.timeout:
+            # A bare "did not connect" leaves the two most common real
+            # causes -- the program crashed immediately (missing runtime,
+            # missing DLL, an unhandled exception on its own startup path)
+            # vs. it's genuinely still running and just never opens the
+            # loopback connection -- indistinguishable, forcing whoever
+            # reads this to go spelunking for the process's own stdout/
+            # stderr by hand. `poll()` BEFORE `kill()` matters: `kill()`
+            # itself gives the process an exit code (TerminateProcess on
+            # Windows, SIGKILL on POSIX), so checking AFTER killing can
+            # never tell "it had already exited on its own" from "we just
+            # killed it" -- both look identical once dead.
+            exit_code = process.poll()
             process.kill()
+            # `communicate()` after `kill()` is safe (never blocks on a
+            # live process): the process is already dead or dying, so this
+            # only drains whatever it already wrote.
+            try:
+                stdout, stderr = process.communicate(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                stdout, stderr = b"", b""
+            stdout_text = (stdout or b"").decode("utf-8", errors="replace").strip()
+            stderr_text = (stderr or b"").decode("utf-8", errors="replace").strip()
+            if exit_code is not None:
+                raise ProcessExecutorError(
+                    f"process executor {self._argv!r} exited with code {exit_code} before ever "
+                    f"accepting the loopback connection this pool was waiting on -- it crashed or "
+                    f"exited on its own startup path, never a timing issue (stdout={stdout_text!r}, "
+                    f"stderr={stderr_text!r})"
+                ) from None
             raise ProcessExecutorError(
-                f"process executor {self._argv!r} did not connect within {startup_timeout}s"
+                f"process executor {self._argv!r} did not connect within {startup_timeout}s and was "
+                f"killed -- it was still running (not crashed) when the timeout hit "
+                f"(stdout={stdout_text!r}, stderr={stderr_text!r})"
             ) from None
         finally:
             server.close()
